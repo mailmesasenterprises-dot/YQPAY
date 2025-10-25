@@ -24,24 +24,14 @@ html {
 
 .customer-home {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  background: linear-gradient(135deg, #6B0E9B 0%, #5A0C82 100%);
+  background: #ffffff; /* Changed to white to match main content */
   min-height: 100vh;
   padding-bottom: 0;
   margin: 0 !important;
   padding-top: 0 !important;
   position: relative;
   overflow-x: hidden;
-}
-
-.customer-home::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: env(safe-area-inset-top, 0px);
-  background: linear-gradient(135deg, #6B0E9B 0%, #5A0C82 100%);
-  z-index: 1000;
+  overflow-y: auto;
 }
 
 /* ============================================
@@ -69,10 +59,7 @@ html {
   padding-top: calc(env(safe-area-inset-top) + 12px); /* Optimized top spacing */
   color: white;
   border-bottom: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+  position: relative;
   z-index: 999;
   margin-top: 0;
   overflow: visible;
@@ -149,6 +136,10 @@ html {
   gap: 8px;
 }
 
+.profile-dropdown-container {
+  position: relative;
+}
+
 .profile-btn {
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -182,6 +173,70 @@ html {
   color: white;
   transition: all 0.3s ease;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+/* Profile Dropdown Menu */
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  min-width: 220px;
+  overflow: hidden;
+  z-index: 1000;
+  animation: dropdownFadeIn 0.25s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-item {
+  width: 100%;
+  padding: 18px 20px;
+  background: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dropdown-item:last-child {
+  margin-bottom: 0;
+}
+
+.dropdown-item:hover {
+  background: #f8f9fa;
+}
+
+.dropdown-item:active {
+  background: #f0f1f3;
+}
+
+.dropdown-icon {
+  width: 28px;
+  height: 28px;
+  color: #ff5722;
+  flex-shrink: 0;
+}
+
+.dropdown-item span {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1a1a1a;
+  letter-spacing: 0.1px;
+  flex: 1;
 }
 
 .qr-seat-info {
@@ -308,10 +363,7 @@ html {
   padding: 25px 20px 8px;
   color: #f5f0e8;
   border-radius: 0 0 32px 32px;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+  position: relative;
   z-index: 999;
   margin-top: 0;
   padding-top: env(safe-area-inset-top);
@@ -798,12 +850,15 @@ html {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
-/* MAIN CONTENT - Add margin for fixed header */
+/* MAIN CONTENT - No padding needed for relative header */
 .customer-main {
-  padding-top: 240px; /* Adjusted header space to account for header + categories */
+  margin-top: 0;
+  padding-top: 0;
   padding-bottom: calc(100px + env(safe-area-inset-bottom)); /* Space for fixed button + safe area */
   background: #ffffff;
-  min-height: 100vh;
+  min-height: calc(100vh - 300px); /* Adjust to account for header height */
+  position: relative;
+  z-index: 10;
 }
 
 /* FILTER SECTION - Horizontal Scroll Chips */
@@ -811,8 +866,7 @@ html {
   padding: 12px 16px;
   background: white;
   border-bottom: 1px solid #f3f4f6;
-  position: sticky;
-  top: 240px;
+  position: relative;
   z-index: 50;
 }
 
@@ -1115,7 +1169,8 @@ html {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 16px;
+  margin-top: 8px;
 }
 
 /* Quantity Controls - Cart Style for Single Products (Category View) */
@@ -1127,6 +1182,50 @@ html {
   border-radius: 10px;
   padding: 4px;
   border: 1.5px solid rgba(212, 175, 55, 0.3);
+}
+
+/* Veg/Non-Veg Indicator below quantity controls */
+.product-veg-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.veg-badge,
+.non-veg-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+  text-transform: capitalize;
+}
+
+.veg-badge {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.non-veg-badge {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+.veg-dot {
+  color: #059669;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.non-veg-dot {
+  color: #dc2626;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .quantity-btn {
@@ -1289,9 +1388,29 @@ html {
 
 /* Out of Stock Styles */
 .product-card.out-of-stock {
-  opacity: 0.6;
+  opacity: 0.7;
   pointer-events: none;
+  position: relative;
 }
+
+/* Remove the top-right badge by commenting it out */
+/*
+.product-card.out-of-stock::after {
+  content: 'OUT OF STOCK';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
+}
+*/
 
 .product-card.out-of-stock:hover {
   transform: none;
@@ -1305,24 +1424,24 @@ html {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(255, 255, 255, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  z-index: 1;
+  z-index: 10;
 }
 
 .out-of-stock-text {
-  color: white;
-  font-size: 12px;
+  color: #dc2626;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  background: rgba(220, 38, 38, 0.9);
-  padding: 6px 12px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: rgba(220, 38, 38, 0.1);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 2px solid #dc2626;
 }
 
 .quantity-btn:disabled {

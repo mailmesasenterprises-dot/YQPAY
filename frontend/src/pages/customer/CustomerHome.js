@@ -35,6 +35,7 @@ const CustomerHome = () => {
   const [screenName, setScreenName] = useState(null);
   const [selectedCollection, setSelectedCollection] = useState(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   
   // Filter states
   const [isVegOnly, setIsVegOnly] = useState(false);
@@ -47,12 +48,14 @@ const CustomerHome = () => {
     const qr = params.get('qrName') || params.get('qrname') || params.get('QRNAME');
     const seatNum = params.get('seat') || params.get('SEAT');
     const screen = params.get('screen') || params.get('SCREEN') || params.get('screenName');
+    const category = params.get('category'); // Get saved category from URL
     
     console.log('🔍 URL Parameters:', {
       theaterid: id,
       qrName: qr,
       // seat: seatNum,
       screen: screen,
+      category: category,
       fullURL: location.search,
       allParams: Object.fromEntries(params.entries())
     });
@@ -72,6 +75,7 @@ const CustomerHome = () => {
     }
     if (seatNum) setSeat(seatNum);
     if (screen) setScreenName(screen);
+    if (category) setSelectedCategory(category); // Restore selected category
   }, [location.search]);
 
   const loadTheater = useCallback(async (id) => {
@@ -114,11 +118,25 @@ const CustomerHome = () => {
           }
           
           // Check if product is available (active and has stock)
-          const isActive = p.isActive !== false && p.status === 'active';
+          const isActive = p.isActive === true; // Must be explicitly true
           const trackStock = p.inventory?.trackStock !== false;
           const currentStock = p.inventory?.currentStock || 0;
           const hasStock = !trackStock || currentStock > 0;
           const isAvailable = isActive && hasStock;
+          
+          // Debug logging for ALL products to see stock info
+          console.log(`📦 Product: ${p.name}`, {
+            size: p.size || p.quantity,
+            currentStock,
+            trackStock,
+            rawTrackStock: p.inventory?.trackStock,
+            rawIsActive: p.isActive,
+            hasStock,
+            isActive,
+            isAvailable,
+            status: p.status,
+            inventory: p.inventory
+          });
           
           return {
             _id: p._id,
@@ -242,9 +260,10 @@ const CustomerHome = () => {
       }
       
       // Apply veg filter (only for category view, not "all")
+      // When toggle is ON, show only NON-VEG items
       if (isVegOnly) {
         individualProducts = individualProducts.filter(p => 
-          p.isVeg === true || p.category?.toLowerCase().includes('veg')
+          p.isVeg === false || (!p.isVeg && !p.category?.toLowerCase().includes('veg'))
         );
       }
       
@@ -355,6 +374,16 @@ const CustomerHome = () => {
     // Store the category ID (not the name) for filtering, except for 'all'
     console.log('📂 All categories:', categories.map(c => ({ id: c._id, name: c.name })));
     setSelectedCategory(categoryId === 'all' ? 'all' : categoryId);
+    
+    // Update URL to persist category selection on refresh
+    const params = new URLSearchParams(location.search);
+    if (categoryId === 'all') {
+      params.delete('category'); // Remove category param for 'all'
+    } else {
+      params.set('category', categoryId);
+    }
+    // Replace URL without reloading the page
+    window.history.replaceState({}, '', `${location.pathname}?${params.toString()}`);
   };
 
   // Handle adding product to cart
@@ -371,8 +400,9 @@ const CustomerHome = () => {
       image: product.image,
       quantity: 1,
       taxRate: product.pricing?.taxRate || product.taxRate || 0,
-      gstType: product.gstType || 'EXCLUDE',
-      discountPercentage: product.pricing?.discountPercentage || product.discountPercentage || 0
+      gstType: product.pricing?.gstType || product.gstType || 'EXCLUDE',
+      discountPercentage: product.pricing?.discountPercentage || product.discountPercentage || 0,
+      theaterId: theaterId // Add theater ID to cart item
     });
   };
 
@@ -408,6 +438,61 @@ const CustomerHome = () => {
       setIsCollectionModalOpen(true);
     }
   };
+
+  // Handle profile dropdown toggle
+  const handleProfileClick = () => {
+    setShowProfileDropdown(!showProfileDropdown);
+  };
+
+  // Handle order history navigation
+  const handleOrderHistory = () => {
+    setShowProfileDropdown(false);
+    // Get phone number from localStorage
+    const savedPhone = localStorage.getItem('customerPhone');
+    
+    console.log('📱 Navigating to order history with:', {
+      theaterId,
+      theaterName: theater?.name,
+      phoneNumber: savedPhone
+    });
+    
+    if (!savedPhone) {
+      alert('Please place an order first to view history');
+      return;
+    }
+    
+    navigate('/customer/order-history', {
+      state: {
+        theaterId,
+        theaterName: theater?.name,
+        phoneNumber: savedPhone
+      }
+    });
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    setShowProfileDropdown(false);
+    // Clear customer data
+    localStorage.removeItem('customerPhone');
+    localStorage.removeItem('cart');
+    localStorage.removeItem('yqpay_cart');
+    localStorage.removeItem('checkoutData');
+    // Redirect to customer landing page
+    navigate('/customer');
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProfileDropdown && !event.target.closest('.profile-dropdown-container')) {
+        setShowProfileDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProfileDropdown]);
 
   if (loading) return <div className="customer-loading"><div className="spinner"></div></div>;
 
@@ -462,12 +547,41 @@ const CustomerHome = () => {
             )}
           </div>
           <div className="header-actions">
-            <button className="profile-btn" aria-label="User profile">
-              <svg className="profile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </button>
+            <div className="profile-dropdown-container">
+              <button 
+                className="profile-btn" 
+                aria-label="User profile"
+                onClick={handleProfileClick}
+              >
+                <svg className="profile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </button>
+              
+              {showProfileDropdown && (
+                <div className="profile-dropdown">
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleOrderHistory}
+                  >
+                    <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    </svg>
+                    <span>Order History</span>
+                  </button>
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleLogout}
+                  >
+                    <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                    </svg>
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -661,11 +775,25 @@ const CustomerHome = () => {
                 
                 // Check if ANY variant in the collection is available
                 const hasAvailableVariant = collection.variants?.some(variant => 
-                  variant.originalProduct?.isAvailable !== false
+                  variant.originalProduct?.isAvailable === true
                 );
                 const isProductAvailable = collection.isCollection 
                   ? hasAvailableVariant 
-                  : (product?.isAvailable !== false);
+                  : (product?.isAvailable === true);
+                
+                // Debug logging
+                if (!isProductAvailable) {
+                  console.log(`🔴 Rendering out-of-stock: ${collection.name}`, {
+                    isCollection: collection.isCollection,
+                    hasAvailableVariant,
+                    productIsAvailable: product?.isAvailable,
+                    variants: collection.variants?.map(v => ({
+                      size: v.size,
+                      isAvailable: v.originalProduct?.isAvailable,
+                      currentStock: v.originalProduct?.currentStock
+                    }))
+                  });
+                }
                 
                 return (
                   <div 
@@ -768,6 +896,18 @@ const CustomerHome = () => {
                             </svg>
                           </button>
                         </div>
+                        {/* Veg/Non-Veg Indicator */}
+                        <div className="product-veg-indicator">
+                          {product.isVeg === true ? (
+                            <span className="veg-badge">
+                              <span className="veg-dot">●</span> Veg
+                            </span>
+                          ) : product.isVeg === false ? (
+                            <span className="non-veg-badge">
+                              <span className="non-veg-dot">●</span> Non-Veg
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -791,7 +931,8 @@ const CustomerHome = () => {
               ...(theaterId && { theaterid: theaterId }),
               ...(theater?.name && { theatername: theater.name }),
               ...(qrName && { qrname: qrName }),
-              ...(seat && { seat: seat })
+              ...(seat && { seat: seat }),
+              ...(selectedCategory && selectedCategory !== 'all' && { category: selectedCategory })
             });
             navigate(`/customer/cart?${params.toString()}`);
           }}

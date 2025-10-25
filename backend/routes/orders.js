@@ -270,6 +270,77 @@ router.post('/theater', [
 });
 
 /**
+ * GET /api/orders/theater/:theaterId
+ * Get orders for a specific theater from theaterorders collection
+ */
+router.get('/theater/:theaterId', [
+  optionalAuth
+], async (req, res) => {
+  try {
+    const { theaterId } = req.params;
+    const { status, limit = 50, source } = req.query;
+
+    console.log('📥 Fetching orders for theater:', theaterId);
+    console.log('Filters:', { status, limit, source });
+
+    // Validate theater ID
+    if (!mongoose.Types.ObjectId.isValid(theaterId)) {
+      return res.status(400).json({
+        error: 'Invalid theater ID'
+      });
+    }
+
+    // Find theater orders
+    const theaterOrders = await TheaterOrders.findOne({ theater: theaterId });
+
+    if (!theaterOrders || !theaterOrders.orderList || theaterOrders.orderList.length === 0) {
+      return res.status(200).json({
+        success: true,
+        orders: [],
+        total: 0
+      });
+    }
+
+    // Filter orders based on query parameters
+    let orders = theaterOrders.orderList;
+
+    // Filter by status if provided
+    if (status) {
+      orders = orders.filter(order => order.status === status);
+    }
+
+    // Filter by source if provided (e.g., 'qr_code' for customer orders)
+    if (source) {
+      orders = orders.filter(order => order.source === source);
+    }
+
+    // Sort by creation date (newest first)
+    orders = orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    // Apply limit
+    if (limit) {
+      orders = orders.slice(0, parseInt(limit));
+    }
+
+    console.log(`✅ Found ${orders.length} orders for theater`);
+
+    res.status(200).json({
+      success: true,
+      orders,
+      total: orders.length,
+      theaterId
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching theater orders:', error);
+    res.status(500).json({
+      error: 'Failed to fetch orders',
+      message: error.message
+    });
+  }
+});
+
+/**
  * GET /api/orders/my-orders
  * Get orders for the current user
  */

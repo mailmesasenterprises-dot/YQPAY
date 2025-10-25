@@ -1,124 +1,249 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import '../../styles/customer/CustomerOTPVerification.css';
 
 const CustomerOTPVerification = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { theaterId, qrName, seat } = useParams();
-  const phoneNumber = location.state?.phoneNumber || '+91 XXXXXXXXXX';
-  
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [timer, setTimer] = useState(30);
+  const [otp, setOtp] = useState(['', '', '', '']);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [resendTimer, setResendTimer] = useState(30);
+  const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef([]);
 
-  // Timer countdown
+  const phoneNumber = location.state?.phoneNumber || '';
+
   useEffect(() => {
-    if (timer > 0) {
-      const interval = setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(interval);
+    // Redirect back if no phone number
+    if (!phoneNumber) {
+      navigate('/customer/phone-entry');
+      return;
     }
-  }, [timer]);
+
+    // Auto-focus first OTP input
+    if (inputRefs.current[0]) {
+      inputRefs.current[0].focus();
+    }
+
+    // Start countdown timer
+    const timer = setInterval(() => {
+      setResendTimer((prev) => {
+        if (prev <= 1) {
+          setCanResend(true);
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [phoneNumber, navigate]);
 
   const handleOtpChange = (index, value) => {
-    if (value.length > 1) {
-      value = value.slice(-1);
-    }
+    if (value.length > 1) return; // Prevent multiple characters
+    if (!/^\d*$/.test(value)) return; // Only allow digits
 
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
+    setError('');
 
     // Auto-focus next input
-    if (value && index < 5) {
+    if (value && index < 3) {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-verify when all 6 digits are entered
-    if (newOtp.every(digit => digit !== '') && index === 5) {
-      handleVerify(newOtp.join(''));
+    // Auto-verify if all 4 digits entered
+    if (value && newOtp.every(digit => digit !== '')) {
+      setTimeout(() => handleVerifyOtp(newOtp), 500);
     }
   };
 
   const handleKeyDown = (index, e) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      // Focus previous input on backspace if current is empty
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleVerify = (otpCode) => {
-    // Simulate OTP verification
-    console.log('Verifying OTP:', otpCode);
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    const newOtp = [...otp];
     
-    // Navigate to payment page after successful OTP verification
-    setTimeout(() => {
-      navigate(`/customer/${theaterId}/${qrName}/${seat}/payment`, {
-        state: { phoneNumber }
+    for (let i = 0; i < pastedData.length; i++) {
+      newOtp[i] = pastedData[i];
+    }
+    
+    setOtp(newOtp);
+    
+    // Focus last filled input or next empty input
+    const lastIndex = Math.min(pastedData.length - 1, 3);
+    inputRefs.current[lastIndex]?.focus();
+
+    // Auto-verify if 4 digits pasted
+    if (pastedData.length === 4) {
+      setTimeout(() => handleVerifyOtp(newOtp), 500);
+    }
+  };
+
+  const handleVerifyOtp = async (otpToVerify = otp) => {
+    const otpString = otpToVerify.join('');
+    
+    if (otpString.length !== 4) {
+      setError('Please enter complete 4-digit OTP');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Simulate API call to verify OTP
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Save phone number to localStorage for order history
+      localStorage.setItem('customerPhone', phoneNumber);
+      
+      // For demo, accept any 4-digit OTP
+      // In real app, verify with backend
+      navigate('/customer/payment', { 
+        state: { 
+          phoneNumber,
+          verified: true 
+        }
       });
-    }, 500);
+    } catch (err) {
+      setError('Invalid OTP. Please try again.');
+      setOtp(['', '', '', '']);
+      inputRefs.current[0]?.focus();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResendOTP = () => {
-    setTimer(30);
-    setOtp(['', '', '', '', '', '']);
-    inputRefs.current[0]?.focus();
-    // TODO: Call API to resend OTP
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Simulate API call to resend OTP
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Reset timer
+      setResendTimer(30);
+      setCanResend(false);
+      
+      // Clear OTP inputs
+      setOtp(['', '', '', '']);
+      inputRefs.current[0]?.focus();
+
+      // Start new countdown
+      const timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (err) {
+      setError('Failed to resend OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const handleBack = () => {
+    navigate('/customer/phone-entry');
+  };
+
+  const formatPhoneNumber = (phone) => {
+    if (phone.startsWith('+91')) {
+      const number = phone.slice(3);
+      return `+91 ${number.slice(0, 5)} ${number.slice(5)}`;
+    }
+    return phone;
   };
 
   return (
-    <div className="customer-otp-verification">
-      {/* Header with Back Button */}
+    <div className="otp-verification-page">
       <div className="otp-header">
-        <button className="back-btn" onClick={() => navigate(-1)}>
-          ← Back
+        <button 
+          className="back-button"
+          onClick={handleBack}
+          type="button"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </button>
+        <h1 className="otp-title">Verify OTP</h1>
       </div>
 
-      {/* Welcome Section - Similar to Landing Page */}
-      <div className="welcome-section">
-        <h1 className="page-title">OTP VERIFICATION</h1>
-        <p className="page-subtitle">OTP has been sent to {phoneNumber}</p>
-      </div>
+      <div className="otp-content">
+        <div className="otp-card">
+          <h2>Enter Verification Code</h2>
+          <p>
+            We've sent a 4-digit code to
+            <br />
+            <span className="phone-number-display">{formatPhoneNumber(phoneNumber)}</span>
+          </p>
 
-      {/* OTP Input Section */}
-      <div className="otp-form-section">
-        <div className="otp-inputs">
-          {otp.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => (inputRefs.current[index] = el)}
-              type="tel"
-              maxLength="1"
-              className={`otp-digit ${digit ? 'filled' : ''}`}
-              value={digit}
-              onChange={(e) => handleOtpChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              autoFocus={index === 0}
-            />
-          ))}
-        </div>
+          <div className="otp-input-container">
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => (inputRefs.current[index] = el)}
+                type="text"
+                inputMode="numeric"
+                value={digit}
+                onChange={(e) => handleOtpChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                onPaste={index === 0 ? handlePaste : undefined}
+                className={`otp-input ${digit ? 'filled' : ''}`}
+                maxLength="1"
+                autoComplete="one-time-code"
+              />
+            ))}
+          </div>
 
-        <div className="timer">
-          {formatTime(timer)}
-        </div>
-
-        <div className="resend-section">
-          <span>Didn't get it?</span>
-          {timer === 0 ? (
-            <button className="resend-btn" onClick={handleResendOTP}>
-              Resend OTP
-            </button>
-          ) : (
-            <span className="resend-btn disabled">Send OTP (SMS)</span>
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
           )}
+
+          <button 
+            className="verify-button"
+            onClick={() => handleVerifyOtp()}
+            disabled={loading || !otp.every(digit => digit !== '')}
+          >
+            {loading ? 'Verifying...' : 'Verify & Continue'}
+          </button>
+
+          <div className="resend-section">
+            {!canResend ? (
+              <p className="resend-text">
+                Resend OTP in <span className="timer">{resendTimer}s</span>
+              </p>
+            ) : (
+              <button 
+                className="resend-button"
+                onClick={handleResendOtp}
+                disabled={loading}
+              >
+                Resend OTP
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

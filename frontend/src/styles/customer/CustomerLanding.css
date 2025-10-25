@@ -19,7 +19,7 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-.customer-landing::before {
+.customer-landing::after {
   content: '';
   position: absolute;
   top: 0;

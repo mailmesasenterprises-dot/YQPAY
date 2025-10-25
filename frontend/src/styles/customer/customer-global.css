@@ -4,6 +4,51 @@
    and proper iOS safe area support
    ============================================ */
 
+/* ===== GLOBAL STATUS BAR BACKGROUND ===== */
+/* Purple gradient background for status bar area on ALL customer pages */
+/* SOLUTION: Use CSS custom properties and ensure consistent background across all elements */
+
+/* Root level - set the status bar color globally */
+:root {
+  --status-bar-bg: linear-gradient(135deg, #6B0E9B 0%, #5A0C82 100%);
+  --status-bar-height: env(safe-area-inset-top, 0px);
+}
+
+/* Global body background - ALWAYS purple for customer pages */
+body {
+  background: var(--status-bar-bg) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+html {
+  background: var(--status-bar-bg) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Fixed status bar overlay for all customer pages */
+.customer-landing::before,
+.customer-home::before,
+.customer-cart::before,
+.customer-checkout::before,
+.customer-history::before,
+.customer-profile::before,
+.cart-page::before,
+.checkout-page::before,
+.payment-page::before,
+[class*="customer-"]::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--status-bar-height);
+  background: var(--status-bar-bg);
+  z-index: 9999;
+  pointer-events: none;
+}
+
 /* ===== GLOBAL SAFE AREA SUPPORT ===== */
 /* Apply to all customer pages */
 body:has(.customer-landing),

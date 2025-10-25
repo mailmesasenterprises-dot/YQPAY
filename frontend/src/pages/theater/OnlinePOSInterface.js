@@ -258,6 +258,8 @@ const OnlinePOSInterface = () => {
   const [customerName, setCustomerName] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const [orderImages, setOrderImages] = useState([]);
+  const [onlineOrders, setOnlineOrders] = useState([]); // Customer orders from QR code
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const isMountedRef = useRef(true);
   
   // Performance monitoring
@@ -665,6 +667,45 @@ const OnlinePOSInterface = () => {
     };
   }, [theaterId, fetchProducts]);
 
+  // Fetch online/customer orders from theaterorders collection
+  const fetchOnlineOrders = useCallback(async () => {
+    if (!theaterId) return;
+
+    try {
+      setLoadingOrders(true);
+      const response = await fetch(`${config.api.baseUrl}/orders/theater/${theaterId}?source=qr_code&limit=20`, {
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.orders) {
+          console.log(`📱 Loaded ${data.orders.length} customer orders`);
+          setOnlineOrders(data.orders);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching online orders:', error);
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, [theaterId]);
+
+  // Poll for new online orders every 10 seconds
+  useEffect(() => {
+    if (!theaterId) return;
+
+    fetchOnlineOrders(); // Initial fetch
+
+    const interval = setInterval(() => {
+      fetchOnlineOrders();
+    }, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [theaterId, fetchOnlineOrders]);
+
   // Calculate order totals with dynamic GST
   const orderTotals = useMemo(() => {
     let subtotal = 0;
@@ -1026,6 +1067,223 @@ const OnlinePOSInterface = () => {
             </div>
           </div>
         </div>
+
+        {/* Customer Orders Section - Below Main POS */}
+        {onlineOrders.length > 0 && (
+          <div className="online-orders-container" style={{
+            marginTop: '24px',
+            padding: '20px',
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+          }}>
+            <div className="online-orders-header" style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px',
+              paddingBottom: '16px',
+              borderBottom: '2px solid #6B0E9B'
+            }}>
+              <h2 style={{
+                margin: 0,
+                fontSize: '24px',
+                fontWeight: 'bold',
+                color: '#6B0E9B',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <span style={{
+                  background: 'linear-gradient(135deg, #6B0E9B, #5A0C82)',
+                  color: 'white',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px'
+                }}>📱</span>
+                Customer Orders (QR Code)
+              </h2>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <span style={{
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  padding: '6px 16px',
+                  borderRadius: '20px',
+                  fontSize: '14px',
+                  fontWeight: 'bold'
+                }}>
+                  {onlineOrders.length} Orders
+                </span>
+                <button
+                  onClick={fetchOnlineOrders}
+                  disabled={loadingOrders}
+                  style={{
+                    background: loadingOrders ? '#9ca3af' : '#6B0E9B',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    cursor: loadingOrders ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}
+                >
+                  {loadingOrders ? '🔄 Refreshing...' : '🔄 Refresh'}
+                </button>
+              </div>
+            </div>
+
+            <div className="online-orders-grid" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+              gap: '20px'
+            }}>
+              {onlineOrders.map((order, index) => (
+                <div key={order._id || index} className="online-order-card" style={{
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  backgroundColor: '#fafafa',
+                  transition: 'all 0.3s ease',
+                  ':hover': {
+                    borderColor: '#6B0E9B',
+                    boxShadow: '0 6px 20px rgba(107,14,155,0.15)'
+                  }
+                }}>
+                  {/* Order Header */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: '12px',
+                    paddingBottom: '12px',
+                    borderBottom: '1px solid #e5e7eb'
+                  }}>
+                    <div>
+                      <div style={{
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        color: '#1f2937',
+                        marginBottom: '4px'
+                      }}>
+                        {order.orderNumber || `Order #${index + 1}`}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#6b7280'
+                      }}>
+                        {order.tableNumber || 'Online Order'}
+                      </div>
+                    </div>
+                    <div style={{
+                      backgroundColor: order.status === 'pending' ? '#fbbf24' : 
+                                     order.status === 'confirmed' ? '#3b82f6' :
+                                     order.status === 'completed' ? '#10b981' : '#ef4444',
+                      color: 'white',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase'
+                    }}>
+                      {order.status || 'Pending'}
+                    </div>
+                  </div>
+
+                  {/* Customer Info */}
+                  <div style={{
+                    marginBottom: '12px',
+                    fontSize: '14px',
+                    color: '#4b5563'
+                  }}>
+                    <div style={{ marginBottom: '4px' }}>
+                      <strong>📞 Phone:</strong> {order.customerInfo?.phone || order.customerName || 'N/A'}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      🕒 {new Date(order.createdAt).toLocaleString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div style={{
+                    marginBottom: '12px',
+                    maxHeight: '150px',
+                    overflowY: 'auto',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    padding: '8px'
+                  }}>
+                    {order.items && order.items.map((item, idx) => (
+                      <div key={idx} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        padding: '6px 0',
+                        fontSize: '13px',
+                        borderBottom: idx < order.items.length - 1 ? '1px solid #f3f4f6' : 'none'
+                      }}>
+                        <span style={{ color: '#374151' }}>
+                          <strong>{item.quantity}x</strong> {item.name}
+                        </span>
+                        <span style={{ color: '#6b7280', fontWeight: '600' }}>
+                          ₹{item.totalPrice?.toFixed(2) || (item.unitPrice * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Order Total */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: '12px',
+                    borderTop: '2px solid #e5e7eb'
+                  }}>
+                    <span style={{
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      color: '#1f2937'
+                    }}>
+                      Total Amount
+                    </span>
+                    <span style={{
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      color: '#6B0E9B'
+                    }}>
+                      ₹{order.pricing?.total?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+
+                  {/* Payment Method */}
+                  {order.payment?.method && (
+                    <div style={{
+                      marginTop: '8px',
+                      fontSize: '12px',
+                      color: '#6b7280',
+                      textAlign: 'right'
+                    }}>
+                      💳 {order.payment.method.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </TheaterLayout>
   );

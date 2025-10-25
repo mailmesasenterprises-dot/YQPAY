@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Order Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #6B0E9B;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .btn {
+            width: 100%;
+            padding: 18px;
+            margin: 12px 0;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6B0E9B, #5A0C82);
+            color: white;
+        }
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        .btn-info {
+            background: #3b82f6;
+            color: white;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 14px;
+        }
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .details {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 13px;
+        }
+        .details strong {
+            color: #6B0E9B;
+        }
+        .emoji {
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Mobile Order Test</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 20px;">
+            Test customer order placement on mobile
+        </p>
+
+        <button class="btn btn-primary" onclick="placeOrder()">
+            <span class="emoji">🛒</span>
+            <span>Place Order Now</span>
+        </button>
+
+        <button class="btn btn-success" onclick="checkOrders()">
+            <span class="emoji">📋</span>
+            <span>Check Orders</span>
+        </button>
+
+        <button class="btn btn-info" onclick="openPOS()">
+            <span class="emoji">💻</span>
+            <span>Open POS Page</span>
+        </button>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const resultDiv = document.getElementById('result');
+
+        async function placeOrder() {
+            resultDiv.innerHTML = '<div class="status loading">⏳ Creating order...</div>';
+
+            try {
+                const orderData = {
+                    theaterId: "68f8837a541316c6ad54b79f",
+                    customerName: "+919944400587",
+                    customerInfo: {
+                        name: "Mobile Customer",
+                        phone: "+919944400587"
+                    },
+                    tableNumber: "Seat-A1",
+                    items: [{
+                        productId: "68fc97311263296dbc0ac4c9",
+                        quantity: 3
+                    }],
+                    paymentMethod: "upi"
+                };
+
+                console.log('📤 Sending order:', orderData);
+
+                const response = await fetch('http://localhost:5000/api/orders/theater', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create order');
+                }
+
+                const result = await response.json();
+                console.log('✅ Order created:', result);
+
+                resultDiv.innerHTML = `
+                    <div class="status success">
+                        <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px;">
+                            ✅ Order Created!
+                        </div>
+                        <div class="details">
+                            <div><strong>Order #:</strong> ${result.order.orderNumber}</div>
+                            <div><strong>Customer:</strong> ${result.order.customerInfo.phone}</div>
+                            <div><strong>Item:</strong> ${result.order.items[0].name} x ${result.order.items[0].quantity}</div>
+                            <div><strong>Total:</strong> ₹${result.order.pricing.total}</div>
+                            <div><strong>Payment:</strong> ${result.order.payment.method.toUpperCase()}</div>
+                            <div><strong>Status:</strong> ${result.order.status.toUpperCase()}</div>
+                        </div>
+                        <p style="margin-top: 15px; font-size: 13px;">
+                            💡 The order is now visible in the Online POS page!
+                        </p>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        <div style="font-weight: bold; margin-bottom: 8px;">❌ Error</div>
+                        <div>${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        async function checkOrders() {
+            resultDiv.innerHTML = '<div class="status loading">⏳ Fetching orders...</div>';
+
+            try {
+                const response = await fetch('http://localhost:5000/api/orders/theater/68f8837a541316c6ad54b79f?source=qr_code');
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.orders.length === 0) {
+                        resultDiv.innerHTML = `
+                            <div class="status" style="background: #e3f2fd; color: #1565c0;">
+                                <div style="font-weight: bold;">📭 No Orders Yet</div>
+                                <p style="margin-top: 8px; font-size: 13px;">
+                                    Click "Place Order Now" to create a test order
+                                </p>
+                            </div>
+                        `;
+                    } else {
+                        const ordersHTML = data.orders.map(order => `
+                            <div class="details" style="margin-bottom: 12px; border-left: 3px solid #6B0E9B;">
+                                <div><strong>${order.orderNumber}</strong></div>
+                                <div>📞 ${order.customerInfo.phone}</div>
+                                <div>🍿 ${order.items.map(i => `${i.name} x${i.quantity}`).join(', ')}</div>
+                                <div>💰 ₹${order.pricing.total}</div>
+                                <div>⏰ ${new Date(order.createdAt).toLocaleString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })}</div>
+                            </div>
+                        `).join('');
+
+                        resultDiv.innerHTML = `
+                            <div class="status success">
+                                <div style="font-weight: bold; margin-bottom: 12px;">
+                                    📱 Customer Orders (${data.total})
+                                </div>
+                                ${ordersHTML}
+                            </div>
+                        `;
+                    }
+                }
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        <div style="font-weight: bold; margin-bottom: 8px;">❌ Error</div>
+                        <div>${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        function openPOS() {
+            window.open('http://localhost:3001/online-pos/68f8837a541316c6ad54b79f', '_blank');
+        }
+    </script>
+</body>
+</html>

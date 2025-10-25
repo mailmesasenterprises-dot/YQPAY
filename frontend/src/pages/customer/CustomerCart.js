@@ -11,6 +11,7 @@ const CustomerCart = () => {
   const [seat, setSeat] = useState(null);
   const [theaterId, setTheaterId] = useState(null);
   const [theaterName, setTheaterName] = useState(null);
+  const [category, setCategory] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -18,18 +19,20 @@ const CustomerCart = () => {
     const seatNum = params.get('seat');
     const id = params.get('theaterid');
     const name = params.get('theatername');
+    const cat = params.get('category');
     if (qr) setQrName(qr);
     if (seatNum) setSeat(seatNum);
     if (id) setTheaterId(id);
     if (name) setTheaterName(name);
+    if (cat) setCategory(cat);
   }, [location.search]);
 
   // Calculate totals - Discount should be applied to base price, then GST calculated on discounted amount
-  const { subtotal, tax, total, totalDiscount } = items.reduce((acc, item) => {
+  const { subtotal, tax, total, totalDiscount, gstType } = items.reduce((acc, item) => {
     const originalPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0;
     const qty = parseInt(item.quantity) || 0;
     const taxRate = parseFloat(item.taxRate) || 0;
-    const gstType = item.gstType || 'EXCLUDE';
+    const gstType = item.gstType || item.pricing?.gstType || 'EXCLUDE';
     const discountPercentage = parseFloat(item.discountPercentage || item.pricing?.discountPercentage) || 0;
     
     let basePrice = 0;
@@ -67,20 +70,37 @@ const CustomerCart = () => {
       subtotal: acc.subtotal + originalSubtotal,
       tax: acc.tax + itemTax,
       total: acc.total + finalTotal,
-      totalDiscount: acc.totalDiscount + discountAmount
+      totalDiscount: acc.totalDiscount + discountAmount,
+      gstType: gstType // Keep the last item's GST type (assuming all items have same type)
     };
-  }, { subtotal: 0, tax: 0, total: 0, totalDiscount: 0 });
+  }, { subtotal: 0, tax: 0, total: 0, totalDiscount: 0, gstType: 'EXCLUDE' });
 
   const handleCheckout = () => {
-    // Navigate to phone entry page
-    navigate(`/customer/${theaterId}/${qrName}/${seat}/phone-entry`);
+    // Navigate to phone entry to start checkout flow
+    if (items.length === 0) {
+      alert('Your cart is empty');
+      return;
+    }
+    
+    // Store cart data and navigation info for checkout flow
+    localStorage.setItem('checkoutData', JSON.stringify({
+      theaterId,
+      theaterName,
+      qrName,
+      seat,
+      cartItems: items,
+      totals: { subtotal, tax, total, totalDiscount }
+    }));
+    
+    navigate('/customer/phone-entry');
   };
 
   const handleBackToMenu = () => {
     const params = new URLSearchParams({
       ...(theaterId && { theaterid: theaterId }),
       ...(qrName && { qrname: qrName }),
-      ...(seat && { seat: seat })
+      ...(seat && { seat: seat }),
+      ...(category && { category: category })
     });
     navigate(`/customer/home?${params.toString()}`);
   };
@@ -155,14 +175,8 @@ const CustomerCart = () => {
       </div>
 
       {/* Theater & QR Info */}
-      {(theaterName || qrName || seat) && (
+      {(qrName || seat) && (
         <div className="cart-info-section">
-          {theaterName && (
-            <div className="cart-info-item">
-              <span className="info-icon">🎭</span>
-              <span className="info-text">{theaterName}</span>
-            </div>
-          )}
           {qrName && (
             <div className="cart-info-item">
               <span className="info-icon">📱</span>
@@ -263,17 +277,17 @@ const CustomerCart = () => {
           <span className="summary-value">₹{subtotal.toFixed(2)}</span>
         </div>
         
+        <div className="summary-row">
+          <span className="summary-label">Tax (GST) - {gstType === 'INCLUDE' ? 'Included' : 'Excluded'}</span>
+          <span className="summary-value">₹{tax.toFixed(2)}</span>
+        </div>
+        
         {totalDiscount > 0 && (
           <div className="summary-row discount-row">
             <span className="summary-label">Discount</span>
             <span className="summary-value discount-value">-₹{totalDiscount.toFixed(2)}</span>
           </div>
         )}
-        
-        <div className="summary-row">
-          <span className="summary-label">Tax (GST)</span>
-          <span className="summary-value">₹{tax.toFixed(2)}</span>
-        </div>
         
         <div className="summary-divider"></div>
         

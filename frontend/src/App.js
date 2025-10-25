@@ -111,11 +111,12 @@ function App() {
                 <Route path="/customer/cart" element={<CustomerCart />} />
                 <Route path="/customer/order" element={<CustomerHome />} />
                 <Route path="/customer/history" element={<CustomerOrderHistory />} />
+                <Route path="/customer/order-history" element={<CustomerOrderHistory />} />
                 <Route path="/customer/checkout" element={<CustomerCheckout />} />
-                <Route path="/customer/:theaterId/:qrName/:seat/phone-entry" element={<CustomerPhoneEntry />} />
-                <Route path="/customer/:theaterId/:qrName/:seat/otp-verification" element={<CustomerOTPVerification />} />
-                <Route path="/customer/:theaterId/:qrName/:seat/payment" element={<CustomerPayment />} />
-                <Route path="/customer/:theaterId/:qrName/:seat/order-success" element={<CustomerOrderSuccess />} />
+                <Route path="/customer/phone-entry" element={<CustomerPhoneEntry />} />
+                <Route path="/customer/otp-verification" element={<CustomerOTPVerification />} />
+                <Route path="/customer/payment" element={<CustomerPayment />} />
+                <Route path="/customer/order-success" element={<CustomerOrderSuccess />} />
                 <Route path="/customer/:theaterId/:qrName/:seat/order-confirmation" element={<CustomerOrderHistory />} />
                 
                 {/* QR Code Redirect Route - Redirects scanned QR codes to customer landing */}
