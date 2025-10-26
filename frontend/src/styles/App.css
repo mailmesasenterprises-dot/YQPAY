@@ -2184,7 +2184,12 @@
 /* Table Container - Universal wrapper for horizontal scroll */
 .table-container,
 .data-table-container,
-.responsive-table-container {
+.responsive-table-container,
+.theater-table-container,
+.qr-management-table-container,
+.role-table-container,
+.page-table-container,
+.monthly-overall-table-container {
   width: 100%;
   max-width: 100%;
   overflow-x: auto !important; /* Show scrollbar only when needed */
@@ -2208,6 +2213,11 @@
 .table-container::-webkit-scrollbar,
 .data-table-container::-webkit-scrollbar,
 .responsive-table-container::-webkit-scrollbar,
+.theater-table-container::-webkit-scrollbar,
+.qr-management-table-container::-webkit-scrollbar,
+.role-table-container::-webkit-scrollbar,
+.page-table-container::-webkit-scrollbar,
+.monthly-overall-table-container::-webkit-scrollbar,
 .table-wrapper::-webkit-scrollbar {
   height: 14px; /* Larger scrollbar for better visibility */
   width: 14px;
@@ -2216,6 +2226,11 @@
 .table-container::-webkit-scrollbar-track,
 .data-table-container::-webkit-scrollbar-track,
 .responsive-table-container::-webkit-scrollbar-track,
+.theater-table-container::-webkit-scrollbar-track,
+.qr-management-table-container::-webkit-scrollbar-track,
+.role-table-container::-webkit-scrollbar-track,
+.page-table-container::-webkit-scrollbar-track,
+.monthly-overall-table-container::-webkit-scrollbar-track,
 .table-wrapper::-webkit-scrollbar-track {
   background: #e5e7eb;
   border-radius: 10px;
@@ -2226,6 +2241,11 @@
 .table-container::-webkit-scrollbar-thumb,
 .data-table-container::-webkit-scrollbar-thumb,
 .responsive-table-container::-webkit-scrollbar-thumb,
+.theater-table-container::-webkit-scrollbar-thumb,
+.qr-management-table-container::-webkit-scrollbar-thumb,
+.role-table-container::-webkit-scrollbar-thumb,
+.page-table-container::-webkit-scrollbar-thumb,
+.monthly-overall-table-container::-webkit-scrollbar-thumb,
 .table-wrapper::-webkit-scrollbar-thumb {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   border-radius: 10px;
@@ -2237,6 +2257,11 @@
 .table-container::-webkit-scrollbar-thumb:hover,
 .data-table-container::-webkit-scrollbar-thumb:hover,
 .responsive-table-container::-webkit-scrollbar-thumb:hover,
+.theater-table-container::-webkit-scrollbar-thumb:hover,
+.qr-management-table-container::-webkit-scrollbar-thumb:hover,
+.role-table-container::-webkit-scrollbar-thumb:hover,
+.page-table-container::-webkit-scrollbar-thumb:hover,
+.monthly-overall-table-container::-webkit-scrollbar-thumb:hover,
 .table-wrapper::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, var(--primary-dark) 0%, #5B21B6 100%);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
@@ -2244,6 +2269,11 @@
 
 /* Corner between scrollbars */
 .table-container::-webkit-scrollbar-corner,
+.theater-table-container::-webkit-scrollbar-corner,
+.qr-management-table-container::-webkit-scrollbar-corner,
+.role-table-container::-webkit-scrollbar-corner,
+.page-table-container::-webkit-scrollbar-corner,
+.monthly-overall-table-container::-webkit-scrollbar-corner,
 .table-wrapper::-webkit-scrollbar-corner {
   background: #e5e7eb;
 }

@@ -13,12 +13,30 @@ const authenticateToken = (req, res, next) => {
     });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'yqpaynow-super-secret-jwt-key-development-only', (err, decoded) => {
+  jwt.verify(token, process.env.JWT_SECRET || 'yqpaynow-super-secret-jwt-key-development-only', async (err, decoded) => {
     if (err) {
       return res.status(403).json({ 
         error: 'Invalid or expired token',
         code: 'TOKEN_INVALID'
       });
+    }
+    
+    // ✅ NEW: Check if user's theater is active (for theater users only)
+    if (decoded.userType === 'theater_user' || decoded.userType === 'theater_admin') {
+      try {
+        const Theater = require('../models/Theater');
+        const theater = await Theater.findById(decoded.theaterId || decoded.theater);
+        
+        if (!theater || !theater.isActive) {
+          return res.status(403).json({
+            error: 'Your theater account has been deactivated',
+            code: 'THEATER_DEACTIVATED'
+          });
+        }
+      } catch (error) {
+        console.log('⚠️ Error checking theater status during auth:', error.message);
+        // Continue with auth - don't block on database errors
+      }
     }
     
     req.user = decoded;
@@ -77,7 +95,7 @@ const requireRole = (roles) => {
 };
 
 // Theater ownership middleware (ensure user can only access their theater data)
-const requireTheaterAccess = (req, res, next) => {
+const requireTheaterAccess = async (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ 
       error: 'Authentication required',
@@ -98,6 +116,25 @@ const requireTheaterAccess = (req, res, next) => {
   if (req.user.role === 'super_admin' || req.user.role === 'admin' || req.user.userType === 'admin') {
     console.log('   ✅ Access granted: Admin');
     return next();
+  }
+
+  // ✅ NEW: Check if theater is active before granting access
+  const Theater = require('../models/Theater');
+  try {
+    const theater = await Theater.findById(requestedTheaterId);
+    if (!theater || !theater.isActive) {
+      console.log('   ❌ Access denied: Theater is inactive or not found');
+      return res.status(403).json({
+        error: 'Theater is currently inactive',
+        code: 'THEATER_INACTIVE'
+      });
+    }
+  } catch (error) {
+    console.log('   ❌ Error checking theater status:', error.message);
+    return res.status(500).json({
+      error: 'Unable to verify theater status',
+      code: 'THEATER_CHECK_ERROR'
+    });
   }
 
   // Manager role can access their own theater

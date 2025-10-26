@@ -122,6 +122,9 @@ const TableSkeletonRow = React.memo(() => (
     <td className="status-cell">
       <div className="skeleton-line skeleton-small"></div>
     </td>
+    <td className="access-status-cell">
+      <div className="skeleton-toggle"></div>
+    </td>
     <td className="actions-cell">
       <div className="skeleton-buttons">
         <div className="skeleton-button skeleton-small"></div>
@@ -291,8 +294,8 @@ const TheaterList = () => {
       // Build query parameters
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        limit: itemsPerPage.toString(),
-        isActive: 'true' // 🔥 SOFT DELETE: Only fetch active theaters (deleted ones stay in DB but hidden from UI)
+        limit: itemsPerPage.toString()
+        // Show all theaters (active and inactive) for management purposes
       });
       
       if (debouncedSearchTerm.trim()) {
@@ -300,7 +303,7 @@ const TheaterList = () => {
       }
       
       if (filterStatus !== 'all') {
-        params.append('status', filterStatus);
+        params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
       }
       
       // PERFORMANCE OPTIMIZATION: Add cache headers but bust cache when needed
@@ -316,7 +319,8 @@ const TheaterList = () => {
           'Cache-Control': 'no-cache, no-store, must-revalidate', // Force fresh data
           'Pragma': 'no-cache',
           'Expires': '0',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          ...config.helpers.getAuthToken() ? { 'Authorization': `Bearer ${config.helpers.getAuthToken()}` } : {}
         }
       });
       
@@ -405,7 +409,6 @@ const TheaterList = () => {
       ownerContactNumber: theater.ownerDetails?.contactNumber || '',
       phone: theater.phone || '',
       email: theater.email || '',
-      businessType: theater.businessType || '',
       address: theater.address?.street || '',
       city: theater.address?.city || '',
       state: theater.address?.state || '',
@@ -456,14 +459,63 @@ const TheaterList = () => {
 
   // Handler for removing existing files
   const handleRemoveFile = useCallback((fileType) => {
-    // Show confirmation dialog
-    if (window.confirm(`Are you sure you want to remove this ${fileType.replace(/([A-Z])/g, ' $1').toLowerCase()}?`)) {
-      // This would typically call an API to remove the file from server
-      console.log(`Removing ${fileType} file`);
-      // For now, we'll just show a message that the file will be removed
-      alert(`${fileType.replace(/([A-Z])/g, ' $1')} will be removed when you save changes`);
+    // Remove from uploadFiles state if it's a newly uploaded file
+    setUploadFiles(prev => ({
+      ...prev,
+      [fileType]: null
+    }));
+    
+    // Also update the editModal theater data to remove the existing file
+    if (editModal.theater) {
+      if (fileType === 'agreementCopy') {
+        // Handle agreementCopy which is stored in both documents and agreementDetails
+        setEditModal(prev => ({
+          ...prev,
+          theater: {
+            ...prev.theater,
+            documents: {
+              ...prev.theater.documents,
+              agreementCopy: null
+            },
+            agreementDetails: {
+              ...prev.theater.agreementDetails,
+              copy: null
+            }
+          }
+        }));
+      } else {
+        // Handle regular documents
+        setEditModal(prev => ({
+          ...prev,
+          theater: {
+            ...prev.theater,
+            documents: {
+              ...prev.theater.documents,
+              [fileType]: null
+            }
+          }
+        }));
+      }
     }
-  }, []);
+  }, [editModal.theater]);
+
+  // Handler for downloading files
+  const handleDownloadFile = useCallback((fileUrl, fileName) => {
+    try {
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileName || 'document';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      modal.showError('Failed to download file');
+    }
+  }, [modal]);
 
   const uploadFile = async (file, fileType) => {
     if (!file) return null;
@@ -515,7 +567,6 @@ const TheaterList = () => {
       if (editFormData.city) formData.append('city', editFormData.city);
       if (editFormData.state) formData.append('state', editFormData.state);
       if (editFormData.pincode) formData.append('pincode', editFormData.pincode);
-      if (editFormData.businessType) formData.append('businessType', editFormData.businessType);
       
       // Add any new files
       const fileTypes = Object.keys(uploadFiles);
@@ -709,11 +760,11 @@ const TheaterList = () => {
               <div className="stat-label">Total Theaters</div>
             </div>
             <div className="stat-card">
-              <div className="stat-number">{theaters.filter(theater => theater.status === 'active').length || 0}</div>
+              <div className="stat-number">{theaters.filter(theater => theater.isActive === true).length || 0}</div>
               <div className="stat-label">Active Theaters</div>
             </div>
             <div className="stat-card">
-              <div className="stat-number">{theaters.filter(theater => theater.status === 'inactive').length || 0}</div>
+              <div className="stat-number">{theaters.filter(theater => theater.isActive === false).length || 0}</div>
               <div className="stat-label">Inactive Theaters</div>
             </div>
             <div className="stat-card">
@@ -798,6 +849,7 @@ const TheaterList = () => {
                     <th className="contact-col">Contact</th>
                     <th className="agreement-col">Agreement Period</th>
                     <th className="status-col">Status</th>
+                    <th className="access-status-col">Access Status</th>
                     <th className="actions-col">Actions</th>
                   </tr>
                 </thead>
@@ -890,6 +942,53 @@ const TheaterList = () => {
                         <span className={`status-badge ${theater.isActive ? 'active' : 'inactive'}`}>
                           {theater.isActive ? 'Active' : 'Inactive'}
                         </span>
+                      </td>
+
+                      {/* Access Status Column - Toggle Button */}
+                      <td className="access-status-cell">
+                        <div className="toggle-wrapper">
+                          <label className="switch" style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                            width: '50px',
+                            height: '24px'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={theater.isActive}
+                              onChange={() => toggleTheaterStatus(theater._id, theater.isActive)}
+                              style={{
+                                opacity: 0,
+                                width: 0,
+                                height: 0
+                              }}
+                            />
+                            <span className="slider" style={{
+                              position: 'absolute',
+                              cursor: 'pointer',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              backgroundColor: theater.isActive ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+                              transition: '.4s',
+                              borderRadius: '24px'
+                            }}>
+                              <span style={{
+                                position: 'absolute',
+                                content: '""',
+                                height: '18px',
+                                width: '18px',
+                                left: theater.isActive ? '26px' : '3px',
+                                bottom: '3px',
+                                backgroundColor: 'white',
+                                transition: '.4s',
+                                borderRadius: '50%',
+                                display: 'block'
+                              }}></span>
+                            </span>
+                          </label>
+                        </div>
                       </td>
 
                       {/* Actions Column */}
@@ -1013,15 +1112,6 @@ const TheaterList = () => {
                     </div>
                   )}
                   <div className="form-group">
-                    <label>Business Type</label>
-                    <input 
-                      type="text" 
-                      value={viewModal.theater?.businessType || 'N/A'} 
-                      className="form-control"
-                      readOnly
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>Address</label>
                     <input 
                       type="text" 
@@ -1124,17 +1214,18 @@ const TheaterList = () => {
                                 e.target.nextSibling.style.display = 'block';
                               }}
                             />
+                            <button
+                              onClick={() => handleDownloadFile(viewModal.theater.documents.theaterPhoto, 'theater-photo.jpg')}
+                              className="action-btn download-btn download-btn-overlay"
+                              title="Download"
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                              </svg>
+                            </button>
                             <div className="document-placeholder" style={{display: 'none'}}>
                               📷 Theater Photo
                             </div>
-                            <a 
-                              href={viewModal.theater.documents.theaterPhoto} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="view-document-btn"
-                            >
-                              View Full Size
-                            </a>
                           </div>
                         </div>
                       )}
@@ -1153,17 +1244,18 @@ const TheaterList = () => {
                                 e.target.nextSibling.style.display = 'block';
                               }}
                             />
+                            <button
+                              onClick={() => handleDownloadFile(viewModal.theater.documents?.logo || viewModal.theater.branding?.logo || viewModal.theater.branding?.logoUrl, 'theater-logo.png')}
+                              className="action-btn download-btn download-btn-overlay"
+                              title="Download"
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                              </svg>
+                            </button>
                             <div className="document-placeholder" style={{display: 'none'}}>
                               🏢 Theater Logo
                             </div>
-                            <a 
-                              href={viewModal.theater.documents?.logo || viewModal.theater.branding?.logo || viewModal.theater.branding?.logoUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="view-document-btn"
-                            >
-                              View Full Size
-                            </a>
                           </div>
                         </div>
                       )}
@@ -1182,17 +1274,18 @@ const TheaterList = () => {
                                 e.target.nextSibling.style.display = 'block';
                               }}
                             />
+                            <button
+                              onClick={() => handleDownloadFile(viewModal.theater.documents.aadharCard, 'aadhar-card.pdf')}
+                              className="action-btn download-btn download-btn-overlay"
+                              title="Download"
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                              </svg>
+                            </button>
                             <div className="document-placeholder" style={{display: 'none'}}>
                               🆔 Aadhar Card
                             </div>
-                            <a 
-                              href={viewModal.theater.documents.aadharCard} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="view-document-btn"
-                            >
-                              View Document
-                            </a>
                           </div>
                         </div>
                       )}
@@ -1211,17 +1304,21 @@ const TheaterList = () => {
                                 e.target.nextSibling.style.display = 'block';
                               }}
                             />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                viewModal.theater.documents.panCard,
+                                `${viewModal.theater.name}_PAN_Card.pdf`
+                              )}
+                              title="Download PAN Card"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
                             <div className="document-placeholder" style={{display: 'none'}}>
                               📄 PAN Card
                             </div>
-                            <a 
-                              href={viewModal.theater.documents.panCard} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="view-document-btn"
-                            >
-                              View Document
-                            </a>
                           </div>
                         </div>
                       )}
@@ -1240,17 +1337,21 @@ const TheaterList = () => {
                                 e.target.nextSibling.style.display = 'block';
                               }}
                             />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                viewModal.theater.documents.gstCertificate,
+                                `${viewModal.theater.name}_GST_Certificate.pdf`
+                              )}
+                              title="Download GST Certificate"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
                             <div className="document-placeholder" style={{display: 'none'}}>
                               📋 GST Certificate
                             </div>
-                            <a 
-                              href={viewModal.theater.documents.gstCertificate} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="view-document-btn"
-                            >
-                              View Document
-                            </a>
                           </div>
                         </div>
                       )}
@@ -1269,17 +1370,21 @@ const TheaterList = () => {
                                 e.target.nextSibling.style.display = 'block';
                               }}
                             />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                viewModal.theater.documents.fssaiCertificate,
+                                `${viewModal.theater.name}_FSSAI_Certificate.pdf`
+                              )}
+                              title="Download FSSAI Certificate"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
                             <div className="document-placeholder" style={{display: 'none'}}>
                               🍽️ FSSAI Certificate
                             </div>
-                            <a 
-                              href={viewModal.theater.documents.fssaiCertificate} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="view-document-btn"
-                            >
-                              View Document
-                            </a>
                           </div>
                         </div>
                       )}
@@ -1298,17 +1403,21 @@ const TheaterList = () => {
                                 e.target.nextSibling.style.display = 'block';
                               }}
                             />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                viewModal.theater.documents.agreementCopy,
+                                `${viewModal.theater.name}_Agreement_Copy.pdf`
+                              )}
+                              title="Download Agreement Copy"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
                             <div className="document-placeholder" style={{display: 'none'}}>
                               📝 Agreement Copy
                             </div>
-                            <a 
-                              href={viewModal.theater.documents.agreementCopy} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="view-document-btn"
-                            >
-                              View Document
-                            </a>
                           </div>
                         </div>
                       )}
@@ -1394,21 +1503,6 @@ const TheaterList = () => {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Business Type</label>
-                    <select 
-                      value={editFormData.businessType || ''} 
-                      onChange={(e) => handleEditFormChange('businessType', e.target.value)}
-                      className="form-control"
-                    >
-                      <option value="">Select Business Type</option>
-                      <option value="Theater">Theater</option>
-                      <option value="Canteen">Canteen</option>
-                      <option value="Restaurant">Restaurant</option>
-                      <option value="Food Court">Food Court</option>
-                      <option value="Cafe">Cafe</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
                     <label>Address</label>
                     <textarea 
                       value={editFormData.address || ''} 
@@ -1471,7 +1565,28 @@ const TheaterList = () => {
                         </div>
                       </div>
                       <div className="upload-preview-section">
-                        {editModal.theater?.documents?.theaterPhoto ? (
+                        {uploadFiles.theaterPhoto ? (
+                          <div className="current-file-preview">
+                            <img 
+                              src={URL.createObjectURL(uploadFiles.theaterPhoto)} 
+                              alt="Theater Photo"
+                              className="preview-image"
+                              onClick={() => window.open(URL.createObjectURL(uploadFiles.theaterPhoto), '_blank')}
+                            />
+                            <div className="preview-actions">
+                              <button 
+                                type="button" 
+                                className="preview-btn remove-btn"
+                                onClick={() => handleRemoveFile('theaterPhoto')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ) : editModal.theater?.documents?.theaterPhoto ? (
                           <div className="current-file-preview">
                             <img 
                               src={editModal.theater.documents.theaterPhoto} 
@@ -1482,17 +1597,13 @@ const TheaterList = () => {
                             <div className="preview-actions">
                               <button 
                                 type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents.theaterPhoto, '_blank')}
-                              >
-                                🔍 View
-                              </button>
-                              <button 
-                                type="button" 
                                 className="preview-btn remove-btn"
                                 onClick={() => handleRemoveFile('theaterPhoto')}
+                                title="Remove"
                               >
-                                🗑️ Remove
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -1524,7 +1635,28 @@ const TheaterList = () => {
                         </div>
                       </div>
                       <div className="upload-preview-section">
-                        {(editModal.theater?.documents?.logo || editModal.theater?.branding?.logo || editModal.theater?.branding?.logoUrl) ? (
+                        {uploadFiles.logo ? (
+                          <div className="current-file-preview">
+                            <img 
+                              src={URL.createObjectURL(uploadFiles.logo)} 
+                              alt="Theater Logo"
+                              className="preview-image"
+                              onClick={() => window.open(URL.createObjectURL(uploadFiles.logo), '_blank')}
+                            />
+                            <div className="preview-actions">
+                              <button 
+                                type="button" 
+                                className="preview-btn remove-btn"
+                                onClick={() => handleRemoveFile('logo')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (editModal.theater?.documents?.logo || editModal.theater?.branding?.logo || editModal.theater?.branding?.logoUrl) ? (
                           <div className="current-file-preview">
                             <img 
                               src={editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl} 
@@ -1535,17 +1667,13 @@ const TheaterList = () => {
                             <div className="preview-actions">
                               <button 
                                 type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl, '_blank')}
-                              >
-                                🔍 View
-                              </button>
-                              <button 
-                                type="button" 
                                 className="preview-btn remove-btn"
                                 onClick={() => handleRemoveFile('logo')}
+                                title="Remove"
                               >
-                                🗑️ Remove
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -1577,7 +1705,28 @@ const TheaterList = () => {
                         </div>
                       </div>
                       <div className="upload-preview-section">
-                        {editModal.theater?.documents?.aadharCard ? (
+                        {uploadFiles.aadharCard ? (
+                          <div className="current-file-preview">
+                            <img 
+                              src={URL.createObjectURL(uploadFiles.aadharCard)} 
+                              alt="Aadhar Card"
+                              className="preview-image"
+                              onClick={() => window.open(URL.createObjectURL(uploadFiles.aadharCard), '_blank')}
+                            />
+                            <div className="preview-actions">
+                              <button 
+                                type="button" 
+                                className="preview-btn remove-btn"
+                                onClick={() => handleRemoveFile('aadharCard')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ) : editModal.theater?.documents?.aadharCard ? (
                           <div className="current-file-preview">
                             <img 
                               src={editModal.theater.documents.aadharCard} 
@@ -1588,17 +1737,13 @@ const TheaterList = () => {
                             <div className="preview-actions">
                               <button 
                                 type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents.aadharCard, '_blank')}
-                              >
-                                🔍 View
-                              </button>
-                              <button 
-                                type="button" 
                                 className="preview-btn remove-btn"
                                 onClick={() => handleRemoveFile('aadharCard')}
+                                title="Remove"
                               >
-                                🗑️ Remove
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -1630,7 +1775,28 @@ const TheaterList = () => {
                         </div>
                       </div>
                       <div className="upload-preview-section">
-                        {editModal.theater?.documents?.panCard ? (
+                        {uploadFiles.panCard ? (
+                          <div className="current-file-preview">
+                            <img 
+                              src={URL.createObjectURL(uploadFiles.panCard)} 
+                              alt="PAN Card"
+                              className="preview-image"
+                              onClick={() => window.open(URL.createObjectURL(uploadFiles.panCard), '_blank')}
+                            />
+                            <div className="preview-actions">
+                              <button 
+                                type="button" 
+                                className="preview-btn remove-btn"
+                                onClick={() => handleRemoveFile('panCard')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ) : editModal.theater?.documents?.panCard ? (
                           <div className="current-file-preview">
                             <img 
                               src={editModal.theater.documents.panCard} 
@@ -1641,17 +1807,13 @@ const TheaterList = () => {
                             <div className="preview-actions">
                               <button 
                                 type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents.panCard, '_blank')}
-                              >
-                                🔍 View
-                              </button>
-                              <button 
-                                type="button" 
                                 className="preview-btn remove-btn"
                                 onClick={() => handleRemoveFile('panCard')}
+                                title="Remove"
                               >
-                                🗑️ Remove
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -1683,7 +1845,28 @@ const TheaterList = () => {
                         </div>
                       </div>
                       <div className="upload-preview-section">
-                        {editModal.theater?.documents?.gstCertificate ? (
+                        {uploadFiles.gstCertificate ? (
+                          <div className="current-file-preview">
+                            <img 
+                              src={URL.createObjectURL(uploadFiles.gstCertificate)} 
+                              alt="GST Certificate"
+                              className="preview-image"
+                              onClick={() => window.open(URL.createObjectURL(uploadFiles.gstCertificate), '_blank')}
+                            />
+                            <div className="preview-actions">
+                              <button 
+                                type="button" 
+                                className="preview-btn remove-btn"
+                                onClick={() => handleRemoveFile('gstCertificate')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ) : editModal.theater?.documents?.gstCertificate ? (
                           <div className="current-file-preview">
                             <img 
                               src={editModal.theater.documents.gstCertificate} 
@@ -1694,17 +1877,13 @@ const TheaterList = () => {
                             <div className="preview-actions">
                               <button 
                                 type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents.gstCertificate, '_blank')}
-                              >
-                                🔍 View
-                              </button>
-                              <button 
-                                type="button" 
                                 className="preview-btn remove-btn"
                                 onClick={() => handleRemoveFile('gstCertificate')}
+                                title="Remove"
                               >
-                                🗑️ Remove
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -1736,7 +1915,28 @@ const TheaterList = () => {
                         </div>
                       </div>
                       <div className="upload-preview-section">
-                        {editModal.theater?.documents?.fssaiCertificate ? (
+                        {uploadFiles.fssaiCertificate ? (
+                          <div className="current-file-preview">
+                            <img 
+                              src={URL.createObjectURL(uploadFiles.fssaiCertificate)} 
+                              alt="FSSAI Certificate"
+                              className="preview-image"
+                              onClick={() => window.open(URL.createObjectURL(uploadFiles.fssaiCertificate), '_blank')}
+                            />
+                            <div className="preview-actions">
+                              <button 
+                                type="button" 
+                                className="preview-btn remove-btn"
+                                onClick={() => handleRemoveFile('fssaiCertificate')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        ) : editModal.theater?.documents?.fssaiCertificate ? (
                           <div className="current-file-preview">
                             <img 
                               src={editModal.theater.documents.fssaiCertificate} 
@@ -1747,17 +1947,13 @@ const TheaterList = () => {
                             <div className="preview-actions">
                               <button 
                                 type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents.fssaiCertificate, '_blank')}
-                              >
-                                🔍 View
-                              </button>
-                              <button 
-                                type="button" 
                                 className="preview-btn remove-btn"
                                 onClick={() => handleRemoveFile('fssaiCertificate')}
+                                title="Remove"
                               >
-                                🗑️ Remove
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -1765,59 +1961,6 @@ const TheaterList = () => {
                           <div className="upload-placeholder">
                             <div className="placeholder-icon">🍽️</div>
                             <div className="placeholder-text">No FSSAI certificate uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Business License Field */}
-                  <div className="form-group upload-form-group">
-                    <label>Business License</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*,.pdf"
-                          onChange={(e) => handleFileUpload(e, 'businessLicense')}
-                          className="form-control file-input"
-                          id="businessLicense-upload"
-                        />
-                        <div className="upload-instructions">
-                          Upload business license (JPG, PNG, PDF)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {editModal.theater?.documents?.businessLicense ? (
-                          <div className="current-file-preview">
-                            <img 
-                              src={editModal.theater.documents.businessLicense} 
-                              alt="Business License"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents.businessLicense, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents.businessLicense, '_blank')}
-                              >
-                                🔍 View
-                              </button>
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('businessLicense')}
-                              >
-                                🗑️ Remove
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">📋</div>
-                            <div className="placeholder-text">No business license uploaded</div>
                             <div className="placeholder-hint">Click "Choose File" to upload</div>
                           </div>
                         )}
@@ -1842,30 +1985,85 @@ const TheaterList = () => {
                         </div>
                       </div>
                       <div className="upload-preview-section">
-                        {editModal.theater?.documents?.agreementCopy ? (
+                        {uploadFiles.agreementCopy ? (
                           <div className="current-file-preview">
-                            <img 
-                              src={editModal.theater.documents.agreementCopy} 
-                              alt="Agreement Copy"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents.agreementCopy, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn view-btn"
-                                onClick={() => window.open(editModal.theater.documents.agreementCopy, '_blank')}
+                            {uploadFiles.agreementCopy.type === 'application/pdf' ? (
+                              <div className="pdf-preview">
+                                <span style={{fontSize: '2em'}}>📄</span>
+                                <div className="file-name">{uploadFiles.agreementCopy.name}</div>
+                                <button 
+                                  type="button" 
+                                  className="preview-btn remove-btn"
+                                  onClick={() => handleRemoveFile('agreementCopy')}
+                                title="Remove"
                               >
-                                🔍 View
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('agreementCopy')}
+                              </div>
+                            ) : (
+                              <>
+                                <img 
+                                  src={URL.createObjectURL(uploadFiles.agreementCopy)} 
+                                  alt="Agreement Copy"
+                                  className="preview-image"
+                                  onClick={() => window.open(URL.createObjectURL(uploadFiles.agreementCopy), '_blank')}
+                                />
+                                <div className="preview-actions">
+                                  <button 
+                                    type="button" 
+                                    className="preview-btn remove-btn"
+                                    onClick={() => handleRemoveFile('agreementCopy')}
+                                title="Remove"
                               >
-                                🗑️ Remove
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
                               </button>
-                            </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ) : editModal.theater?.documents?.agreementCopy ? (
+                          <div className="current-file-preview">
+                            {editModal.theater.documents.agreementCopy.endsWith('.pdf') ? (
+                              <div className="pdf-preview">
+                                <span style={{fontSize: '2em'}}>📄</span>
+                                <div className="file-name">Agreement Copy (PDF)</div>
+                                <button 
+                                  type="button" 
+                                  className="preview-btn remove-btn"
+                                  onClick={() => handleRemoveFile('agreementCopy')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                              </div>
+                            ) : (
+                              <>
+                                <img 
+                                  src={editModal.theater.documents.agreementCopy} 
+                                  alt="Agreement Copy"
+                                  className="preview-image"
+                                  onClick={() => window.open(editModal.theater.documents.agreementCopy, '_blank')}
+                                />
+                                <div className="preview-actions">
+                                  <button 
+                                    type="button" 
+                                    className="preview-btn remove-btn"
+                                    onClick={() => handleRemoveFile('agreementCopy')}
+                                title="Remove"
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor">
+                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                              </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         ) : (
                           <div className="upload-placeholder">
@@ -1952,3 +2150,5 @@ const TheaterList = () => {
 };
 
 export default TheaterList;
+
+

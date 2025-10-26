@@ -307,22 +307,9 @@ body .filter-controls {
   white-space: nowrap;
 }
 
-/* Theater Table Container */
-.table-container {
-  background: transparent;
-  margin: 0;
-  border-radius: 0;
-  box-shadow: none;
-  overflow-x: auto !important; /* Show scrollbar only when needed */
-  overflow-y: visible !important;
-}
+/* Theater Table - Uses Global Scrollbar Styles from App.css */
+/* No local container styles - inherits everything from App.css */
 
-.table-wrapper {
-  overflow-x: auto !important; /* Show scrollbar only when needed */
-  max-width: 100%;
-}
-
-/* Theater Table */
 .theater-table {
   width: 100%;
   min-width: 1200px; /* Ensure minimum width for all columns */
@@ -330,14 +317,6 @@ body .filter-controls {
   font-size: 0.9rem;
   background: var(--white);
   table-layout: auto !important; /* Auto layout to allow proper column sizing */
-}
-
-/* Table Wrapper */
-.table-wrapper {
-  overflow-x: auto !important; /* Show scrollbar only when needed */
-  background: var(--white);
-  border-radius: 0;
-  box-shadow: var(--shadow-card);
 }
 
 /* Table Header */
@@ -398,16 +377,6 @@ body .filter-controls {
 .balance-col { width: 11%; min-width: 100px; }
 .expire-col { width: 10%; min-width: 90px; }
 .actions-col { width: 18%; min-width: 140px; }
-
-/* Ensure table uses full width */
-.theater-table {
-  width: 100%;
-  min-width: 1200px; /* Ensure minimum width for all columns */
-  border-collapse: collapse;
-  font-size: 0.9rem;
-  background: var(--white);
-  table-layout: auto !important; /* Auto layout to allow proper column sizing */
-}
 
 /* Table Body */
 .theater-table tbody tr {
@@ -2133,11 +2102,45 @@ select.form-control:disabled {
   height: 120px;
   object-fit: cover;
   object-position: center;
-  transition: transform 0.2s ease;
+  transition: all 0.3s ease;
 }
 
-.document-image:hover {
-  transform: scale(1.05);
+.document-preview:hover .document-image {
+  filter: brightness(0.7);
+}
+
+.document-preview .download-btn-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.document-preview .download-btn-overlay svg {
+  width: 24px;
+  height: 24px;
+}
+
+.document-preview:hover .download-btn-overlay {
+  opacity: 1;
+  visibility: visible;
+}
+
+.document-preview .download-btn-overlay:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+  background: #e8f5e8;
 }
 
 .document-placeholder {
@@ -4462,36 +4465,41 @@ select.form-control:disabled {
 }
 
 .preview-btn {
-  padding: 6px 12px;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border: 1px solid #ffcdd2;
   border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  background: #ffebee;
+  color: #d32f2f;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  padding: 0;
 }
 
-.preview-btn.view-btn {
-  background: #16a34a;
+.preview-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.preview-btn:hover {
+  background: #d32f2f;
   color: white;
-}
-
-.preview-btn.view-btn:hover {
-  background: #15803d;
+  border-color: #d32f2f;
   transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
-.preview-btn.remove-btn {
-  background: #ef4444;
-  color: white;
-}
-
-.preview-btn.remove-btn:hover {
-  background: #dc2626;
-  transform: translateY(-1px);
+.preview-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 /* Upload Placeholder */

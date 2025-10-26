@@ -272,7 +272,8 @@ router.post('/',
           aadharCard: fileUrls.aadharCard || null,
           panCard: fileUrls.panCard || null,
           gstCertificate: fileUrls.gstCertificate || null,
-          fssaiCertificate: fileUrls.fssaiCertificate || null
+          fssaiCertificate: fileUrls.fssaiCertificate || null,
+          agreementCopy: fileUrls.agreementCopy || null
         },
         socialMedia: {
           facebook: facebook || null,
@@ -460,6 +461,35 @@ router.put('/:id',
       if (req.body.name) updateData.name = req.body.name.trim();
       if (req.body.email) updateData.email = req.body.email.toLowerCase().trim();
       if (req.body.phone) updateData.phone = req.body.phone;
+      if (req.body.isActive !== undefined) {
+        updateData.isActive = req.body.isActive;
+        // ✅ NEW: Handle related credentials when theater is deactivated/reactivated
+        if (req.body.isActive === false) {
+          console.log('🔒 Theater being deactivated - updating related QR codes');
+          // Update all QR codes for this theater to inactive
+          try {
+            const qrUpdateResult = await Theater.updateOne(
+              { _id: req.params.id },
+              { $set: { 'qrCodes.$[].isActive': false } }
+            );
+            console.log('🔒 QR codes deactivated:', qrUpdateResult.modifiedCount);
+          } catch (qrError) {
+            console.warn('⚠️ Failed to deactivate QR codes:', qrError.message);
+          }
+        } else if (req.body.isActive === true) {
+          console.log('🔓 Theater being reactivated - updating related QR codes to active');
+          // Automatically reactivate all QR codes for this theater
+          try {
+            const qrUpdateResult = await Theater.updateOne(
+              { _id: req.params.id },
+              { $set: { 'qrCodes.$[].isActive': true } }
+            );
+            console.log('🔓 QR codes reactivated:', qrUpdateResult.modifiedCount);
+          } catch (qrError) {
+            console.warn('⚠️ Failed to reactivate QR codes:', qrError.message);
+          }
+        }
+      }
       
       if (req.body.address || req.body.city || req.body.state || req.body.pincode) {
         updateData.address = {
@@ -500,7 +530,8 @@ router.put('/:id',
           aadharCard: fileUrls.aadharCard || theater.documents?.aadharCard || null,
           panCard: fileUrls.panCard || theater.documents?.panCard || null,
           gstCertificate: fileUrls.gstCertificate || theater.documents?.gstCertificate || null,
-          fssaiCertificate: fileUrls.fssaiCertificate || theater.documents?.fssaiCertificate || null
+          fssaiCertificate: fileUrls.fssaiCertificate || theater.documents?.fssaiCertificate || null,
+          agreementCopy: fileUrls.agreementCopy || theater.documents?.agreementCopy || null
         };
 
         if (fileUrls.logo) {

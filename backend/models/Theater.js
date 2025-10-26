@@ -79,7 +79,8 @@ const theaterSchema = new mongoose.Schema({
     aadharCard: String,
     panCard: String,
     gstCertificate: String,
-    fssaiCertificate: String
+    fssaiCertificate: String,
+    agreementCopy: String
   },
   ownerDetails: {
     name: String,

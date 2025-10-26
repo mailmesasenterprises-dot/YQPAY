@@ -95,7 +95,6 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
       
         
         <div className="header-icons">
-          <button className="icon-btn">{getIcon('notification')}</button>
           <button className="icon-btn">{getIcon('email')}</button>
           <button className="icon-btn">{getIcon('settings')}</button>
           <div className="user-profile-container">

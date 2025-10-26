@@ -244,6 +244,19 @@ router.post('/login', [
         
         if (user && await bcrypt.compare(password, user.password)) {
           console.log('✅ Legacy user authenticated successfully');
+          
+          // ✅ CHECK: Validate theater is active for theater users
+          if (user.theaterId) {
+            if (!user.theaterId.isActive) {
+              console.log('❌ Theater access is disabled for legacy user');
+              return res.status(403).json({
+                success: false,
+                error: 'Theater access has been disabled. Please contact administration.',
+                code: 'THEATER_INACTIVE'
+              });
+            }
+          }
+          
           authenticatedUser = {
             _id: user._id,
             username: user.username,
@@ -391,11 +404,30 @@ router.post('/validate-pin', [
 
     console.log('✅ PIN validated successfully');
 
-    // Get theater details
+    // Get theater details and validate theater is active
     let theaterInfo = null;
     if (theaterUsersDoc.theaterId) {
       theaterInfo = await mongoose.connection.db.collection('theaters')
         .findOne({ _id: theaterUsersDoc.theaterId });
+      
+      // ✅ CHECK: Prevent login if theater is inactive
+      if (!theaterInfo) {
+        console.log('❌ Theater not found');
+        return res.status(404).json({
+          success: false,
+          error: 'Theater not found',
+          code: 'THEATER_NOT_FOUND'
+        });
+      }
+      
+      if (theaterInfo.isActive === false) {
+        console.log('❌ Theater access is disabled');
+        return res.status(403).json({
+          success: false,
+          error: 'Theater access has been disabled. Please contact administration.',
+          code: 'THEATER_INACTIVE'
+        });
+      }
     }
 
     // Get role details if role is ObjectId
