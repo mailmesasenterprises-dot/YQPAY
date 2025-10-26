@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test QR Name & Seat Order Capture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        button {
+            background: #22c55e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #16a34a;
+        }
+        button.staff {
+            background: #3b82f6;
+        }
+        button.staff:hover {
+            background: #2563eb;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #dcfce7; color: #166534; }
+        .error { background: #fef2f2; color: #dc2626; }
+        .info { background: #eff6ff; color: #1d4ed8; }
+        .code-block {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .results {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 QR Name & Seat Order Capture Test</h1>
+        <p>This page tests if <code>qrName</code> and <code>seat</code> values are properly captured during order creation.</p>
+        
+        <div class="test-section">
+            <h2>📋 Test Customer Order (QR Code Flow)</h2>
+            <p>This simulates a customer order placed via QR code with specific QR name and seat:</p>
+            
+            <div class="code-block">
+{
+  "qrName": "Screen 1 - IMAX",
+  "seat": "A12",
+  "customerName": "9876543210",
+  "theaterId": "[THEATER_ID]",
+  "items": [{"productId": "[PRODUCT_ID]", "quantity": 2}],
+  "paymentMethod": "upi"
+}
+            </div>
+            
+            <button onclick="createCustomerOrder()">🛒 Create Customer Order</button>
+            <div id="customerOrderStatus"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🏢 Test Staff Order (POS Flow)</h2>
+            <p>This simulates a staff order from POS interface without QR data:</p>
+            
+            <div class="code-block">
+{
+  "qrName": null,
+  "seat": null,
+  "customerName": "Walk-in Customer",
+  "theaterId": "[THEATER_ID]",
+  "items": [{"productId": "[PRODUCT_ID]", "quantity": 1}],
+  "paymentMethod": "cash"
+}
+            </div>
+            
+            <button class="staff" onclick="createStaffOrder()">🏪 Create Staff Order</button>
+            <div id="staffOrderStatus"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📊 View Recent Orders</h2>
+            <p>Check the most recent orders to see if qrName and seat values are stored:</p>
+            <button onclick="fetchRecentOrders()" style="background: #f59e0b;">📋 Fetch Recent Orders</button>
+            <div id="recentOrdersStatus"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📚 Instructions</h2>
+            <ol>
+                <li><strong>Backend:</strong> Make sure backend server is running on port 5000</li>
+                <li><strong>Frontend:</strong> Make sure frontend is running on port 3001</li>
+                <li><strong>Database:</strong> Orders will be saved to MongoDB</li>
+                <li><strong>Expected Result:</strong> Customer orders should have qrName and seat values, staff orders should be null</li>
+                <li><strong>Check Console:</strong> Open browser DevTools (F12) to see detailed logs</li>
+            </ol>
+            
+            <h3>🔍 What to Look For:</h3>
+            <ul>
+                <li>✅ <code>qrName</code> field in customer orders</li>
+                <li>✅ <code>seat</code> field in customer orders</li>
+                <li>✅ Backend logs showing "QR Name: Screen 1 - IMAX" and "Seat: A12"</li>
+                <li>✅ Order response includes these fields</li>
+                <li>❌ Staff orders should have null values for these fields</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let testTheaterId = null;
+        let testProductId = null;
+        
+        // Initialize by fetching theaters and products
+        async function initialize() {
+            try {
+                // Get theaters
+                const theatersResponse = await fetch('http://localhost:5000/api/theaters');
+                const theatersData = await theatersResponse.json();
+                
+                if (theatersData.success && theatersData.theaters.length > 0) {
+                    testTheaterId = theatersData.theaters[0]._id;
+                    console.log('✅ Using theater:', theatersData.theaters[0].name, 'ID:', testTheaterId);
+                }
+                
+                // Get products for this theater
+                if (testTheaterId) {
+                    const productsResponse = await fetch(`http://localhost:5000/api/products/theater/${testTheaterId}`);
+                    const productsData = await productsResponse.json();
+                    
+                    if (productsData.success && productsData.products.length > 0) {
+                        testProductId = productsData.products[0]._id;
+                        console.log('✅ Using product:', productsData.products[0].name, 'ID:', testProductId);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+            }
+        }
+        
+        // Create customer order with QR data
+        async function createCustomerOrder() {
+            const statusDiv = document.getElementById('customerOrderStatus');
+            statusDiv.innerHTML = '<div class="info">🔄 Creating customer order...</div>';
+            
+            if (!testTheaterId || !testProductId) {
+                statusDiv.innerHTML = '<div class="error">❌ Please wait for initialization to complete</div>';
+                return;
+            }
+            
+            try {
+                const orderData = {
+                    theaterId: testTheaterId,
+                    customerName: "9876543210",
+                    customerInfo: {
+                        name: "Customer",
+                        phone: "9876543210"
+                    },
+                    qrName: "Screen 1 - IMAX",
+                    seat: "A12",
+                    items: [{
+                        productId: testProductId,
+                        quantity: 2
+                    }],
+                    paymentMethod: "upi",
+                    source: "qr_code"
+                };
+                
+                console.log('📤 Sending customer order:', orderData);
+                
+                const response = await fetch('http://localhost:5000/api/orders/theater', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+                
+                const result = await response.json();
+                console.log('📥 Customer order response:', result);
+                
+                if (result.success) {
+                    statusDiv.innerHTML = `
+                        <div class="success">
+                            ✅ Customer order created successfully!<br>
+                            <strong>Order Number:</strong> ${result.order.orderNumber}<br>
+                            <strong>QR Name:</strong> ${result.order.qrName || 'null'}<br>
+                            <strong>Seat:</strong> ${result.order.seat || 'null'}<br>
+                            <strong>Source:</strong> ${result.order.source}
+                        </div>
+                        <div class="results">
+                            <pre>${JSON.stringify(result.order, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.message || 'Order creation failed');
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Customer order creation failed:', error);
+            }
+        }
+        
+        // Create staff order without QR data
+        async function createStaffOrder() {
+            const statusDiv = document.getElementById('staffOrderStatus');
+            statusDiv.innerHTML = '<div class="info">🔄 Creating staff order...</div>';
+            
+            if (!testTheaterId || !testProductId) {
+                statusDiv.innerHTML = '<div class="error">❌ Please wait for initialization to complete</div>';
+                return;
+            }
+            
+            try {
+                const orderData = {
+                    theaterId: testTheaterId,
+                    customerName: "Walk-in Customer",
+                    items: [{
+                        productId: testProductId,
+                        quantity: 1
+                    }],
+                    paymentMethod: "cash"
+                };
+                
+                console.log('📤 Sending staff order:', orderData);
+                
+                const response = await fetch('http://localhost:5000/api/orders/theater', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+                
+                const result = await response.json();
+                console.log('📥 Staff order response:', result);
+                
+                if (result.success) {
+                    statusDiv.innerHTML = `
+                        <div class="success">
+                            ✅ Staff order created successfully!<br>
+                            <strong>Order Number:</strong> ${result.order.orderNumber}<br>
+                            <strong>QR Name:</strong> ${result.order.qrName || 'null'}<br>
+                            <strong>Seat:</strong> ${result.order.seat || 'null'}<br>
+                            <strong>Source:</strong> ${result.order.source}
+                        </div>
+                        <div class="results">
+                            <pre>${JSON.stringify(result.order, null, 2)}</pre>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.message || 'Order creation failed');
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Staff order creation failed:', error);
+            }
+        }
+        
+        // Fetch recent orders to verify data
+        async function fetchRecentOrders() {
+            const statusDiv = document.getElementById('recentOrdersStatus');
+            statusDiv.innerHTML = '<div class="info">🔄 Fetching recent orders...</div>';
+            
+            if (!testTheaterId) {
+                statusDiv.innerHTML = '<div class="error">❌ Please wait for initialization to complete</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`http://localhost:5000/api/orders/theater/${testTheaterId}?limit=5`);
+                const result = await response.json();
+                console.log('📥 Recent orders response:', result);
+                
+                if (result.success && result.orders) {
+                    let ordersHtml = '<div class="success">✅ Recent orders fetched successfully!</div>';
+                    
+                    result.orders.forEach((order, index) => {
+                        ordersHtml += `
+                            <div class="results" style="margin: 10px 0;">
+                                <h4>Order ${index + 1}: ${order.orderNumber}</h4>
+                                <strong>QR Name:</strong> ${order.qrName || 'null'}<br>
+                                <strong>Seat:</strong> ${order.seat || 'null'}<br>
+                                <strong>Source:</strong> ${order.source}<br>
+                                <strong>Customer:</strong> ${order.customerInfo?.name || 'N/A'}<br>
+                                <strong>Created:</strong> ${new Date(order.createdAt).toLocaleString()}
+                            </div>
+                        `;
+                    });
+                    
+                    statusDiv.innerHTML = ordersHtml;
+                } else {
+                    throw new Error(result.message || 'Failed to fetch orders');
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Fetch recent orders failed:', error);
+            }
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', initialize);
+    </script>
+</body>
+</html>

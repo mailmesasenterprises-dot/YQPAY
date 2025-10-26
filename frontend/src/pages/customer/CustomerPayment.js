@@ -204,7 +204,9 @@ const CustomerPayment = () => {
           name: 'Customer',
           phone: phoneNumber
         },
-        tableNumber: checkoutData.seat || checkoutData.qrName || 'Online Order',
+        tableNumber: checkoutData.seat || 'Online Order',
+        qrName: checkoutData.qrName,    // ✅ Include QR Name
+        seat: checkoutData.seat,        // ✅ Include Seat
         items: orderItems,
         paymentMethod: selectedPaymentMethod
       };

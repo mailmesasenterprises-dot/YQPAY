@@ -13,9 +13,27 @@ const ProductCollectionModal = ({ collection, isOpen, onClose }) => {
 
   useEffect(() => {
     if (isOpen && collection?.variants?.length > 0) {
-      setSelectedVariant(collection.variants[0]);
-      setSelectedImage(collection.variants[0].image || collection.baseImage);
+      // Sort variants: available first, out of stock last
+      const sortedVariants = [...collection.variants].sort((a, b) => {
+        const aAvailable = (a.originalProduct || a).isAvailable !== false;
+        const bAvailable = (b.originalProduct || b).isAvailable !== false;
+        
+        // Available items come first
+        if (aAvailable && !bAvailable) return -1;
+        if (!aAvailable && bAvailable) return 1;
+        return 0;
+      });
+      
+      // Select first available variant, or first variant if all out of stock
+      const firstAvailable = sortedVariants.find(v => (v.originalProduct || v).isAvailable !== false);
+      const variantToSelect = firstAvailable || sortedVariants[0];
+      
+      setSelectedVariant(variantToSelect);
+      setSelectedImage(variantToSelect.image || collection.baseImage);
       setSlideDirection('right');
+      
+      // Update collection variants with sorted order
+      collection.variants = sortedVariants;
       
       // Preload all variant images for instant switching
       collection.variants.forEach(variant => {

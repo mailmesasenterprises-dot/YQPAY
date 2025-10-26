@@ -37,7 +37,10 @@ router.post('/theater', [
       });
     }
 
-    const { theaterId, items, customerInfo, customerName, tableNumber, specialInstructions, orderNotes, paymentMethod } = req.body;
+    const { theaterId, items, customerInfo, customerName, tableNumber, specialInstructions, orderNotes, paymentMethod, qrName, seat } = req.body;
+
+    console.log('🔍 QR Name:', qrName);
+    console.log('🔍 Seat:', seat);
 
     // Handle both customerInfo and customerName formats
     const finalCustomerInfo = customerInfo || {
@@ -207,6 +210,8 @@ router.post('/theater', [
       source: req.user ? 'staff' : 'qr_code',
       tableNumber,
       specialInstructions: finalSpecialInstructions,
+      qrName: qrName || null,  // ✅ Store QR Name
+      seat: seat || null,      // ✅ Store Seat
       timestamps: {
         placedAt: new Date()
       },

@@ -15,6 +15,13 @@ const ViewCart = () => {
     locationState: location.state,
     pathname: location.pathname 
   });
+
+  // Extract qrName and seat from URL parameters or cart data
+  const urlParams = new URLSearchParams(location.search);
+  const qrName = urlParams.get('qrname') || cartData?.qrName || null;
+  const seat = urlParams.get('seat') || cartData?.seat || null;
+  
+  console.log('🔍 Extracted values:', { qrName, seat });
   
   // Get cart data from React Router state or sessionStorage fallback
   const getCartData = () => {
@@ -179,7 +186,9 @@ const ViewCart = () => {
           specialInstructions: item.notes || ''
         })),
         orderNotes: orderNotes.trim(),
-        paymentMethod: paymentMethod
+        paymentMethod: paymentMethod,
+        qrName: qrName,  // ✅ Include QR Name
+        seat: seat       // ✅ Include Seat
       };
 
       console.log('📦 Order data being sent:', orderData);
@@ -372,16 +381,16 @@ const ViewCart = () => {
                   <span>Subtotal:</span>
                   <span>{formatPrice(subtotal)}</span>
                 </div>
+                <div className="summary-row">
+                  <span>Tax (GST):</span>
+                  <span>{formatPrice(tax)}</span>
+                </div>
                 {totalDiscount > 0 && (
                   <div className="summary-row discount-row">
                     <span>Discount:</span>
                     <span className="discount-amount">-{formatPrice(totalDiscount)}</span>
                   </div>
                 )}
-                <div className="summary-row">
-                  <span>GST:</span>
-                  <span>{formatPrice(tax)}</span>
-                </div>
                 <div className="summary-divider"></div>
                 <div className="summary-row total-row">
                   <span>Total Amount:</span>

@@ -93,6 +93,8 @@ const orderSchema = new mongoose.Schema({
     default: 'staff'
   },
   tableNumber: String,
+  qrName: String,     // ✅ QR code name (e.g., "Screen 1", "YQ S-1")
+  seat: String,       // ✅ Seat identifier (e.g., "A1", "B2")
   specialInstructions: String,
   timestamps: {
     placedAt: { type: Date, default: Date.now },

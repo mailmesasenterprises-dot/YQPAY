@@ -37,9 +37,34 @@ const CustomerHome = () => {
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   
-  // Filter states
   const [isVegOnly, setIsVegOnly] = useState(false);
   const [selectedPriceRange, setSelectedPriceRange] = useState('all');
+
+  // Initialize state from localStorage if URL params are missing
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('theaterid') || params.get('theaterId') || params.get('THEATERID');
+    
+    // If no theaterId in URL, try to restore from localStorage and redirect
+    if (!id) {
+      const savedId = localStorage.getItem('customerTheaterId');
+      if (savedId) {
+        const savedQr = localStorage.getItem('customerQrName');
+        const savedScreen = localStorage.getItem('customerScreenName');
+        const savedSeat = localStorage.getItem('customerSeat');
+        
+        const newParams = new URLSearchParams();
+        newParams.set('theaterid', savedId);
+        if (savedQr) newParams.set('qrName', savedQr);
+        if (savedScreen) newParams.set('screen', savedScreen);
+        if (savedSeat) newParams.set('seat', savedSeat);
+        
+        // Redirect with saved parameters
+        navigate(`/customer/home?${newParams.toString()}`, { replace: true });
+        return;
+      }
+    }
+  }, [location.search, navigate]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -60,23 +85,36 @@ const CustomerHome = () => {
       allParams: Object.fromEntries(params.entries())
     });
     
-    if (id) setTheaterId(id);
+    // Save to localStorage for persistence on refresh
+    if (id) {
+      setTheaterId(id);
+      localStorage.setItem('customerTheaterId', id);
+    }
+    
     if (qr) {
       console.log('✅ Setting QR Name:', qr);
       setQrName(qr);
+      localStorage.setItem('customerQrName', qr);
       // If no screen name is provided, use qrName as screen name
       if (!screen) {
         console.log('ℹ️ No screen parameter, using qrName as screen name');
         setScreenName(qr);
+        localStorage.setItem('customerScreenName', qr);
       }
-    } else {
-      console.log('❌ No QR name found in URL parameters');
-      console.log('Available parameters:', Array.from(params.keys()));
     }
-    if (seatNum) setSeat(seatNum);
-    if (screen) setScreenName(screen);
+    
+    if (seatNum) {
+      setSeat(seatNum);
+      localStorage.setItem('customerSeat', seatNum);
+    }
+    
+    if (screen) {
+      setScreenName(screen);
+      localStorage.setItem('customerScreenName', screen);
+    }
+    
     if (category) setSelectedCategory(category); // Restore selected category
-  }, [location.search]);
+  }, [location.search, navigate]);
 
   const loadTheater = useCallback(async (id) => {
     try {

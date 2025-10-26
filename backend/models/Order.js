@@ -115,6 +115,8 @@ const orderSchema = new mongoose.Schema({
     cancelledAt: Date
   },
   qrCodeId: String, // QR code used to place order
+  qrName: String,   // QR code name (e.g., "Screen 1", "YQ S-1")
+  seat: String,     // Seat identifier (e.g., "A1", "B2")
   tableNumber: String,
   specialInstructions: String,
   

@@ -27,53 +27,62 @@ const CustomerCart = () => {
     if (cat) setCategory(cat);
   }, [location.search]);
 
-  // Calculate totals - Discount should be applied to base price, then GST calculated on discounted amount
-  const { subtotal, tax, total, totalDiscount, gstType } = items.reduce((acc, item) => {
+  // Calculate totals - Apply discount first, then calculate GST on discounted amount
+  const { subtotal, tax, total, totalDiscount, gstTypes } = items.reduce((acc, item) => {
     const originalPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0;
     const qty = parseInt(item.quantity) || 0;
     const taxRate = parseFloat(item.taxRate) || 0;
-    const gstType = item.gstType || item.pricing?.gstType || 'EXCLUDE';
+    const itemGstType = item.gstType || item.pricing?.gstType || 'EXCLUDE';
     const discountPercentage = parseFloat(item.discountPercentage || item.pricing?.discountPercentage) || 0;
     
-    let basePrice = 0;
-    let originalSubtotal = 0; // For display in subtotal (original price)
-    let itemTax = 0;
-    let discountAmount = 0;
-    let finalTotal = 0;
+    console.log(`🔍 Item: ${item.name}, GST Type: ${itemGstType}, Tax Rate: ${taxRate}%, Discount: ${discountPercentage}%`);
     
-    if (gstType === 'INCLUDE') {
-      // Price includes GST - use original price as subtotal
-      basePrice = (originalPrice * qty) / (1 + (taxRate / 100));
-      originalSubtotal = originalPrice * qty;
-      // GST portion included in subtotal (before discount)
-      itemTax = originalSubtotal - basePrice;
-      // Apply discount to base price
-      discountAmount = discountPercentage > 0 
-        ? basePrice * (discountPercentage / 100)
-        : 0;
-      const discountedBase = basePrice - discountAmount;
-      finalTotal = discountedBase + itemTax;
+    // Step 1: Apply discount to original price
+    const discountAmount = discountPercentage > 0 
+      ? (originalPrice * qty) * (discountPercentage / 100)
+      : 0;
+    
+    const discountedPrice = originalPrice * qty - discountAmount;
+    
+    let itemSubtotal = 0;
+    let itemTax = 0;
+    let itemTotal = 0;
+    
+    if (itemGstType === 'INCLUDE') {
+      // Price includes GST - extract GST from discounted price
+      itemSubtotal = discountedPrice / (1 + (taxRate / 100));
+      itemTax = discountedPrice - itemSubtotal;
+      itemTotal = discountedPrice; // Same as discounted price since GST is included
+      console.log(`📊 GST INCLUDE - Base: ₹${itemSubtotal.toFixed(2)}, Tax: ₹${itemTax.toFixed(2)}, Total: ₹${itemTotal.toFixed(2)}`);
     } else {
-      // GST EXCLUDE - subtotal is original price, tax is calculated separately
-      basePrice = originalPrice * qty;
-      originalSubtotal = basePrice;
-      itemTax = basePrice * (taxRate / 100);
-      // Apply discount to (original price + GST)
-      const preDiscountTotal = basePrice + itemTax;
-      discountAmount = discountPercentage > 0
-        ? preDiscountTotal * (discountPercentage / 100)
-        : 0;
-      finalTotal = preDiscountTotal - discountAmount;
+      // GST EXCLUDE - calculate GST on discounted price
+      itemSubtotal = discountedPrice;
+      itemTax = discountedPrice * (taxRate / 100);
+      itemTotal = discountedPrice + itemTax;
+      console.log(`📊 GST EXCLUDE - Subtotal: ₹${itemSubtotal.toFixed(2)}, Tax: ₹${itemTax.toFixed(2)}, Total: ₹${itemTotal.toFixed(2)}`);
+    }
+    
+    // Track unique GST types
+    const updatedGstTypes = [...acc.gstTypes];
+    if (!updatedGstTypes.includes(itemGstType)) {
+      updatedGstTypes.push(itemGstType);
     }
     
     return {
-      subtotal: acc.subtotal + originalSubtotal,
+      subtotal: acc.subtotal + itemSubtotal,
       tax: acc.tax + itemTax,
-      total: acc.total + finalTotal,
+      total: acc.total + itemTotal,
       totalDiscount: acc.totalDiscount + discountAmount,
-      gstType: gstType // Keep the last item's GST type (assuming all items have same type)
+      gstTypes: updatedGstTypes
     };
-  }, { subtotal: 0, tax: 0, total: 0, totalDiscount: 0, gstType: 'EXCLUDE' });
+  }, { subtotal: 0, tax: 0, total: 0, totalDiscount: 0, gstTypes: [] });
+
+  // Determine display label for GST based on mixed types
+  const gstDisplayLabel = gstTypes.length > 1 
+    ? "Tax (GST) - Mixed" 
+    : gstTypes.includes('INCLUDE') 
+      ? "Tax (GST) - Included" 
+      : "Tax (GST) - Excluded";
 
   const handleCheckout = () => {
     // Navigate to phone entry to start checkout flow
@@ -278,7 +287,7 @@ const CustomerCart = () => {
         </div>
         
         <div className="summary-row">
-          <span className="summary-label">Tax (GST) - {gstType === 'INCLUDE' ? 'Included' : 'Excluded'}</span>
+          <span className="summary-label">{gstDisplayLabel}</span>
           <span className="summary-value">₹{tax.toFixed(2)}</span>
         </div>
         

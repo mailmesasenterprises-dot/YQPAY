@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test QR Name & Seat Display in OnlinePOS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        button {
+            background: #22c55e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #16a34a;
+        }
+        button.open {
+            background: #3b82f6;
+        }
+        button.open:hover {
+            background: #2563eb;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #dcfce7; color: #166534; }
+        .error { background: #fef2f2; color: #dc2626; }
+        .info { background: #eff6ff; color: #1d4ed8; }
+        .highlight {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Test QR Name & Seat Display in OnlinePOS</h1>
+        <p>This page tests if <code>qrName</code> and <code>seat</code> values are properly displayed in the Online POS Customer Orders section.</p>
+        
+        <div class="test-section">
+            <h2>📋 Step 1: Create Test Order with QR Data</h2>
+            <p>Create a customer order with specific qrName and seat values:</p>
+            
+            <div class="highlight">
+                <strong>Test Data:</strong><br>
+                🎬 QR Name: "IMAX Screen 1"<br>
+                🪑 Seat: "G15"<br>
+                📱 Customer: "9876543210"
+            </div>
+            
+            <button onclick="createTestOrderWithQRData()">🛒 Create Test Order</button>
+            <div id="createOrderStatus"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📱 Step 2: Open Online POS Interface</h2>
+            <p>Open the Online POS interface to see the Customer Orders section:</p>
+            <button class="open" onclick="openOnlinePOS()">🖥️ Open Online POS</button>
+            <div class="info">
+                <strong>What to look for:</strong>
+                <ul>
+                    <li>✅ Customer Orders section should show the new order</li>
+                    <li>✅ QR Name should display "IMAX Screen 1"</li>
+                    <li>✅ Seat should display "G15"</li>
+                    <li>✅ Order should flash green (new order animation)</li>
+                    <li>✅ Should hear beep sound (if audio enabled)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🔧 Step 3: Browser Console Check</h2>
+            <p>Open browser DevTools (F12) and check the Console for debug logs:</p>
+            <div class="info">
+                <strong>Expected Console Messages:</strong>
+                <pre>
+🔍 Order 1 data: {
+  orderNumber: "ORD-20251026-XXXX",
+  qrName: "IMAX Screen 1",
+  seat: "G15",
+  screenName: null,
+  tableNumber: "Online Order"
+}
+                </pre>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>📊 Step 4: Create Multiple Test Orders</h2>
+            <p>Create different types of orders to test various scenarios:</p>
+            
+            <button onclick="createVariousTestOrders()">🎯 Create Multiple Test Orders</button>
+            <div id="multipleOrdersStatus"></div>
+            
+            <div class="info">
+                <strong>Test Scenarios:</strong>
+                <ul>
+                    <li>🎬 Order with QR Name only</li>
+                    <li>🪑 Order with Seat only</li>
+                    <li>🚫 Order with neither (should show "N/A")</li>
+                    <li>✅ Order with both QR Name and Seat</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>🔄 Step 5: Refresh and Verify</h2>
+            <p>Refresh the Online POS interface and check that all orders display correctly:</p>
+            <div class="highlight">
+                <strong>Expected Results:</strong><br>
+                • Orders with qrName should show actual QR name instead of "Screen 1"<br>
+                • Orders with seat should show actual seat number instead of "A-15"<br>
+                • Orders without data should show "N/A" instead of fallback values<br>
+                • New orders should trigger beep sound and flashing animation
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let testTheaterId = null;
+        let testProductId = null;
+        
+        // Initialize
+        async function initialize() {
+            try {
+                const theatersResponse = await fetch('http://localhost:5000/api/theaters');
+                const theatersData = await theatersResponse.json();
+                
+                if (theatersData.success && theatersData.theaters.length > 0) {
+                    testTheaterId = theatersData.theaters[0]._id;
+                    console.log('✅ Using theater:', theatersData.theaters[0].name, 'ID:', testTheaterId);
+                }
+                
+                if (testTheaterId) {
+                    const productsResponse = await fetch(`http://localhost:5000/api/products/theater/${testTheaterId}`);
+                    const productsData = await productsResponse.json();
+                    
+                    if (productsData.success && productsData.products.length > 0) {
+                        testProductId = productsData.products[0]._id;
+                        console.log('✅ Using product:', productsData.products[0].name, 'ID:', testProductId);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+            }
+        }
+        
+        // Create test order with QR data
+        async function createTestOrderWithQRData() {
+            const statusDiv = document.getElementById('createOrderStatus');
+            statusDiv.innerHTML = '<div class="info">🔄 Creating test order with QR data...</div>';
+            
+            if (!testTheaterId || !testProductId) {
+                statusDiv.innerHTML = '<div class="error">❌ Please wait for initialization to complete</div>';
+                return;
+            }
+            
+            try {
+                const orderData = {
+                    theaterId: testTheaterId,
+                    customerName: "9876543210",
+                    customerInfo: {
+                        name: "Customer",
+                        phone: "9876543210"
+                    },
+                    qrName: "IMAX Screen 1",    // ✅ Test QR Name
+                    seat: "G15",               // ✅ Test Seat
+                    items: [{
+                        productId: testProductId,
+                        quantity: 1
+                    }],
+                    paymentMethod: "upi"
+                };
+                
+                console.log('📤 Creating order with QR data:', orderData);
+                
+                const response = await fetch('http://localhost:5000/api/orders/theater', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+                
+                const result = await response.json();
+                console.log('📥 Order creation response:', result);
+                
+                if (result.success) {
+                    statusDiv.innerHTML = `
+                        <div class="success">
+                            ✅ Test order created successfully!<br>
+                            <strong>Order Number:</strong> ${result.order.orderNumber}<br>
+                            <strong>QR Name:</strong> ${result.order.qrName}<br>
+                            <strong>Seat:</strong> ${result.order.seat}<br>
+                            <br>
+                            <em>Now open the Online POS interface to see these values displayed!</em>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.message || 'Order creation failed');
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+                console.error('Test order creation failed:', error);
+            }
+        }
+        
+        // Open Online POS interface
+        function openOnlinePOS() {
+            if (testTheaterId) {
+                window.open(`http://localhost:3001/online-pos/${testTheaterId}`, '_blank');
+            } else {
+                alert('Please wait for initialization or go to http://localhost:3001 and select a theater');
+            }
+        }
+        
+        // Create various test orders
+        async function createVariousTestOrders() {
+            const statusDiv = document.getElementById('multipleOrdersStatus');
+            statusDiv.innerHTML = '<div class="info">🔄 Creating multiple test orders...</div>';
+            
+            if (!testTheaterId || !testProductId) {
+                statusDiv.innerHTML = '<div class="error">❌ Please wait for initialization to complete</div>';
+                return;
+            }
+            
+            const testOrders = [
+                {
+                    customerName: "1111111111",
+                    qrName: "Dolby Atmos Hall",
+                    seat: null,
+                    description: "QR Name only"
+                },
+                {
+                    customerName: "2222222222", 
+                    qrName: null,
+                    seat: "A5",
+                    description: "Seat only"
+                },
+                {
+                    customerName: "3333333333",
+                    qrName: null,
+                    seat: null,
+                    description: "Neither (should show N/A)"
+                },
+                {
+                    customerName: "4444444444",
+                    qrName: "VIP Lounge Screen",
+                    seat: "L12",
+                    description: "Both QR Name and Seat"
+                }
+            ];
+            
+            let results = [];
+            
+            for (let i = 0; i < testOrders.length; i++) {
+                const order = testOrders[i];
+                try {
+                    const orderData = {
+                        theaterId: testTheaterId,
+                        customerName: order.customerName,
+                        customerInfo: {
+                            name: "Customer",
+                            phone: order.customerName
+                        },
+                        qrName: order.qrName,
+                        seat: order.seat,
+                        items: [{
+                            productId: testProductId,
+                            quantity: 1
+                        }],
+                        paymentMethod: "cash"
+                    };
+                    
+                    const response = await fetch('http://localhost:5000/api/orders/theater', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(orderData)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        results.push(`✅ ${order.description}: ${result.order.orderNumber}`);
+                    } else {
+                        results.push(`❌ ${order.description}: Failed`);
+                    }
+                } catch (error) {
+                    results.push(`❌ ${order.description}: Error - ${error.message}`);
+                }
+                
+                // Small delay between orders
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            statusDiv.innerHTML = `
+                <div class="success">
+                    ✅ Multiple test orders created:<br>
+                    ${results.join('<br>')}
+                    <br><br>
+                    <em>Refresh the Online POS interface to see all orders with different QR Name/Seat combinations!</em>
+                </div>
+            `;
+        }
+        
+        // Initialize on page load
+        window.addEventListener('load', initialize);
+    </script>
+</body>
+</html>

@@ -677,40 +677,49 @@ const TheaterOrderInterface = () => {
     };
   }, [theaterId, fetchProducts]);
 
-  // Calculate order totals with dynamic GST
+  // Calculate order totals with dynamic GST and discount handling
   const orderTotals = useMemo(() => {
-    let subtotal = 0;
-    let totalTax = 0;
+    let calculatedSubtotal = 0;
+    let calculatedTax = 0;
+    let calculatedDiscount = 0;
     
     currentOrder.forEach(item => {
       const price = parseFloat(item.sellingPrice) || 0;
       const qty = parseInt(item.quantity) || 0;
       const taxRate = parseFloat(item.taxRate) || 0;
       const gstType = item.gstType || 'EXCLUDE';
+      const discountPercentage = parseFloat(item.discountPercentage) || 0;
       
       const lineTotal = price * qty;
-  
+      
+      // Calculate discount amount
+      const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
+      calculatedDiscount += discountAmount;
+      
+      // Apply discount to get discounted line total
+      const discountedLineTotal = lineTotal - discountAmount;
       
       if (gstType === 'INCLUDE') {
-        // Price already includes GST, extract the GST amount
-        const basePrice = lineTotal / (1 + (taxRate / 100));
-        const gstAmount = lineTotal - basePrice;
-        subtotal += basePrice;
-        totalTax += gstAmount;
+        // GST INCLUDE - price includes GST, extract the GST amount from discounted total
+        const gstAmount = discountedLineTotal * (taxRate / (100 + taxRate));
+        const basePrice = discountedLineTotal - gstAmount;
+        calculatedSubtotal += basePrice;
+        calculatedTax += gstAmount;
       } else {
-        // GST EXCLUDE - add GST on top of price
-        const gstAmount = lineTotal * (taxRate / 100);
-        subtotal += lineTotal;
-        totalTax += gstAmount;
+        // GST EXCLUDE - add GST on top of discounted price
+        const gstAmount = discountedLineTotal * (taxRate / 100);
+        calculatedSubtotal += discountedLineTotal;
+        calculatedTax += gstAmount;
       }
     });
     
-    const total = subtotal + totalTax;
+    const calculatedTotal = calculatedSubtotal + calculatedTax;
     
     return { 
-      subtotal: parseFloat(subtotal.toFixed(2)), 
-      tax: parseFloat(totalTax.toFixed(2)), 
-      total: parseFloat(total.toFixed(2)) 
+      subtotal: parseFloat(calculatedSubtotal.toFixed(2)), 
+      tax: parseFloat(calculatedTax.toFixed(2)), 
+      total: parseFloat(calculatedTotal.toFixed(2)),
+      totalDiscount: parseFloat(calculatedDiscount.toFixed(2))
     };
   }, [currentOrder]);
 
@@ -770,6 +779,7 @@ const TheaterOrderInterface = () => {
       subtotal: orderTotals.subtotal,
       tax: orderTotals.tax,
       total: orderTotals.total,
+      totalDiscount: orderTotals.totalDiscount,
       theaterId
     };
 
@@ -856,6 +866,13 @@ const TheaterOrderInterface = () => {
           }
           .professional-pos-content {
             isolation: isolate;
+          }
+          .discount-line .discount-amount {
+            color: #10B981;
+            font-weight: 600;
+          }
+          .discount-line {
+            color: #10B981;
           }
         `}</style>
         
@@ -981,6 +998,12 @@ const TheaterOrderInterface = () => {
                       <span>Tax (GST):</span>
                       <span>₹{orderTotals.tax.toFixed(2)}</span>
                     </div>
+                    {orderTotals.totalDiscount > 0 && (
+                      <div className="pos-summary-line discount-line">
+                        <span>Discount:</span>
+                        <span className="discount-amount">-₹{orderTotals.totalDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="pos-summary-total">
                       <span>TOTAL:</span>
                       <span>₹{orderTotals.total.toFixed(2)}</span>
@@ -1003,6 +1026,7 @@ const TheaterOrderInterface = () => {
                           subtotal: orderTotals.subtotal,
                           tax: orderTotals.tax,
                           total: orderTotals.total,
+                          totalDiscount: orderTotals.totalDiscount,
                           theaterId
                         };
                         

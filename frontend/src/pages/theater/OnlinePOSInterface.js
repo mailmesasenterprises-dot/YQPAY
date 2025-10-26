@@ -11,12 +11,10 @@ import '../../styles/Dashboard.css';
 import '../../styles/ImageUpload.css';
 import '../../styles/TheaterOrderInterface.css';
 
-// Professional POS Product Card Component
+// Modern POS Product Card Component - Click to Add (Same as Professional POS)
 const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => {
-  const [quantity, setQuantity] = React.useState(0);
-
   const formatPrice = (price) => {
-    // Don't show any price in offline mode (when price is 0 or product is mock)
+    // Don't show any price in demo mode (when price is 0)
     if (price === 0) {
       return '';
     }
@@ -27,111 +25,131 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
   };
 
   // Get current quantity in cart
-  React.useEffect(() => {
+  const getQuantityInCart = () => {
     const orderItem = currentOrder.find(item => item._id === product._id);
-    setQuantity(orderItem ? orderItem.quantity : 0);
-  }, [currentOrder, product._id]);
+    return orderItem ? orderItem.quantity : 0;
+  };
 
-  const handleQuantityChange = (newQuantity, e) => {
-    e.stopPropagation(); // Prevent card click
-    
-    if (newQuantity <= 0) {
-      setQuantity(0);
-      // Remove from cart if quantity is 0
-      onAddToCart(product, 0);
-    } else {
-      setQuantity(newQuantity);
-      onAddToCart(product, newQuantity);
+  const quantityInCart = getQuantityInCart();
+
+  // Handle card click - add one item to cart
+  const handleCardClick = () => {
+    if (!isOutOfStock) {
+      onAddToCart(product, quantityInCart + 1);
     }
   };
 
-  const isOutOfStock = (product.stockQuantity || 0) <= 0 || !product.isActive || !product.isAvailable;
-  
-  // Calculate discounted price
+  // Check stock using array structure fields
+  const currentStock = product.inventory?.currentStock ?? product.stockQuantity ?? 0;
+  const isOutOfStock = currentStock <= 0 || !product.isActive || !product.isAvailable;
+
+  // Get price from array structure and calculate discount
+  const originalPrice = product.pricing?.basePrice ?? product.sellingPrice ?? 0;
   const discountPercentage = parseFloat(product.discountPercentage || product.pricing?.discountPercentage) || 0;
-  const originalPrice = product.sellingPrice || 0;
-  const discountedPrice = discountPercentage > 0 
+  const productPrice = discountPercentage > 0 
     ? originalPrice * (1 - discountPercentage / 100)
     : originalPrice;
   const hasDiscount = discountPercentage > 0;
-  
-  // Determine the reason for being out of stock
-  const getOutOfStockReason = () => {
-    if (!product.isActive || !product.isAvailable) {
-      return "Out of Stock"; // Product is inactive - show as out of stock
+
+  // Get product image
+  const getProductImage = () => {
+    let imageUrl = null;
+    
+    // New format: images array (array structure)
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const firstImage = product.images[0];
+      imageUrl = typeof firstImage === 'string' ? firstImage : firstImage?.url;
     }
-    if ((product.stockQuantity || 0) <= 0) {
-      return "Out of Stock"; // Actually out of stock
+    // Old format: productImage string
+    else if (product.productImage) {
+      imageUrl = product.productImage;
     }
-    return "Out of Stock";
+    
+    return imageUrl;
   };
 
+  const imageUrl = getProductImage();
+
   return (
-    <div className={`pos-product-card ${isOutOfStock ? 'out-of-stock' : ''}`}>
-      <div className="pos-product-image">
-        {product.productImage ? (
-          <img 
-            src={product.productImage} 
-            alt={product.name || 'Product'}
-            loading="eager"
-            decoding="async"
-            style={{imageRendering: 'auto'}}
-            onError={(e) => {
-              e.target.src = '/placeholder-product.png';
-            }}
-          />
-        ) : (
-          <div className="pos-product-placeholder">
+    <div className="modern-product-card-wrapper">
+      <div 
+        className={`modern-product-card ${isOutOfStock ? 'out-of-stock' : ''}`}
+        onClick={handleCardClick}
+      >
+        {/* Product Image */}
+        <div className="modern-product-image">
+          {imageUrl ? (
+            <img 
+              src={imageUrl} 
+              alt={product.name || 'Product'}
+              loading="eager"
+              decoding="async"
+              style={{imageRendering: 'auto'}}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+          ) : (
+            <div className="modern-product-placeholder">
+              <span className="placeholder-icon">🍽️</span>
+            </div>
+          )}
+          <div className="modern-product-placeholder" style={{ display: imageUrl ? 'none' : 'flex' }}>
             <span className="placeholder-icon">🍽️</span>
+          </div>
+        </div>
+
+        {/* Product Info Overlay */}
+        <div className="modern-product-overlay">
+          <div className="modern-product-details">
+            <div className="modern-product-detail-item">
+              {/* <span className="detail-label">Price</span> */}
+              {hasDiscount ? (
+                <div className="price-with-discount">
+                  <span className="detail-value original-price">{formatPrice(originalPrice)}</span>
+                  <span className="detail-value discounted-price">{formatPrice(productPrice)}</span>
+                </div>
+              ) : (
+                <span className="detail-value">{formatPrice(productPrice)}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Discount Badge - Top Right */}
+        {hasDiscount && !isOutOfStock && (
+          <div className="modern-discount-badge">
+            {discountPercentage}% OFF
+          </div>
+        )}
+
+        {/* Out of Stock Overlay */}
+        {isOutOfStock && (
+          <div className="modern-out-of-stock-overlay">
+            <span className="out-of-stock-text">OUT OF STOCK</span>
+          </div>
+        )}
+
+        {/* Size/Quantity Badge - Bottom Left */}
+        {(product.quantity || product.sizeLabel) && (
+          <div className="modern-size-badge">
+            {(product.quantity || product.sizeLabel || '').toString().toLowerCase()}
+          </div>
+        )}
+
+        {/* Quantity Badge */}
+        {quantityInCart > 0 && !isOutOfStock && (
+          <div className="modern-quantity-badge">
+            {quantityInCart}
           </div>
         )}
       </div>
       
-      <div className="pos-product-info">
-        <h4 className="pos-product-name">{product.name || 'Unknown Product'}</h4>
-        
-        {/* Price and Quantity Controls in same row */}
-        <div className="pos-product-price-row">
-          <div className="pos-product-price-container">
-            {hasDiscount ? (
-              <>
-                <span className="pos-product-price pos-original-price">{formatPrice(originalPrice)}</span>
-                <span className="pos-product-price pos-discounted-price">{formatPrice(discountedPrice)}</span>
-                <span className="pos-discount-badge">{discountPercentage}% OFF</span>
-              </>
-            ) : (
-              <div className="pos-product-price">{formatPrice(originalPrice)}</div>
-            )}
-          </div>
-          
-          {/* Quantity Controls */}
-          {!isOutOfStock && (
-            <div className="pos-product-quantity">
-              <button 
-                className="pos-product-qty-btn pos-qty-minus"
-                onClick={(e) => handleQuantityChange(Math.max(0, quantity - 1), e)}
-                disabled={quantity <= 0}
-              >
-                −
-              </button>
-              <span className="pos-product-qty-display">{quantity}</span>
-              <button 
-                className="pos-product-qty-btn pos-qty-plus"
-                onClick={(e) => handleQuantityChange(quantity + 1, e)}
-              >
-                +
-              </button>
-            </div>
-          )}
-        </div>
+      {/* Product Name - Outside Card */}
+      <div className="modern-product-name-section">
+        <h3 className="modern-product-name">{product.name || 'Unknown Product'}</h3>
       </div>
-      
-      {/* Stock indicator */}
-      {isOutOfStock && (
-        <div className="pos-out-of-stock">
-          <span>{getOutOfStockReason()}</span>
-        </div>
-      )}
     </div>
   );
 });
@@ -191,15 +209,22 @@ const StaffOrderItem = React.memo(({ item, onUpdateQuantity, onRemove }) => {
 
 StaffOrderItem.displayName = 'StaffOrderItem';
 
-// Main Theater Staff Ordering Interface - Canteen Staff Use Only
+// Online POS Interface - Modern Design with Customer Orders Management
 const OnlinePOSInterface = () => {
   const { theaterId: routeTheaterId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Reliable theaterId extraction
-  const urlMatch = window.location.pathname.match(/\/theater-order\/([^/]+)/);
+  // Reliable theaterId extraction - Updated for Online POS URLs
+  const urlMatch = window.location.pathname.match(/\/online-pos\/([^/]+)/);
   const theaterId = routeTheaterId || (urlMatch ? urlMatch[1] : null);
+  
+  // Debug theater ID extraction
+  console.log('🎭 Theater ID Debug:');
+  console.log('  - URL pathname:', window.location.pathname);
+  console.log('  - Route theaterId:', routeTheaterId);
+  console.log('  - URL match:', urlMatch);
+  console.log('  - Final theaterId:', theaterId);
   
   // IMMEDIATE CLEANUP - Remove any lingering UI elements from other pages
   useEffect(() => {
@@ -260,6 +285,7 @@ const OnlinePOSInterface = () => {
   const [orderImages, setOrderImages] = useState([]);
   const [onlineOrders, setOnlineOrders] = useState([]); // Customer orders from QR code
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [newOrderIds, setNewOrderIds] = useState([]); // Track new orders for flashing
   const isMountedRef = useRef(true);
   
   // Performance monitoring
@@ -347,8 +373,8 @@ const OnlinePOSInterface = () => {
         );
       } else {
         // Add new item with specified quantity
-        // Calculate discounted price
-        const originalPrice = product.sellingPrice || 0;
+        // Extract price from array structure (pricing.basePrice) or old structure (sellingPrice)
+        const originalPrice = product.pricing?.basePrice ?? product.sellingPrice ?? 0;
         const discountPercentage = parseFloat(product.discountPercentage || product.pricing?.discountPercentage) || 0;
         const sellingPrice = discountPercentage > 0 
           ? originalPrice * (1 - discountPercentage / 100)
@@ -424,11 +450,21 @@ const OnlinePOSInterface = () => {
 
   // Load categories from theater-categories API
   const loadCategories = useCallback(async () => {
+    console.log('🏷️ Starting to load categories for theater:', theaterId);
+    
+    if (!theaterId) {
+      console.error('❌ No theater ID available for loading categories');
+      setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
+      return;
+    }
+    
     try {
       let authToken = getAuthToken();
       if (!authToken) {
+        console.log('🔑 No auth token found, attempting auto login...');
         authToken = await autoLogin();
         if (!authToken) {
+          console.error('❌ Failed to get auth token');
           return;
         }
       }
@@ -443,6 +479,7 @@ const OnlinePOSInterface = () => {
         }
       });
 
+      console.log('🏷️ Categories API response status:', categoriesResponse.status);
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
         
@@ -452,19 +489,24 @@ const OnlinePOSInterface = () => {
           const activeCategories = categoryList.filter(cat => cat.isActive);
           
           // Store both category names for display and full category objects for filtering
-          const categoryNames = activeCategories.map(cat => cat.name);
+          // API returns categoryName field, not name
+          const categoryNames = activeCategories.map(cat => cat.categoryName || cat.name);
           
           console.log('🏷️ ORDER INTERFACE: Categories loaded:', categoryNames);
           console.log('🏷️ ORDER INTERFACE: Category objects:', activeCategories);
           
           const mapping = activeCategories.reduce((map, cat) => {
-            map[cat.name] = cat._id;
+            const catName = cat.categoryName || cat.name;
+            map[catName] = cat._id;
             return map;
           }, {});
           
           
           setCategories(categoryNames);
           setCategoryMapping(mapping);
+          
+          console.log('✅ Categories set in state:', categoryNames);
+          console.log('✅ Category mapping set:', mapping);
           
           // Debug: Check products after categories are loaded
           setTimeout(() => {
@@ -484,12 +526,24 @@ const OnlinePOSInterface = () => {
               });
             }
           }, 1000);
+        } else {
+          console.log('❌ Categories data success=false or no data:', categoriesData);
+          // Set fallback categories
+          setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
+          setCategoryMapping({});
         }
       } else {
-        console.log('❌ Categories API failed:', categoriesResponse.status);
+        const errorText = await categoriesResponse.text();
+        console.log('❌ Categories API failed:', categoriesResponse.status, errorText);
+        // Set fallback categories
+        setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
+        setCategoryMapping({});
       }
     } catch (error) {
       console.error('❌ Failed to load categories:', error);
+      // Set fallback categories
+      setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
+      setCategoryMapping({});
     }
   }, [theaterId]);
 
@@ -519,7 +573,7 @@ const OnlinePOSInterface = () => {
       // Mirror the exact pattern from TheaterProductList and TheaterCategories
       const params = new URLSearchParams({
         page: 1,
-        limit: 1000, // Get all products for ordering
+        limit: 100, // API max limit is 100
         _cacheBuster: Date.now(),
         _random: Math.random()
       });
@@ -558,11 +612,12 @@ const OnlinePOSInterface = () => {
         
         console.log('🍿 ORDER INTERFACE: Total products:', allProducts.length);
         console.log('🍿 ORDER INTERFACE: Products to show:', theaterProducts.length);
-        console.log('🍿 ORDER INTERFACE: Sample product status:', {
+        console.log('🍿 ORDER INTERFACE: Sample product data:', {
           name: allProducts[0]?.name,
           isActive: allProducts[0]?.isActive,
           isAvailable: allProducts[0]?.isAvailable,
-          stockQuantity: allProducts[0]?.stockQuantity
+          stock: allProducts[0]?.inventory?.currentStock ?? allProducts[0]?.stockQuantity,
+          price: allProducts[0]?.pricing?.basePrice ?? allProducts[0]?.sellingPrice
         });
       } else {
         console.error('🍿 ORDER INTERFACE: API returned success: false', data);
@@ -599,7 +654,7 @@ const OnlinePOSInterface = () => {
           ...product,
           _id: product._id || `product-${Math.random()}`,
           name: product.name || 'Unknown Product',
-          sellingPrice: parseFloat(product.sellingPrice) || 0,
+          sellingPrice: 0, // Always 0 for clean demo display
           stockQuantity: parseInt(product.stockQuantity) || 0,
           category: assignedCategory
         };
@@ -627,7 +682,7 @@ const OnlinePOSInterface = () => {
       
       // Set empty products to show clean interface
       setProducts([]);
-      setCategories(['Snacks', 'Beverages', 'Combo Deals', 'Desserts']); // Show empty categories
+      setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']); // Show empty categories
       setError(''); // Clear error to show clean interface
       
       console.log('✅ Clean empty interface loaded');
@@ -638,7 +693,7 @@ const OnlinePOSInterface = () => {
     }
   }, [theaterId]);
 
-  // Load initial data - simplified without abort controller
+  // Load initial data - Load categories first, then products
   useEffect(() => {
     console.log('🔥 USE EFFECT TRIGGERED! Theater ID:', theaterId);
     
@@ -649,6 +704,12 @@ const OnlinePOSInterface = () => {
     setSelectedCategory('all');
     setSearchTerm('');
     setError('');
+    
+    console.log('🔄 State cleanup completed, theaterId:', theaterId);
+    
+    // Set immediate fallback categories to ensure something shows
+    setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
+    console.log('🎯 Immediate fallback categories set');
     
     if (theaterId) {
       // Add a small delay to prevent rate limiting
@@ -667,6 +728,80 @@ const OnlinePOSInterface = () => {
     };
   }, [theaterId, fetchProducts]);
 
+  // Audio context for beep sound
+  const [audioContext, setAudioContext] = useState(null);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+
+  // Initialize audio context on user interaction
+  const initializeAudio = useCallback(() => {
+    if (!audioContext) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        setAudioContext(ctx);
+        setAudioEnabled(true);
+        console.log('🔊 Audio context initialized');
+        return ctx;
+      } catch (error) {
+        console.error('Failed to initialize audio context:', error);
+        return null;
+      }
+    }
+    return audioContext;
+  }, [audioContext]);
+
+  // Function to play beep sound
+  const playBeepSound = useCallback(async () => {
+    try {
+      let ctx = audioContext;
+      
+      // Initialize audio context if not already done
+      if (!ctx) {
+        ctx = initializeAudio();
+        if (!ctx) return;
+      }
+
+      // Resume audio context if suspended (required by browser policy)
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+        console.log('🔊 Audio context resumed');
+      }
+
+      // Create and play beep sound
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime); // 800Hz beep
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.5);
+      
+      console.log('🔔 Beep sound played!');
+      
+    } catch (error) {
+      console.error('🔇 Audio playback failed:', error);
+      
+      // Fallback: Try HTML5 Audio with data URL
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBg==');
+        audio.volume = 0.3;
+        audio.play();
+        console.log('🔔 Fallback beep played!');
+      } catch (fallbackError) {  
+        console.error('🔇 Fallback audio also failed:', fallbackError);
+        // Visual notification as final fallback
+        document.title = '🔔 NEW ORDER! - ' + (document.title.replace('🔔 NEW ORDER! - ', ''));
+        setTimeout(() => {
+          document.title = document.title.replace('🔔 NEW ORDER! - ', '');
+        }, 3000);
+      }
+    }
+  }, [audioContext, initializeAudio]);
+
   // Fetch online/customer orders from theaterorders collection
   const fetchOnlineOrders = useCallback(async () => {
     if (!theaterId) return;
@@ -683,7 +818,45 @@ const OnlinePOSInterface = () => {
         const data = await response.json();
         if (data.success && data.orders) {
           console.log(`📱 Loaded ${data.orders.length} customer orders`);
-          setOnlineOrders(data.orders);
+          
+          // Debug: Log order data to see qrName and seat values
+          data.orders.forEach((order, index) => {
+            if (index < 2) { // Only log first 2 orders to avoid clutter
+              console.log(`🔍 Order ${index + 1} data:`, {
+                orderNumber: order.orderNumber,
+                qrName: order.qrName,
+                seat: order.seat,
+                screenName: order.screenName,
+                tableNumber: order.tableNumber
+              });
+            }
+          });
+          
+          // Check for new orders
+          setOnlineOrders(prevOrders => {
+            const prevOrderIds = prevOrders.map(order => order._id);
+            const newOrders = data.orders.filter(order => !prevOrderIds.includes(order._id));
+            
+            if (newOrders.length > 0) {
+              console.log(`🔔 ${newOrders.length} new order(s) received!`);
+              console.log('🔊 Audio enabled:', audioEnabled);
+              console.log('🔊 Attempting to play beep sound...');
+              
+              // Play beep sound for new orders
+              playBeepSound();
+              
+              // Mark new orders for flashing
+              const newIds = newOrders.map(order => order._id);
+              setNewOrderIds(newIds);
+              
+              // Remove flashing after 5 seconds
+              setTimeout(() => {
+                setNewOrderIds([]);
+              }, 5000);
+            }
+            
+            return data.orders;
+          });
         }
       }
     } catch (error) {
@@ -691,7 +864,7 @@ const OnlinePOSInterface = () => {
     } finally {
       setLoadingOrders(false);
     }
-  }, [theaterId]);
+  }, [theaterId, playBeepSound]);
 
   // Poll for new online orders every 10 seconds
   useEffect(() => {
@@ -706,40 +879,49 @@ const OnlinePOSInterface = () => {
     return () => clearInterval(interval);
   }, [theaterId, fetchOnlineOrders]);
 
-  // Calculate order totals with dynamic GST
+  // Calculate order totals with dynamic GST and discount handling
   const orderTotals = useMemo(() => {
-    let subtotal = 0;
-    let totalTax = 0;
+    let calculatedSubtotal = 0;
+    let calculatedTax = 0;
+    let calculatedDiscount = 0;
     
     currentOrder.forEach(item => {
       const price = parseFloat(item.sellingPrice) || 0;
       const qty = parseInt(item.quantity) || 0;
       const taxRate = parseFloat(item.taxRate) || 0;
       const gstType = item.gstType || 'EXCLUDE';
+      const discountPercentage = parseFloat(item.discountPercentage) || 0;
       
       const lineTotal = price * qty;
-  
+      
+      // Calculate discount amount
+      const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
+      calculatedDiscount += discountAmount;
+      
+      // Apply discount to get discounted line total
+      const discountedLineTotal = lineTotal - discountAmount;
       
       if (gstType === 'INCLUDE') {
-        // Price already includes GST, extract the GST amount
-        const basePrice = lineTotal / (1 + (taxRate / 100));
-        const gstAmount = lineTotal - basePrice;
-        subtotal += basePrice;
-        totalTax += gstAmount;
+        // GST INCLUDE - price includes GST, extract the GST amount from discounted total
+        const gstAmount = discountedLineTotal * (taxRate / (100 + taxRate));
+        const basePrice = discountedLineTotal - gstAmount;
+        calculatedSubtotal += basePrice;
+        calculatedTax += gstAmount;
       } else {
-        // GST EXCLUDE - add GST on top of price
-        const gstAmount = lineTotal * (taxRate / 100);
-        subtotal += lineTotal;
-        totalTax += gstAmount;
+        // GST EXCLUDE - add GST on top of discounted price
+        const gstAmount = discountedLineTotal * (taxRate / 100);
+        calculatedSubtotal += discountedLineTotal;
+        calculatedTax += gstAmount;
       }
     });
     
-    const total = subtotal + totalTax;
+    const calculatedTotal = calculatedSubtotal + calculatedTax;
     
     return { 
-      subtotal: parseFloat(subtotal.toFixed(2)), 
-      tax: parseFloat(totalTax.toFixed(2)), 
-      total: parseFloat(total.toFixed(2)) 
+      subtotal: parseFloat(calculatedSubtotal.toFixed(2)), 
+      tax: parseFloat(calculatedTax.toFixed(2)), 
+      total: parseFloat(calculatedTotal.toFixed(2)),
+      totalDiscount: parseFloat(calculatedDiscount.toFixed(2))
     };
   }, [currentOrder]);
 
@@ -747,31 +929,22 @@ const OnlinePOSInterface = () => {
   const filteredProducts = useMemo(() => {
     let filtered = products;
     
-    // Debug: Log all product categories and selected category
-      if (selectedCategory && selectedCategory !== 'all') {
+    // Filter by category
+    if (selectedCategory && selectedCategory !== 'all') {
       const categoryId = categoryMapping[selectedCategory];
       
       filtered = filtered.filter(product => {
-        const productCategory = product.category || '';
+        // Products use categoryId field (ObjectId) - need to match with category _id
+        const productCategoryId = product.categoryId || product.category || '';
         
-        // Ensure productCategory is a string before using string methods
-        const categoryStr = typeof productCategory === 'string' ? productCategory : String(productCategory || '');
+        // Convert to string for comparison
+        const categoryIdStr = String(productCategoryId);
+        const selectedCategoryIdStr = String(categoryId);
         
-        // Try multiple matching strategies:
-        // 1. Exact name match (string)
-        // 2. Case-insensitive name match
-        // 3. ObjectId match (if category is stored as ObjectId)
-        const nameMatch = categoryStr === selectedCategory || 
-                         categoryStr.toLowerCase() === selectedCategory.toLowerCase();
-        const idMatch = categoryId && categoryStr === categoryId;
+        // Match by category ID
+        const match = categoryIdStr === selectedCategoryIdStr;
         
-        const match = nameMatch || idMatch;
-        
-        if (!match) {
-          console.log(`❌ Product "${product.name}" category "${categoryStr}" doesn't match "${selectedCategory}" (ID: ${categoryId})`);
-        } else {
-          console.log(`✅ Product "${product.name}" category "${categoryStr}" matches "${selectedCategory}" (ID: ${categoryId})`);
-        }
+        console.log(`Product "${product.name}": categoryId="${categoryIdStr}" vs selected="${selectedCategoryIdStr}" => ${match ? '✅' : '❌'}`);
         
         return match;
       });
@@ -802,12 +975,13 @@ const OnlinePOSInterface = () => {
     // Prepare cart data to pass to ViewCart page
     const cartData = {
       items: currentOrder,
-      customerName: 'Walk-in Customer', // Default customer name
+      customerName: 'POS', // Default customer name
       notes: orderNotes.trim(),
       images: orderImages,
       subtotal: orderTotals.subtotal,
       tax: orderTotals.tax,
       total: orderTotals.total,
+      totalDiscount: orderTotals.totalDiscount,
       theaterId
     };
 
@@ -896,11 +1070,157 @@ const OnlinePOSInterface = () => {
           .professional-pos-content {
             isolation: isolate;
           }
+          .discount-line .discount-amount {
+            color: #10B981;
+            font-weight: 600;
+          }
+          .discount-line {
+            color: #10B981;
+          }
         `}</style>
         
         {/* Main POS Layout */}
         <div className="pos-main-container">
-          {/* Left Side - Product Menu */}
+          {/* Left Order Panel - Order Queue */}
+          <div className="pos-order-section">
+            <div className="pos-order-header" style={{backgroundColor: '#6B0E9B', background: '#6B0E9B', color: 'white'}}>
+              <h2 className="pos-order-title" style={{color: 'white', margin: 0}}>
+                Customer Orders ({onlineOrders.length})
+              </h2>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {!audioEnabled && (
+                  <button 
+                    onClick={initializeAudio}
+                    style={{
+                      background: '#22c55e',
+                      color: 'white',
+                      border: 'none',
+                      padding: '6px 12px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                    title="Click to enable new order beep sounds"
+                  >
+                    🔊 Enable Sound
+                  </button>
+                )}
+                {audioEnabled && (
+                  <button 
+                    onClick={playBeepSound}
+                    style={{
+                      background: '#f59e0b',
+                      color: 'white',
+                      border: 'none',
+                      padding: '6px 12px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                    title="Test the beep sound"
+                  >
+                    🔔 Test Sound
+                  </button>
+                )}
+                <button 
+                  className="pos-clear-btn"
+                  onClick={fetchOnlineOrders}
+                  disabled={loadingOrders}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  color: 'white',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}
+              >
+                {loadingOrders ? '🔄' : '🔄 Refresh'}
+              </button>
+              </div>
+            </div>
+
+            <div className="pos-order-content" style={{ padding: '16px', maxHeight: '600px', overflowY: 'auto' }}>
+              {onlineOrders.length === 0 ? (
+                <div className="pos-empty-order">
+                  <div className="empty-order-icon">�</div>
+                  <h3>No Customer Orders</h3>
+                  <p>QR code orders will appear here.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {onlineOrders.map((order, index) => (
+                    <div 
+                      key={order._id || index} 
+                      className={newOrderIds.includes(order._id) ? 'new-order-flash' : ''}
+                      style={{
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        backgroundColor: '#fafafa',
+                        fontSize: '13px'
+                      }}>
+                      {/* 1. Order Number */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '12px',
+                        paddingBottom: '8px',
+                        borderBottom: '1px solid #6B0E9B'
+                      }}>
+                        <span style={{
+                          fontSize: '14px',
+                          fontWeight: 'bold',
+                          color: '#1f2937'
+                        }}>
+                           {order.orderNumber || `Order #${index + 1}`}
+                        </span>
+                      </div>
+
+                      {/* 2. Screen & Seat (Same Line) */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '8px'
+                      }}>
+                        <span style={{ color: '#4b5563', fontWeight: '600' }}>Screen & Seat:</span>
+                        <span style={{ color: '#1f2937', fontWeight: 'bold' }}>
+                           {order.qrName || order.screenName || order.tableNumber || 'N/A'} |  {order.seat || order.seatNumber || order.customerInfo?.seat || 'N/A'}
+                        </span>
+                      </div>
+
+                      {/* 4. Total Amount */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginTop: '12px',
+                        paddingTop: '8px',
+                        borderTop: '1px solid #e5e7eb'
+                      }}>
+                        <span style={{ color: '#1f2937', fontWeight: 'bold' }}>Total:</span>
+                        <span style={{
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          color: '#6B0E9B'
+                        }}>
+                          ₹{order.pricing?.total?.toFixed(2) || order.total?.toFixed(2) || '0.00'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Center - Product Menu */}
           <div className="pos-menu-section">
             {/* Category Tabs - POS Style */}
             <div className="pos-category-tabs" style={{backgroundColor: '#6B0E9B', background: '#6B0E9B'}}>
@@ -1020,6 +1340,12 @@ const OnlinePOSInterface = () => {
                       <span>Tax (GST):</span>
                       <span>₹{orderTotals.tax.toFixed(2)}</span>
                     </div>
+                    {orderTotals.totalDiscount > 0 && (
+                      <div className="pos-summary-line discount-line">
+                        <span>Discount:</span>
+                        <span className="discount-amount">-₹{orderTotals.totalDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="pos-summary-total">
                       <span>TOTAL:</span>
                       <span>₹{orderTotals.total.toFixed(2)}</span>
@@ -1036,12 +1362,13 @@ const OnlinePOSInterface = () => {
                         // Prepare cart data with current order
                         const cartData = {
                           items: currentOrder,
-                          customerName: 'Walk-in Customer', // Default customer name
+                          customerName: 'POS', // Default customer name
                           notes: orderNotes.trim(),
                           images: orderImages,
                           subtotal: orderTotals.subtotal,
                           tax: orderTotals.tax,
                           total: orderTotals.total,
+                          totalDiscount: orderTotals.totalDiscount,
                           theaterId
                         };
                         
@@ -1067,223 +1394,6 @@ const OnlinePOSInterface = () => {
             </div>
           </div>
         </div>
-
-        {/* Customer Orders Section - Below Main POS */}
-        {onlineOrders.length > 0 && (
-          <div className="online-orders-container" style={{
-            marginTop: '24px',
-            padding: '20px',
-            backgroundColor: '#fff',
-            borderRadius: '12px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
-          }}>
-            <div className="online-orders-header" style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '20px',
-              paddingBottom: '16px',
-              borderBottom: '2px solid #6B0E9B'
-            }}>
-              <h2 style={{
-                margin: 0,
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: '#6B0E9B',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <span style={{
-                  background: 'linear-gradient(135deg, #6B0E9B, #5A0C82)',
-                  color: 'white',
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '20px'
-                }}>📱</span>
-                Customer Orders (QR Code)
-              </h2>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <span style={{
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  padding: '6px 16px',
-                  borderRadius: '20px',
-                  fontSize: '14px',
-                  fontWeight: 'bold'
-                }}>
-                  {onlineOrders.length} Orders
-                </span>
-                <button
-                  onClick={fetchOnlineOrders}
-                  disabled={loadingOrders}
-                  style={{
-                    background: loadingOrders ? '#9ca3af' : '#6B0E9B',
-                    color: 'white',
-                    border: 'none',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    cursor: loadingOrders ? 'not-allowed' : 'pointer',
-                    fontSize: '14px',
-                    fontWeight: '600'
-                  }}
-                >
-                  {loadingOrders ? '🔄 Refreshing...' : '🔄 Refresh'}
-                </button>
-              </div>
-            </div>
-
-            <div className="online-orders-grid" style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-              gap: '20px'
-            }}>
-              {onlineOrders.map((order, index) => (
-                <div key={order._id || index} className="online-order-card" style={{
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  backgroundColor: '#fafafa',
-                  transition: 'all 0.3s ease',
-                  ':hover': {
-                    borderColor: '#6B0E9B',
-                    boxShadow: '0 6px 20px rgba(107,14,155,0.15)'
-                  }
-                }}>
-                  {/* Order Header */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    marginBottom: '12px',
-                    paddingBottom: '12px',
-                    borderBottom: '1px solid #e5e7eb'
-                  }}>
-                    <div>
-                      <div style={{
-                        fontSize: '16px',
-                        fontWeight: 'bold',
-                        color: '#1f2937',
-                        marginBottom: '4px'
-                      }}>
-                        {order.orderNumber || `Order #${index + 1}`}
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#6b7280'
-                      }}>
-                        {order.tableNumber || 'Online Order'}
-                      </div>
-                    </div>
-                    <div style={{
-                      backgroundColor: order.status === 'pending' ? '#fbbf24' : 
-                                     order.status === 'confirmed' ? '#3b82f6' :
-                                     order.status === 'completed' ? '#10b981' : '#ef4444',
-                      color: 'white',
-                      padding: '4px 12px',
-                      borderRadius: '12px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      textTransform: 'uppercase'
-                    }}>
-                      {order.status || 'Pending'}
-                    </div>
-                  </div>
-
-                  {/* Customer Info */}
-                  <div style={{
-                    marginBottom: '12px',
-                    fontSize: '14px',
-                    color: '#4b5563'
-                  }}>
-                    <div style={{ marginBottom: '4px' }}>
-                      <strong>📞 Phone:</strong> {order.customerInfo?.phone || order.customerName || 'N/A'}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      🕒 {new Date(order.createdAt).toLocaleString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Order Items */}
-                  <div style={{
-                    marginBottom: '12px',
-                    maxHeight: '150px',
-                    overflowY: 'auto',
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    padding: '8px'
-                  }}>
-                    {order.items && order.items.map((item, idx) => (
-                      <div key={idx} style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        padding: '6px 0',
-                        fontSize: '13px',
-                        borderBottom: idx < order.items.length - 1 ? '1px solid #f3f4f6' : 'none'
-                      }}>
-                        <span style={{ color: '#374151' }}>
-                          <strong>{item.quantity}x</strong> {item.name}
-                        </span>
-                        <span style={{ color: '#6b7280', fontWeight: '600' }}>
-                          ₹{item.totalPrice?.toFixed(2) || (item.unitPrice * item.quantity).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Order Total */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    paddingTop: '12px',
-                    borderTop: '2px solid #e5e7eb'
-                  }}>
-                    <span style={{
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: '#1f2937'
-                    }}>
-                      Total Amount
-                    </span>
-                    <span style={{
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      color: '#6B0E9B'
-                    }}>
-                      ₹{order.pricing?.total?.toFixed(2) || '0.00'}
-                    </span>
-                  </div>
-
-                  {/* Payment Method */}
-                  {order.payment?.method && (
-                    <div style={{
-                      marginTop: '8px',
-                      fontSize: '12px',
-                      color: '#6b7280',
-                      textAlign: 'right'
-                    }}>
-                      💳 {order.payment.method.toUpperCase()}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </TheaterLayout>
   );
