@@ -53,6 +53,10 @@ router.get('/', [
     });
 
     console.log(`✅ Found ${result.users.length} users for theater ${theaterId}`);
+    console.log('🔢 First user PIN check:', result.users.length > 0 ? result.users[0].pin : 'No users');
+    if (result.users.length > 0) {
+      console.log('📦 First user object:', JSON.stringify(result.users[0], null, 2));
+    }
 
     res.json({
       success: true,

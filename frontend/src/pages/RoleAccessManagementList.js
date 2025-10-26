@@ -368,7 +368,7 @@ const RoleAccessManagementList = () => {
               )}
 
               {/* Pagination */}
-              {totalPages > 1 && !loading && (
+              {!loading && (
                 <Pagination 
                   currentPage={currentPage}
                   totalPages={totalPages}

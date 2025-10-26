@@ -346,16 +346,8 @@ const TheaterRoleAccess = () => {
       if (response.ok) {
         const data = await response.json();
         
-        // Update the local state immediately with the response data
-        if (data.data) {
-          setRolePermissions(prevPermissions => 
-            prevPermissions.map(role => 
-              role._id === selectedRolePermission._id 
-                ? data.data 
-                : role
-            )
-          );
-        }
+        // Reload the role permissions data to get the latest state from server
+        await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
         
         setShowEditModal(false);
         showSuccess('Role permissions updated successfully');
@@ -501,7 +493,9 @@ const TheaterRoleAccess = () => {
                   </td>
                 </tr>
               ) : (
-                sortedRolePermissions.map((rolePermission, index) => (
+                sortedRolePermissions
+                  .filter(rolePermission => rolePermission.isActive !== false)
+                  .map((rolePermission, index) => (
                   <tr key={rolePermission._id} className="theater-row">
                     <td className="sno-cell">
                       <div className="sno-number">{((currentPage - 1) * itemsPerPage) + index + 1}</div>
@@ -537,11 +531,6 @@ const TheaterRoleAccess = () => {
                           type="edit"
                           onClick={() => editRolePermission(rolePermission)}
                           title="Edit Role Access"
-                        />
-                        <ActionButton 
-                          type="delete"
-                          onClick={() => deleteRolePermission(rolePermission)}
-                          title="Delete Role Access"
                         />
                       </ActionButtons>
                     </td>

@@ -51,7 +51,8 @@ const TheaterUserManagement = () => {
     confirmPassword: '',
     fullName: '',
     phoneNumber: '',
-    role: ''
+    role: '',
+    pin: ''
   });
   const [formErrors, setFormErrors] = useState({});
   
@@ -240,7 +241,8 @@ const TheaterUserManagement = () => {
         phoneNumber: user.phoneNumber || '',
         role: typeof user.role === 'object' ? user.role._id : user.role,
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        pin: user.pin || ''
       });
     } else {
       setFormData({
@@ -250,7 +252,8 @@ const TheaterUserManagement = () => {
         confirmPassword: '',
         fullName: '',
         phoneNumber: '',
-        role: selectedRole?.id || ''
+        role: selectedRole?.id || '',
+        pin: ''
       });
     }
     setFormErrors({});
@@ -269,7 +272,8 @@ const TheaterUserManagement = () => {
       confirmPassword: '',
       fullName: '',
       phoneNumber: '',
-      role: ''
+      role: '',
+      pin: ''
     });
     setFormErrors({});
   };
@@ -301,6 +305,13 @@ const TheaterUserManagement = () => {
     }
 
     if (!formData.fullName?.trim()) errors.fullName = 'Full name is required';
+    if (!formData.phoneNumber?.trim()) errors.phoneNumber = 'Phone number is required';
+    else if (formData.phoneNumber.length !== 10) errors.phoneNumber = 'Phone number must be exactly 10 digits';
+    
+    if (!formData.pin?.trim()) errors.pin = 'PIN is required';
+    else if (formData.pin.length !== 4) errors.pin = 'PIN must be exactly 4 digits';
+    else if (!/^\d{4}$/.test(formData.pin)) errors.pin = 'PIN must contain only numbers';
+    
     if (!formData.role) errors.role = 'Role is required';
 
     setFormErrors(errors);
@@ -319,7 +330,8 @@ const TheaterUserManagement = () => {
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
         role: formData.role,
-        theater: theaterId
+        theater: theaterId,
+        pin: formData.pin?.trim()
       };
 
       const response = await fetch(`${config.api.baseUrl}/theater-users`, {
@@ -352,7 +364,8 @@ const TheaterUserManagement = () => {
         email: formData.email,
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
-        role: formData.role
+        role: formData.role,
+        pin: formData.pin
       };
 
       if (formData.password) {
@@ -397,6 +410,50 @@ const TheaterUserManagement = () => {
     }
   };
 
+  // Handle toggle user access status
+  const toggleUserStatus = async (userId, currentStatus) => {
+    try {
+      const newStatus = !currentStatus;
+      
+      // Optimistic UI update
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user._id === userId ? { ...user, isActive: newStatus } : user
+        )
+      );
+
+      const response = await fetch(`${config.api.baseUrl}/theater-users/${userId}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          isActive: newStatus,
+          theaterId: theaterId
+        })
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        console.error('❌ Failed to toggle status:', result.message);
+        // Revert on failure
+        setUsers(prevUsers => 
+          prevUsers.map(user => 
+            user._id === userId ? { ...user, isActive: currentStatus } : user
+          )
+        );
+      } else {
+        console.log('✅ User status toggled successfully');
+      }
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      // Revert on error
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user._id === userId ? { ...user, isActive: currentStatus } : user
+        )
+      );
+    }
+  };
+
   // Handle form submit
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -410,7 +467,7 @@ const TheaterUserManagement = () => {
   if (loading) {
     return (
       <ErrorBoundary>
-        <TheaterLayout pageTitle="Theater Users">
+        <TheaterLayout pageTitle="Theater User Management">
           <div className="theater-details-container">
             <div className="loading-state">Loading...</div>
           </div>
@@ -422,7 +479,7 @@ const TheaterUserManagement = () => {
   if (error) {
     return (
       <ErrorBoundary>
-        <TheaterLayout pageTitle="Theater Users">
+        <TheaterLayout pageTitle="Theater User Management">
           <div className="theater-details-container">
             <div className="error-state">{error}</div>
           </div>
@@ -433,7 +490,7 @@ const TheaterUserManagement = () => {
 
   return (
     <ErrorBoundary>
-      <TheaterLayout pageTitle="Theater Users">
+      <TheaterLayout pageTitle="Theater User Management">
         <div className="theater-user-details-page">
           <PageContainer hasHeader={false} className="theater-user-management-vertical">
             {/* Debug info */}
@@ -455,7 +512,7 @@ const TheaterUserManagement = () => {
                       <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                     </svg>
                   </span>
-                  Add User
+                  Create New User
                 </button>
               }
             />
@@ -496,24 +553,65 @@ const TheaterUserManagement = () => {
                           <table className="theater-table">
                             <thead>
                               <tr>
-                                <th className="sno-col">S.No</th>
-                                <th className="name-col">Username</th>
-                                <th className="contact-col">Email</th>
-                                <th className="status-col">Status</th>
-                                <th className="actions-col">Actions</th>
+                                <th className="sno-col">S NO</th>
+                                <th className="name-col">USERNAME</th>
+                                <th className="access-status-col">ACCESS STATUS</th>
+                                <th className="status-col">STATUS</th>
+                                <th className="actions-col">ACTION</th>
                               </tr>
                             </thead>
                             <tbody>
                               {roleUsers.map((user, index) => (
-                                <tr key={user._id}>
+                                <tr key={user._id} className="theater-row">
                                   <td className="sno-cell">
-                                    <span className="sno-number">{index + 1}</span>
+                                    <div className="sno-number">{index + 1}</div>
                                   </td>
                                   <td className="name-cell">
-                                    <span className="username-text">{user.username}</span>
+                                    {user.username}
                                   </td>
-                                  <td className="contact-cell">
-                                    <span className="email-text">{user.email}</span>
+                                  <td className="access-status-cell">
+                                    <div className="toggle-wrapper">
+                                      <label className="switch" style={{
+                                        position: 'relative',
+                                        display: 'inline-block',
+                                        width: '50px',
+                                        height: '24px'
+                                      }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={user.isActive !== false}
+                                          onChange={() => toggleUserStatus(user._id, user.isActive !== false)}
+                                          style={{
+                                            opacity: 0,
+                                            width: 0,
+                                            height: 0
+                                          }}
+                                        />
+                                        <span className="slider" style={{
+                                          position: 'absolute',
+                                          cursor: 'pointer',
+                                          top: 0,
+                                          left: 0,
+                                          right: 0,
+                                          bottom: 0,
+                                          backgroundColor: (user.isActive !== false) ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+                                          transition: '.4s',
+                                          borderRadius: '24px'
+                                        }}>
+                                          <span style={{
+                                            position: 'absolute',
+                                            content: '""',
+                                            height: '18px',
+                                            width: '18px',
+                                            left: (user.isActive !== false) ? '28px' : '3px',
+                                            bottom: '3px',
+                                            backgroundColor: 'white',
+                                            transition: '.4s',
+                                            borderRadius: '50%'
+                                          }}></span>
+                                        </span>
+                                      </label>
+                                    </div>
                                   </td>
                                   <td className="status-cell">
                                     <span className={`status-badge ${user.isActive !== false ? 'active' : 'inactive'}`}>
@@ -602,6 +700,7 @@ const TheaterUserManagement = () => {
                         onChange={handleInputChange}
                         disabled={crudModal.mode === 'view'}
                         placeholder="Enter username"
+                        autoComplete="off"
                       />
                       {formErrors.username && <span className="error-message">{formErrors.username}</span>}
                     </div>
@@ -617,6 +716,7 @@ const TheaterUserManagement = () => {
                         onChange={handleInputChange}
                         disabled={crudModal.mode === 'view'}
                         placeholder="Enter email"
+                        autoComplete="off"
                       />
                       {formErrors.email && <span className="error-message">{formErrors.email}</span>}
                     </div>
@@ -638,16 +738,66 @@ const TheaterUserManagement = () => {
 
                     {/* Phone Number */}
                     <div className="form-group">
-                      <label>Phone Number</label>
+                      <label>Phone Number *</label>
                       <input
                         type="tel"
                         name="phoneNumber"
                         className="form-control"
                         value={formData.phoneNumber}
-                        onChange={handleInputChange}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^\d]/g, '').slice(0, 10);
+                          setFormData(prev => ({ ...prev, phoneNumber: value }));
+                        }}
                         disabled={crudModal.mode === 'view'}
-                        placeholder="Enter phone number"
+                        placeholder="Enter 10 digit phone number"
+                        maxLength="10"
+                        autoComplete="off"
                       />
+                      {formErrors.phoneNumber && <span className="error-message">{formErrors.phoneNumber}</span>}
+                      {crudModal.mode !== 'view' && (
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                          💡 Enter exactly 10 digits (e.g., 1234567890)
+                        </div>
+                      )}
+                    </div>
+
+                    {/* PIN */}
+                    <div className="form-group">
+                      <label>PIN *</label>
+                      <input
+                        type="text"
+                        name="pin"
+                        className="form-control"
+                        value={formData.pin}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^\d]/g, '').slice(0, 4);
+                          setFormData(prev => ({ ...prev, pin: value }));
+                        }}
+                        disabled={crudModal.mode === 'view'}
+                        placeholder="Enter 4 digit PIN"
+                        maxLength="4"
+                        autoComplete="off"
+                        style={crudModal.mode === 'view' ? {
+                          letterSpacing: '8px',
+                          fontSize: '18px',
+                          fontWeight: '700',
+                          textAlign: 'center',
+                          backgroundColor: '#fffbeb',
+                          border: '2px solid #f59e0b',
+                          color: '#92400e'
+                        } : {
+                          letterSpacing: '8px',
+                          fontSize: '18px',
+                          fontWeight: '600',
+                          textAlign: 'center'
+                        }}
+                      />
+                      {formErrors.pin && <span className="error-message">{formErrors.pin}</span>}
+                      {crudModal.mode !== 'view' && (
+                        <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                          🔐 4-digit PIN for theater user login
+                        </div>
+                      )}
                     </div>
 
                     {/* Role */}
@@ -683,6 +833,7 @@ const TheaterUserManagement = () => {
                               value={formData.password}
                               onChange={handleInputChange}
                               placeholder={crudModal.mode === 'create' ? 'Enter password' : 'Enter new password'}
+                              autoComplete="new-password"
                             />
                             <button
                               type="button"
@@ -705,6 +856,7 @@ const TheaterUserManagement = () => {
                               value={formData.confirmPassword}
                               onChange={handleInputChange}
                               placeholder="Confirm password"
+                              autoComplete="new-password"
                             />
                             <button
                               type="button"
@@ -816,5 +968,354 @@ const TheaterUserManagement = () => {
     </ErrorBoundary>
   );
 };
+
+// ✅ Comprehensive Table Styling
+const style = document.createElement('style');
+style.textContent = `
+  /* ============================================
+     COMPREHENSIVE TABLE RESPONSIVE DESIGN
+     ============================================ */
+  
+  /* Table base styling */
+  .theater-user-settings-content .theater-table {
+    width: 100%;
+    min-width: 800px;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: white;
+    table-layout: auto !important;
+    border: 1px solid #d1d5db;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Table header styling */
+  .theater-user-settings-content .theater-table thead {
+    background: linear-gradient(135deg, #6B0E9B 0%, #8B2FB8 100%);
+    box-shadow: 0 2px 4px rgba(107, 14, 155, 0.1);
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .theater-user-settings-content .theater-table thead tr {
+    border-bottom: 2px solid #5A0C82;
+  }
+
+  .theater-user-settings-content .theater-table th {
+    padding: 18px 16px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: none;
+    position: relative;
+    white-space: nowrap;
+    color: white !important;
+  }
+
+  .theater-user-settings-content .theater-table th::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 25%;
+    height: 50%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .theater-user-settings-content .theater-table th:last-child::after {
+    display: none;
+  }
+
+  /* Column Widths - Specific for User Management */
+  .theater-user-settings-content .theater-table .sno-col { 
+    width: 80px; 
+    min-width: 70px;
+    text-align: center;
+  }
+  
+  .theater-user-settings-content .theater-table .name-col { 
+    width: 200px; 
+    min-width: 180px;
+  }
+  
+  .theater-user-settings-content .theater-table .access-status-col { 
+    width: 150px; 
+    min-width: 130px;
+    text-align: center;
+  }
+  
+  .theater-user-settings-content .theater-table .status-col { 
+    width: 130px; 
+    min-width: 120px;
+    text-align: center;
+  }
+  
+  .theater-user-settings-content .theater-table .actions-col { 
+    width: 180px; 
+    min-width: 160px;
+    text-align: center;
+  }
+
+  /* Table body styling */
+  .theater-user-settings-content .theater-table tbody tr {
+    border-bottom: 1px solid #e5e7eb;
+    background: #ffffff;
+    transition: all 0.2s ease;
+  }
+
+  .theater-user-settings-content .theater-table tbody tr:nth-child(even) {
+    background: #f9fafb;
+  }
+
+  .theater-user-settings-content .theater-table tbody tr:hover {
+    background: #f0f9ff !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .theater-user-settings-content .theater-table td {
+    padding: 16px 12px;
+    vertical-align: middle;
+    border-right: 1px solid #f3f4f6;
+  }
+
+  .theater-user-settings-content .theater-table td:last-child {
+    border-right: none;
+  }
+
+  /* S.No cell styling */
+  .theater-user-settings-content .theater-table .sno-cell {
+    text-align: center;
+  }
+
+  .theater-user-settings-content .theater-table .sno-number {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    background: #f3f4f6;
+    border-radius: 50%;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+  }
+
+  /* Name cell styling */
+  .theater-user-settings-content .theater-table .name-cell {
+    font-weight: 600;
+    color: #111827;
+    text-align: left;
+    padding-left: 20px;
+  }
+
+  /* Access Status cell styling */
+  .theater-user-settings-content .theater-table .access-status-cell {
+    text-align: center;
+  }
+
+  /* Status cell styling */
+  .theater-user-settings-content .theater-table .status-cell {
+    text-align: center;
+  }
+
+  /* Status badge styling */
+  .theater-user-settings-content .status-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .theater-user-settings-content .status-badge.active {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+  }
+
+  .theater-user-settings-content .status-badge.inactive {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+  }
+
+  /* Actions cell styling */
+  .theater-user-settings-content .theater-table .actions-cell {
+    text-align: center;
+  }
+
+  .theater-user-settings-content .action-buttons {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  /* Table container */
+  .theater-table-container {
+    overflow-x: auto;
+    overflow-y: visible;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    margin-bottom: 20px;
+  }
+
+  /* Responsive Design - Tablet */
+  @media (max-width: 1024px) {
+    .theater-user-settings-content .theater-table {
+      min-width: 700px;
+    }
+    
+    .theater-user-settings-content .theater-table .name-col { 
+      width: 160px; 
+      min-width: 140px;
+    }
+    
+    .theater-user-settings-content .theater-table .access-status-col { 
+      width: 120px; 
+      min-width: 100px;
+    }
+    
+    .theater-user-settings-content .theater-table .status-col { 
+      width: 110px; 
+      min-width: 100px;
+    }
+    
+    .theater-user-settings-content .theater-table .actions-col { 
+      width: 150px; 
+      min-width: 130px;
+    }
+    
+    .theater-user-settings-content .theater-table th {
+      padding: 14px 12px;
+      font-size: 0.8rem;
+    }
+    
+    .theater-user-settings-content .theater-table td {
+      padding: 12px 10px;
+      font-size: 0.85rem;
+    }
+  }
+
+  /* Responsive Design - Mobile */
+  @media (max-width: 768px) {
+    .theater-table-container {
+      margin: 0 -15px;
+      border-radius: 0;
+    }
+    
+    .theater-user-settings-content .theater-table {
+      min-width: 600px;
+      font-size: 0.85rem;
+    }
+    
+    .theater-user-settings-content .theater-table .sno-col { 
+      width: 60px; 
+      min-width: 50px;
+    }
+    
+    .theater-user-settings-content .theater-table .name-col { 
+      width: 140px; 
+      min-width: 120px;
+    }
+    
+    .theater-user-settings-content .theater-table .access-status-col { 
+      width: 100px; 
+      min-width: 90px;
+    }
+    
+    .theater-user-settings-content .theater-table .status-col { 
+      width: 100px; 
+      min-width: 90px;
+    }
+    
+    .theater-user-settings-content .theater-table .actions-col { 
+      width: 130px; 
+      min-width: 120px;
+    }
+    
+    .theater-user-settings-content .theater-table th {
+      padding: 12px 8px;
+      font-size: 0.75rem;
+    }
+    
+    .theater-user-settings-content .theater-table td {
+      padding: 10px 8px;
+      font-size: 0.8rem;
+    }
+    
+    .theater-user-settings-content .theater-table .sno-number {
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      font-size: 0.8rem;
+    }
+    
+    .theater-user-settings-content .action-buttons {
+      gap: 6px;
+    }
+    
+    .theater-user-settings-content .status-badge {
+      padding: 3px 8px;
+      font-size: 0.7rem;
+    }
+  }
+
+  /* Very Small Mobile */
+  @media (max-width: 480px) {
+    .theater-user-settings-content .theater-table {
+      min-width: 500px;
+    }
+    
+    .theater-user-settings-content .theater-table th {
+      padding: 10px 6px;
+      font-size: 0.7rem;
+    }
+    
+    .theater-user-settings-content .theater-table td {
+      padding: 8px 6px;
+    }
+  }
+
+  /* ============================================
+     MODAL WIDTH STYLING - GLOBAL STANDARD
+     ============================================ */
+  
+  /* Modal width for CRUD operations */
+  .theater-edit-modal-content {
+    max-width: 900px !important;
+    width: 85% !important;
+  }
+
+  /* Tablet responsive modal */
+  @media (max-width: 1024px) {
+    .theater-edit-modal-content {
+      width: 90% !important;
+    }
+  }
+
+  /* Mobile responsive modal */
+  @media (max-width: 768px) {
+    .theater-edit-modal-content {
+      width: 95% !important;
+      max-width: none !important;
+    }
+  }
+
+  /* Very Small Mobile modal */
+  @media (max-width: 480px) {
+    .theater-edit-modal-content {
+      width: 98% !important;
+    }
+  }
+`;
+if (typeof document !== 'undefined') {
+  document.head.appendChild(style);
+}
 
 export default TheaterUserManagement;

@@ -33,6 +33,11 @@ const TheaterRoles = () => {
 
   // Search and filtering
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  
+  // Theater data
+  const [theater, setTheater] = useState(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -65,6 +70,31 @@ const TheaterRoles = () => {
     };
   }, []);
 
+  // Debounced search effect
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  // Load theater data
+  useEffect(() => {
+    if (theaterId) {
+      loadTheaterData();
+    }
+  }, [theaterId]);
+
   // Validate theater access
   useEffect(() => {
     if (userType === 'theater_user' && userTheaterId && theaterId !== userTheaterId) {
@@ -72,6 +102,34 @@ const TheaterRoles = () => {
       return;
     }
   }, [theaterId, userTheaterId, userType]);
+
+  // Load theater data
+  const loadTheaterData = useCallback(async () => {
+    if (!theaterId) return;
+    
+    try {
+      const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch theater data: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        const theaterData = result.theater || result.data;
+        setTheater(theaterData);
+      }
+    } catch (error) {
+      console.error('Error loading theater:', error);
+    }
+  }, [theaterId]);
 
   // Load roles data
   const loadRolesData = useCallback(async (page = 1, limit = 10, search = '') => {
@@ -100,6 +158,11 @@ const TheaterRoles = () => {
         _cacheBuster: Date.now(),
         _random: Math.random()
       });
+
+      // Add status filter
+      if (filterStatus && filterStatus !== 'all') {
+        params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
+      }
 
       const baseUrl = `${config.api.baseUrl}/roles?${params.toString()}`;
       
@@ -135,7 +198,15 @@ const TheaterRoles = () => {
         console.log('🔥 DEBUGGING: Roles extracted', roles);
         console.log('🔥 DEBUGGING: Roles count', roles.length);
         
-        setRoles(roles);
+        // Sort roles by ID in ascending order
+        const sortedRoles = roles.sort((a, b) => {
+          // Convert IDs to strings for consistent comparison
+          const idA = a._id ? a._id.toString() : '';
+          const idB = b._id ? b._id.toString() : '';
+          return idA.localeCompare(idB);
+        });
+        
+        setRoles(sortedRoles);
         
         // Batch pagination state updates
         const paginationData = data.pagination || {};
@@ -166,35 +237,25 @@ const TheaterRoles = () => {
         setLoading(false);
       }
     }
-  }, [theaterId]);
+  }, [theaterId, filterStatus]);
 
   // Initial load
   useEffect(() => {
-    loadRolesData(currentPage, itemsPerPage, searchTerm);
-  }, [loadRolesData, currentPage, itemsPerPage]);
+    loadRolesData(currentPage, itemsPerPage, debouncedSearchTerm);
+  }, [loadRolesData, currentPage, itemsPerPage, debouncedSearchTerm, filterStatus]);
 
-  // Debounced search
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    searchTimeoutRef.current = setTimeout(() => {
-      setCurrentPage(1);
-      loadRolesData(1, itemsPerPage, searchTerm);
-    }, 300);
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchTerm, itemsPerPage, loadRolesData]);
+  // Removed duplicate debounced search effect (already added above)
 
   // Handle search input
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
   };
+
+  // Handle filter change
+  const handleFilterChange = useCallback((e) => {
+    setFilterStatus(e.target.value);
+    setCurrentPage(1);
+  }, []);
 
   // Handle page change
   const handlePageChange = (newPage) => {
@@ -256,6 +317,32 @@ const TheaterRoles = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+  // Toggle role status (Access Status toggle)
+  const toggleRoleStatus = async (roleId, currentStatus) => {
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    
+    try {
+      const response = await fetch(`${config.api.baseUrl}/roles/${roleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isActive: !currentStatus })
+      });
+
+      if (response.ok) {
+        await loadRolesData(currentPage, itemsPerPage, debouncedSearchTerm);
+      } else {
+        const errorData = await response.json();
+        showError(errorData.message || 'Failed to update role status');
+      }
+    } catch (error) {
+      console.error('❌ Error toggling role status:', error);
+      showError('Failed to update role status');
+    }
   };
 
   // Submit role (Create or Update)
@@ -338,6 +425,7 @@ const TheaterRoles = () => {
       <td><div className="skeleton-text"></div></td>
       <td><div className="skeleton-text"></div></td>
       <td><div className="skeleton-text"></div></td>
+      <td><div className="skeleton-text"></div></td>
     </tr>
   ), []);
 
@@ -393,11 +481,13 @@ const TheaterRoles = () => {
           </div>
           <div className="filter-controls">
             <select
-              value="all"
+              value={filterStatus}
+              onChange={handleFilterChange}
               className="status-filter"
-              disabled
             >
               <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="inactive">Inactive Only</option>
             </select>
             <div className="results-count">
               Showing {roles.length} of {totalItems} roles (Page {currentPage} of {totalPages})
@@ -423,6 +513,7 @@ const TheaterRoles = () => {
                 <th style={{textAlign: 'center'}}>Icon</th>
                 <th style={{textAlign: 'center'}}>Role Name</th>
                 <th style={{textAlign: 'center'}}>Status</th>
+                <th style={{textAlign: 'center'}}>Access Status</th>
                 <th style={{textAlign: 'center'}}>Action</th>
               </tr>
             </thead>
@@ -443,43 +534,84 @@ const TheaterRoles = () => {
                           justifyContent: 'center',
                           alignItems: 'center'
                         }}>
-                          <div style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            backgroundColor: role.isActive ? '#7c4dff' : '#9e9e9e',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white'
-                          }}>
-                            <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '24px', height: '24px'}}>
-                              <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
-                            </svg>
-                          </div>
+                          <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '24px', height: '24px', color: '#8b5cf6'}}>
+                            <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 4V6L19 8V9H21ZM15 10C16.1 10 17 10.9 17 12S16.1 14 15 14 13 13.1 13 12 13.9 10 15 10ZM5 16C6.1 16 7 16.9 7 18S6.1 20 5 20 3 19.1 3 18 3.9 16 5 16ZM12 7C8.14 7 5 8.79 5 11V12H10V14H5V22H7V19H10V22H12V14H9V12H15V11C15 8.79 11.86 7 12 7Z"/>
+                          </svg>
                         </div>
                       </td>
                       <td style={{textAlign: 'center'}}>
-                        <div className="qr-info">
-                          <div className="qr-name">
-                            {role.name}
-                            {role.isDefault && (
-                              <span className="default-role-badge" style={{marginLeft: '8px', fontSize: '11px', padding: '2px 6px', background: '#ffa726', color: 'white', borderRadius: '4px'}}>
-                                ●DEFAULT
-                              </span>
-                            )}
-                          </div>
-                          {role.description && (
-                            <div className="qr-description" style={{fontSize: '12px', color: '#888', marginTop: '4px'}}>
-                              {role.description}
-                            </div>
+                        <div className="role-name-container">
+                          <div className="role-name">{role.name || 'No Name'}</div>
+                          {role.isDefault && (
+                            <span className="default-badge" style={{
+                              fontSize: '10px',
+                              padding: '3px 8px',
+                              background: '#ffa726',
+                              color: 'white',
+                              borderRadius: '12px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontWeight: '600',
+                              marginTop: '4px'
+                            }} title="This is a default role with limited editing">
+                              <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '12px', height: '12px'}}>
+                                <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z"/>
+                              </svg>
+                              DEFAULT
+                            </span>
                           )}
                         </div>
                       </td>
                       <td style={{textAlign: 'center'}}>
-                        <span className={`status-badge ${role.isActive ? 'active' : 'inactive'}`}>
-                          {role.isActive ? 'ACTIVE' : 'INACTIVE'}
+                        <span className={`status-badge ${role.isActive ? 'active-badge' : 'inactive-badge'}`}>
+                          {role.isActive ? 'Active' : 'Inactive'}
                         </span>
+                      </td>
+                      <td style={{textAlign: 'center'}}>
+                        <div className="toggle-wrapper">
+                          <label className="switch" style={{
+                            position: 'relative',
+                            display: 'inline-block',
+                            width: '50px',
+                            height: '24px'
+                          }}>
+                            <input
+                              type="checkbox"
+                              checked={role.isActive !== false}
+                              onChange={() => toggleRoleStatus(role._id, role.isActive)}
+                              style={{
+                                opacity: 0,
+                                width: 0,
+                                height: 0
+                              }}
+                            />
+                            <span className="slider" style={{
+                              position: 'absolute',
+                              cursor: 'pointer',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              backgroundColor: (role.isActive !== false) ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+                              transition: '.4s',
+                              borderRadius: '24px'
+                            }}>
+                              <span style={{
+                                position: 'absolute',
+                                content: '""',
+                                height: '18px',
+                                width: '18px',
+                                left: (role.isActive !== false) ? '26px' : '3px',
+                                bottom: '3px',
+                                backgroundColor: 'white',
+                                transition: '.4s',
+                                borderRadius: '50%',
+                                display: 'block'
+                              }}></span>
+                            </span>
+                          </label>
+                        </div>
                       </td>
                       <td style={{textAlign: 'center'}}>
                         <ActionButtons>
@@ -507,7 +639,7 @@ const TheaterRoles = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan="5" className="no-data">
+                  <td colSpan="6" className="no-data">
                     <div className="empty-state">
                       <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '48px', height: '48px', opacity: 0.3}}>
                         <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
@@ -542,17 +674,25 @@ const TheaterRoles = () => {
         {/* Create Modal */}
         {showCreateModal && (
           <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-role-create-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>Create New Role</h2>
-                <button 
-                  className="close-btn"
-                  onClick={() => setShowCreateModal(false)}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                  </svg>
-                </button>
+                <div className="modal-nav-left">
+                </div>
+                
+                <div className="modal-title-section">
+                  <h2>Create New Role</h2>
+                </div>
+                
+                <div className="modal-nav-right">
+                  <button 
+                    className="close-btn"
+                    onClick={() => setShowCreateModal(false)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               
               <div className="modal-body">
@@ -612,17 +752,25 @@ const TheaterRoles = () => {
         {/* Edit Modal */}
         {showEditModal && (
           <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-role-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>Edit Role</h2>
-                <button 
-                  className="close-btn"
-                  onClick={() => setShowEditModal(false)}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                  </svg>
-                </button>
+                <div className="modal-nav-left">
+                </div>
+                
+                <div className="modal-title-section">
+                  <h2>Edit Role</h2>
+                </div>
+                
+                <div className="modal-nav-right">
+                  <button 
+                    className="close-btn"
+                    onClick={() => setShowEditModal(false)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               
               <div className="modal-body">
@@ -682,17 +830,25 @@ const TheaterRoles = () => {
         {/* View Modal */}
         {showViewModal && (
           <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-role-view-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
-                <h2>Role Details</h2>
-                <button 
-                  className="close-btn"
-                  onClick={() => setShowViewModal(false)}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                  </svg>
-                </button>
+                <div className="modal-nav-left">
+                </div>
+                
+                <div className="modal-title-section">
+                  <h2>Role Details</h2>
+                </div>
+                
+                <div className="modal-nav-right">
+                  <button 
+                    className="close-btn"
+                    onClick={() => setShowViewModal(false)}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               
               <div className="modal-body">
@@ -768,10 +924,19 @@ const TheaterRoles = () => {
                 
                 <div className="modal-actions">
                   <button 
-                    className="btn-primary" 
+                    className="cancel-btn" 
                     onClick={() => setShowViewModal(false)}
                   >
                     Close
+                  </button>
+                  <button 
+                    className="btn-primary"
+                    onClick={() => {
+                      setShowViewModal(false);
+                      editRole(selectedRole);
+                    }}
+                  >
+                    Edit Role
                   </button>
                 </div>
               </div>
@@ -809,6 +974,27 @@ const TheaterRoles = () => {
         )}
 
         </PageContainer>
+
+    {/* Custom CSS for TheaterRoles modals only */}
+    <style dangerouslySetInnerHTML={{
+      __html: `
+        .theater-role-view-modal-content,
+        .theater-role-edit-modal-content,
+        .theater-role-create-modal-content {
+          max-width: 900px !important;
+          width: 85% !important;
+        }
+
+        @media (max-width: 768px) {
+          .theater-role-view-modal-content,
+          .theater-role-edit-modal-content,
+          .theater-role-create-modal-content {
+            width: 95% !important;
+            max-width: none !important;
+          }
+        }
+      `
+    }} />
       </TheaterLayout>
     </ErrorBoundary>
   );

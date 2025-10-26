@@ -5,6 +5,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import PageContainer from '../components/PageContainer';
 import VerticalPageHeader from '../components/VerticalPageHeader';
 import { Button } from '../components/GlobalDesignSystem';
+import ActionButton from '../components/ActionButton';
 import config from '../config';
 import '../styles/TheaterUserDetails.css';
 import '../styles/TheaterList.css'; // Import TheaterList styles for table
@@ -57,6 +58,7 @@ const TheaterUserDetails = () => {
     confirmPassword: '',
     fullName: '',
     phoneNumber: '',
+    pin: '', // 4-digit PIN
     role: ''
   });
   const [createUserErrors, setCreateUserErrors] = useState({});
@@ -73,6 +75,7 @@ const TheaterUserDetails = () => {
     email: '',
     fullName: '',
     phoneNumber: '',
+    pin: '', // 4-digit PIN
     role: '',
     password: '',
     confirmPassword: ''
@@ -122,7 +125,7 @@ const TheaterUserDetails = () => {
   // Helper function to close modal and reset states
   const closeCreateUserModal = () => {
     setShowCreateUserForm(false);
-    setCreateUserData({ username: '', email: '', password: '', confirmPassword: '', fullName: '', phoneNumber: '', role: '' });
+    setCreateUserData({ username: '', email: '', password: '', confirmPassword: '', fullName: '', phoneNumber: '', pin: '', role: '' });
     setCreateUserErrors({});
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -418,7 +421,10 @@ const TheaterUserDetails = () => {
       
       if (result.success && result.data) {
         // Array-based response structure
-        setUsers(result.data.users || []);
+        const users = result.data.users || [];
+        console.log('👥 Users loaded:', users.length);
+        console.log('🔢 First user has PIN:', users.length > 0 ? !!users[0].pin : false);
+        setUsers(users);
       } else {
         throw new Error(result.message || 'Failed to fetch users');
       }
@@ -458,6 +464,19 @@ const TheaterUserDetails = () => {
         errors.phoneNumber = 'Phone number must be exactly 10 digits';
       }
     }
+    
+    // Validate PIN: exactly 4 digits
+    if (!createUserData.pin?.trim()) {
+      errors.pin = 'PIN is required';
+    } else {
+      const pinDigits = createUserData.pin.replace(/\D/g, ''); // Remove non-digits
+      if (pinDigits.length !== 4) {
+        errors.pin = 'PIN must be exactly 4 digits';
+      } else if (!/^\d{4}$/.test(createUserData.pin)) {
+        errors.pin = 'PIN must contain only numbers';
+      }
+    }
+    
     if (!createUserData.role) errors.role = 'Role is required';
     if (!theaterId) errors.theater = 'Theater ID is missing';
     if (theaterId && theaterId.length !== 24 && theaterId.length !== 25) errors.theater = 'Invalid theater ID format';
@@ -485,6 +504,7 @@ const TheaterUserDetails = () => {
         password: createUserData.password || '',
         fullName: createUserData.fullName?.trim() || '',
         phoneNumber: createUserData.phoneNumber?.trim() || '+1234567890',
+        pin: createUserData.pin?.trim() || '', // 4-digit PIN
         role: createUserData.role || availableRoles[0]?._id,
         isActive: true,
         isEmailVerified: false
@@ -596,6 +616,7 @@ const TheaterUserDetails = () => {
 
   // Handle view user details - Open modal instead of navigate
   const handleViewUser = (user) => {
+    console.log('👁️ Viewing user:', user.username);
     setViewUserData(user);
     setShowViewUserModal(true);
   };
@@ -614,6 +635,7 @@ const TheaterUserDetails = () => {
       email: user.email,
       fullName: user.fullName || '',
       phoneNumber: user.phoneNumber || '',
+      pin: user.pin || '', // Include existing PIN
       role: typeof user.role === 'object' ? user.role._id : user.role,
       password: '',
       confirmPassword: ''
@@ -633,6 +655,7 @@ const TheaterUserDetails = () => {
       email: '',
       fullName: '',
       phoneNumber: '',
+      pin: '',
       role: '',
       password: '',
       confirmPassword: ''
@@ -657,6 +680,19 @@ const TheaterUserDetails = () => {
         errors.phoneNumber = 'Phone number must be exactly 10 digits';
       }
     }
+    
+    // Validate PIN: exactly 4 digits
+    if (!editUserData.pin?.trim()) {
+      errors.pin = 'PIN is required';
+    } else {
+      const pinDigits = editUserData.pin.replace(/\D/g, ''); // Remove non-digits
+      if (pinDigits.length !== 4) {
+        errors.pin = 'PIN must be exactly 4 digits';
+      } else if (!/^\d{4}$/.test(editUserData.pin)) {
+        errors.pin = 'PIN must contain only numbers';
+      }
+    }
+    
     if (!editUserData.role) errors.role = 'Role is required';
     
     // Validate password if provided
@@ -689,6 +725,7 @@ const TheaterUserDetails = () => {
         fullName: editUserData.fullName,
         email: editUserData.email,
         phoneNumber: editUserData.phoneNumber,
+        pin: editUserData.pin, // Include PIN
         role: editUserData.role
       };
       
@@ -782,6 +819,55 @@ const TheaterUserDetails = () => {
       alert('Failed to delete user. Please try again.');
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  // Handle toggle user access status
+  const toggleUserStatus = async (userId, currentStatus) => {
+    try {
+      const newStatus = !currentStatus;
+      
+      // Optimistic UI update
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user._id === userId ? { ...user, isActive: newStatus } : user
+        )
+      );
+
+      const response = await fetch(`${config.api.baseUrl}/theater-users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          isActive: newStatus,
+          theaterId: theaterId
+        })
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        console.error('❌ Failed to toggle status:', result.message);
+        // Revert on failure
+        setUsers(prevUsers => 
+          prevUsers.map(user => 
+            user._id === userId ? { ...user, isActive: currentStatus } : user
+          )
+        );
+        alert('Failed to update status: ' + result.message);
+      } else {
+        console.log('✅ User status toggled successfully');
+      }
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      // Revert on error
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user._id === userId ? { ...user, isActive: currentStatus } : user
+        )
+      );
+      alert('Failed to update status. Please try again.');
     }
   };
 
@@ -885,7 +971,7 @@ const TheaterUserDetails = () => {
                     <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                   </svg>
                 </span>
-                Add User
+                Create New User
               </button>
             }
           />
@@ -939,71 +1025,98 @@ const TheaterUserDetails = () => {
                       <p>Please wait while we fetch the user data.</p>
                     </div>
                   ) : roleUsers.length > 0 ? (
-                    <div className="table-container">
-                      <div className="table-wrapper">
-                        <table className="theater-table">
-                          <thead>
-                            <tr>
-                              <th className="sno-col">S.No</th>
-                              <th className="name-col">Username</th>
-                              <th className="contact-col">Email</th>
-                              <th className="status-col">Status</th>
-                              <th className="actions-col">Actions</th>
+                    <div className="theater-table-container">
+                      <table className="theater-table">
+                        <thead>
+                          <tr>
+                            <th className="sno-col">S NO</th>
+                            <th className="name-col">USERNAME</th>
+                            <th className="access-status-col">ACCESS STATUS</th>
+                            <th className="status-col">STATUS</th>
+                            <th className="actions-col">ACTION</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {roleUsers.map((user, index) => (
+                            <tr key={user._id} className="theater-row">
+                              <td className="sno-cell">
+                                <div className="sno-number">{index + 1}</div>
+                              </td>
+                              <td className="name-cell">
+                                {user.username}
+                              </td>
+                              <td className="access-status-cell">
+                                <div className="toggle-wrapper">
+                                  <label className="switch" style={{
+                                    position: 'relative',
+                                    display: 'inline-block',
+                                    width: '50px',
+                                    height: '24px'
+                                  }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={user.isActive}
+                                      onChange={() => toggleUserStatus(user._id, user.isActive)}
+                                      style={{
+                                        opacity: 0,
+                                        width: 0,
+                                        height: 0
+                                      }}
+                                    />
+                                    <span className="slider" style={{
+                                      position: 'absolute',
+                                      cursor: 'pointer',
+                                      top: 0,
+                                      left: 0,
+                                      right: 0,
+                                      bottom: 0,
+                                      backgroundColor: user.isActive ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+                                      transition: '.4s',
+                                      borderRadius: '24px'
+                                    }}>
+                                      <span style={{
+                                        position: 'absolute',
+                                        content: '""',
+                                        height: '18px',
+                                        width: '18px',
+                                        left: user.isActive ? '28px' : '3px',
+                                        bottom: '3px',
+                                        backgroundColor: 'white',
+                                        transition: '.4s',
+                                        borderRadius: '50%'
+                                      }}></span>
+                                    </span>
+                                  </label>
+                                </div>
+                              </td>
+                              <td className="status-cell">
+                                <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
+                                  {user.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="actions-cell">
+                                <div className="action-buttons">
+                                  <ActionButton 
+                                    type="view"
+                                    onClick={() => handleViewUser(user)}
+                                    title="View user details"
+                                  />
+                                  <ActionButton 
+                                    type="edit"
+                                    onClick={() => handleEditUser(user)}
+                                    title="Edit user"
+                                  />
+                                  <ActionButton 
+                                    type="delete"
+                                    onClick={() => handleDeleteUser(user)}
+                                    title="Delete user"
+                                  />
+                                </div>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {roleUsers.map((user, index) => (
-                              <tr key={user._id}>
-                                <td className="sno-cell">
-                                  <span className="sno-number">{index + 1}</span>
-                                </td>
-                                <td className="name-cell">
-                                  <span className="username-text">{user.username}</span>
-                                </td>
-                                <td className="contact-cell">
-                                  <span className="email-text">{user.email}</span>
-                                </td>
-                                <td className="status-cell">
-                                  <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
-                                    {user.isActive ? 'Active' : 'Inactive'}
-                                  </span>
-                                </td>
-                                <td className="actions-cell">
-                                  <div className="action-buttons">
-                                    <button 
-                                      className="btn btn-view" 
-                                      data-tooltip="View Details"
-                                      onClick={() => handleViewUser(user)}
-                                    >
-                                      <svg viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                                      </svg>
-                                    </button>
-                                    <button 
-                                      className="btn btn-edit" 
-                                      data-tooltip="Edit User"
-                                      onClick={() => handleEditUser(user)}
-                                    >
-                                      <svg viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                                      </svg>
-                                    </button>
-                                    <button 
-                                      className="btn btn-delete" 
-                                      data-tooltip="Delete User"
-                                      onClick={() => handleDeleteUser(user)}
-                                    >
-                                      <svg viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   ) : (
                     <div className="theater-user-empty-state">
@@ -1034,7 +1147,7 @@ const TheaterUserDetails = () => {
                 closeCreateUserModal();
               }
             }}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content theater-user-create-modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                   <h2>Create New User</h2>
                   <button 
@@ -1079,6 +1192,7 @@ const TheaterUserDetails = () => {
                         onChange={(e) => setCreateUserData(prev => ({ ...prev, username: e.target.value }))}
                         placeholder="Enter unique username"
                         className="form-control"
+                        autoComplete="off"
                       />
                       {createUserErrors.username && (
                         <div className="error-message">{createUserErrors.username}</div>
@@ -1113,6 +1227,7 @@ const TheaterUserDetails = () => {
                         onChange={(e) => setCreateUserData(prev => ({ ...prev, email: e.target.value }))}
                         placeholder="Enter email address"
                         className="form-control"
+                        autoComplete="off"
                       />
                       {createUserErrors.email && (
                         <div className="error-message">{createUserErrors.email}</div>
@@ -1142,6 +1257,34 @@ const TheaterUserDetails = () => {
                     </div>
 
                     <div className="form-group">
+                      <label>PIN *</label>
+                      <input
+                        type="text"
+                        value={createUserData.pin}
+                        onChange={(e) => {
+                          // ✅ Only allow digits and limit to 4
+                          const value = e.target.value.replace(/[^\d]/g, '').slice(0, 4);
+                          setCreateUserData(prev => ({ ...prev, pin: value }));
+                        }}
+                        placeholder="Enter 4 digit PIN"
+                        className="form-control"
+                        maxLength="4"
+                        style={{ 
+                          letterSpacing: '8px',
+                          fontSize: '18px',
+                          fontWeight: '600',
+                          textAlign: 'center'
+                        }}
+                      />
+                      {createUserErrors.pin && (
+                        <div className="error-message">{createUserErrors.pin}</div>
+                      )}
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                        🔐 4-digit PIN for theater user login
+                      </div>
+                    </div>
+
+                    <div className="form-group">
                       <label>Password *</label>
                       <div style={{ position: 'relative' }}>
                         <input
@@ -1151,6 +1294,7 @@ const TheaterUserDetails = () => {
                           placeholder="Enter password"
                           className="form-control"
                           style={{ paddingRight: '45px' }}
+                          autoComplete="new-password"
                         />
                         <button
                           type="button"
@@ -1314,7 +1458,7 @@ const TheaterUserDetails = () => {
                 closeViewUserModal();
               }
             }}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content theater-user-view-modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                   <h2>👤 View User Details</h2>
                   <button 
@@ -1388,7 +1532,11 @@ const TheaterUserDetails = () => {
                       <label>Role</label>
                       <input
                         type="text"
-                        value={typeof viewUserData.role === 'object' ? viewUserData.role.name : 'N/A'}
+                        value={(() => {
+                          const roleId = viewUserData.role;
+                          const role = availableRoles.find(r => (r._id || r.id) === roleId);
+                          return role ? (role.name || role.roleName) : 'N/A';
+                        })()}
                         readOnly
                         className="form-control"
                         style={{ backgroundColor: '#f8fafc', cursor: 'not-allowed' }}
@@ -1410,6 +1558,25 @@ const TheaterUserDetails = () => {
                         }}
                       />
                     </div>
+
+                    {viewUserData.pin && (
+                      <div className="form-group">
+                        <label>PIN / Credentials</label>
+                        <input
+                          type="text"
+                          value={viewUserData.pin}
+                          readOnly
+                          className="form-control"
+                          style={{ 
+                            backgroundColor: '#fffbeb', 
+                            cursor: 'not-allowed',
+                            fontWeight: '600',
+                            fontSize: '18px',
+                            letterSpacing: '2px'
+                          }}
+                        />
+                      </div>
+                    )}
 
                     <div className="form-group">
                       <label>Last Login</label>
@@ -1453,7 +1620,7 @@ const TheaterUserDetails = () => {
                 closeEditUserModal();
               }
             }}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content theater-user-edit-modal-content" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                   <h2>✏️ Edit User</h2>
                   <button 
@@ -1517,6 +1684,7 @@ const TheaterUserDetails = () => {
                         onChange={(e) => setEditUserData(prev => ({ ...prev, email: e.target.value }))}
                         placeholder="Enter email address"
                         className="form-control"
+                        autoComplete="off"
                       />
                       {editUserErrors.email && (
                         <div className="error-message">{editUserErrors.email}</div>
@@ -1542,6 +1710,34 @@ const TheaterUserDetails = () => {
                       )}
                       <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
                         💡 Enter exactly 10 digits (e.g., 1234567890)
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>PIN *</label>
+                      <input
+                        type="text"
+                        value={editUserData.pin}
+                        onChange={(e) => {
+                          // ✅ Only allow digits and limit to 4
+                          const value = e.target.value.replace(/[^\d]/g, '').slice(0, 4);
+                          setEditUserData(prev => ({ ...prev, pin: value }));
+                        }}
+                        placeholder="Enter 4 digit PIN"
+                        className="form-control"
+                        maxLength="4"
+                        style={{ 
+                          letterSpacing: '8px',
+                          fontSize: '18px',
+                          fontWeight: '600',
+                          textAlign: 'center'
+                        }}
+                      />
+                      {editUserErrors.pin && (
+                        <div className="error-message">{editUserErrors.pin}</div>
+                      )}
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
+                        🔐 4-digit PIN for theater user login
                       </div>
                     </div>
 
@@ -1579,6 +1775,7 @@ const TheaterUserDetails = () => {
                           placeholder="Leave blank to keep current password"
                           className="form-control"
                           style={{ paddingRight: '45px' }}
+                          autoComplete="new-password"
                         />
                         <button
                           type="button"
@@ -1833,6 +2030,27 @@ const TheaterUserDetails = () => {
         </PageContainer>
         </div>
       </AdminLayout>
+
+      {/* Custom Modal Width Styling */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .theater-user-view-modal-content,
+          .theater-user-edit-modal-content,
+          .theater-user-create-modal-content {
+            max-width: 900px !important;
+            width: 85% !important;
+          }
+
+          @media (max-width: 768px) {
+            .theater-user-view-modal-content,
+            .theater-user-edit-modal-content,
+            .theater-user-create-modal-content {
+              width: 95% !important;
+              max-width: none !important;
+            }
+          }
+        `
+      }} />
     </ErrorBoundary>
   );
 }
@@ -1861,24 +2079,68 @@ style.textContent = `
     height: auto !important;
   }
 
-  /* Classic table styling - Professional and clean */
+  /* ============================================
+     COMPREHENSIVE TABLE RESPONSIVE DESIGN
+     ============================================ */
+  
+  /* Table base styling */
   .theater-user-settings-content .theater-table {
+    width: 100%;
+    min-width: 800px;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: white;
+    table-layout: auto !important;
     border: 1px solid #d1d5db;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
 
+  /* Table header styling */
   .theater-user-settings-content .theater-table thead {
     background: linear-gradient(135deg, #6B0E9B 0%, #8B2FB8 100%);
     box-shadow: 0 2px 4px rgba(107, 14, 155, 0.1);
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   .theater-user-settings-content .theater-table thead tr {
     border-bottom: 2px solid #5A0C82;
   }
 
+  .theater-user-settings-content .theater-table th {
+    padding: 18px 16px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: none;
+    position: relative;
+    white-space: nowrap;
+    color: white !important;
+  }
+
+  .theater-user-settings-content .theater-table th::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 25%;
+    height: 50%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .theater-user-settings-content .theater-table th:last-child::after {
+    display: none;
+  }
+
+  /* Table body styling */
   .theater-user-settings-content .theater-table tbody tr {
     border-bottom: 1px solid #e5e7eb;
     background: #ffffff;
+    transition: all 0.2s ease;
   }
 
   .theater-user-settings-content .theater-table tbody tr:nth-child(even) {
@@ -1889,10 +2151,11 @@ style.textContent = `
     background: #f0f9ff !important;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     transform: translateY(-1px);
-    transition: all 0.2s ease;
   }
 
   .theater-user-settings-content .theater-table td {
+    padding: 16px 12px;
+    vertical-align: middle;
     border-right: 1px solid #f3f4f6;
   }
 
@@ -1900,73 +2163,87 @@ style.textContent = `
     border-right: none;
   }
 
-  /* Enhanced action buttons styling - MATCHING THEATER MANAGEMENT */
-  .action-buttons {
+  /* Column Widths - Specific for User Management */
+  .theater-user-settings-content .theater-table .sno-col { 
+    width: 80px; 
+    min-width: 70px;
+    text-align: center;
+  }
+  
+  .theater-user-settings-content .theater-table .name-col { 
+    width: 200px; 
+    min-width: 180px;
+  }
+  
+  .theater-user-settings-content .theater-table .access-status-col { 
+    width: 150px; 
+    min-width: 130px;
+    text-align: center;
+  }
+  
+  .theater-user-settings-content .theater-table .status-col { 
+    width: 130px; 
+    min-width: 120px;
+    text-align: center;
+  }
+  
+  .theater-user-settings-content .theater-table .actions-col { 
+    width: 180px; 
+    min-width: 160px;
+    text-align: center;
+  }
+
+  /* S.No cell styling */
+  .theater-user-settings-content .theater-table .sno-cell {
+    text-align: center;
+  }
+
+  .theater-user-settings-content .theater-table .sno-number {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    background: #f3f4f6;
+    border-radius: 50%;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+  }
+
+  /* Name cell styling */
+  .theater-user-settings-content .theater-table .name-cell {
+    font-weight: 600;
+    color: #111827;
+    text-align: left;
+    padding-left: 20px;
+  }
+
+  /* Access Status cell styling */
+  .theater-user-settings-content .theater-table .access-status-cell {
+    text-align: center;
+  }
+
+  /* Status cell styling */
+  .theater-user-settings-content .theater-table .status-cell {
+    text-align: center;
+  }
+
+  /* Actions cell styling */
+  .theater-user-settings-content .theater-table .actions-cell {
+    text-align: center;
+  }
+
+  /* Enhanced action buttons styling */
+  .theater-user-settings-content .action-buttons {
     display: flex;
     gap: 8px;
     justify-content: center;
     align-items: center;
-  }
-
-  .action-buttons .btn {
-    width: 36px !important;
-    height: 36px !important;
-    border-radius: 6px;
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid transparent;
-    transition: all 0.2s ease;
-    margin: 0 !important;
-    flex-shrink: 0 !important;
-  }
-
-  .action-buttons .btn svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .action-buttons .btn-view {
-    background: #dbeafe;
-    color: #1e40af;
-    border-color: #bfdbfe;
-  }
-
-  .action-buttons .btn-view:hover {
-    background: #3b82f6;
-    color: white;
-    transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-  }
-
-  .action-buttons .btn-edit {
-    background: #fef3c7;
-    color: #92400e;
-    border-color: #fde68a;
-  }
-
-  .action-buttons .btn-edit:hover {
-    background: #f59e0b;
-    color: white;
-    transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
-  }
-
-  .action-buttons .btn-delete {
-    background: #fee2e2;
-    color: #991b1b;
-    border-color: #fecaca;
-  }
-
-  .action-buttons .btn-delete:hover {
-    background: #ef4444;
-    color: white;
-    transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    flex-wrap: nowrap;
   }
 
   /* Status badge styling */
-  .status-badge {
+  .theater-user-settings-content .status-badge {
     padding: 4px 12px;
     border-radius: 12px;
     font-size: 0.75rem;
@@ -1975,16 +2252,25 @@ style.textContent = `
     letter-spacing: 0.5px;
   }
 
-  .status-badge.active {
+  .theater-user-settings-content .status-badge.active {
     background: #d1fae5;
     color: #065f46;
     border: 1px solid #a7f3d0;
   }
 
-  .status-badge.inactive {
+  .theater-user-settings-content .status-badge.inactive {
     background: #fee2e2;
     color: #991b1b;
     border: 1px solid #fecaca;
+  }
+
+  /* Table container improvements */
+  .theater-table-container {
+    overflow-x: auto;
+    overflow-y: visible;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    margin-bottom: 20px;
   }
 
   /* Table wrapper improvements */
@@ -2021,6 +2307,123 @@ style.textContent = `
   .email-text {
     color: #6b7280;
     font-size: 0.875rem;
+  }
+
+  /* Responsive Design - Tablet */
+  @media (max-width: 1024px) {
+    .theater-user-settings-content .theater-table {
+      min-width: 700px;
+    }
+    
+    .theater-user-settings-content .theater-table .name-col { 
+      width: 160px; 
+      min-width: 140px;
+    }
+    
+    .theater-user-settings-content .theater-table .access-status-col { 
+      width: 120px; 
+      min-width: 100px;
+    }
+    
+    .theater-user-settings-content .theater-table .status-col { 
+      width: 110px; 
+      min-width: 100px;
+    }
+    
+    .theater-user-settings-content .theater-table .actions-col { 
+      width: 150px; 
+      min-width: 130px;
+    }
+    
+    .theater-user-settings-content .theater-table th {
+      padding: 14px 12px;
+      font-size: 0.8rem;
+    }
+    
+    .theater-user-settings-content .theater-table td {
+      padding: 12px 10px;
+      font-size: 0.85rem;
+    }
+  }
+
+  /* Responsive Design - Mobile */
+  @media (max-width: 768px) {
+    .theater-table-container {
+      margin: 0 -15px;
+      border-radius: 0;
+    }
+    
+    .theater-user-settings-content .theater-table {
+      min-width: 600px;
+      font-size: 0.85rem;
+    }
+    
+    .theater-user-settings-content .theater-table .sno-col { 
+      width: 60px; 
+      min-width: 50px;
+    }
+    
+    .theater-user-settings-content .theater-table .name-col { 
+      width: 140px; 
+      min-width: 120px;
+    }
+    
+    .theater-user-settings-content .theater-table .access-status-col { 
+      width: 100px; 
+      min-width: 90px;
+    }
+    
+    .theater-user-settings-content .theater-table .status-col { 
+      width: 100px; 
+      min-width: 90px;
+    }
+    
+    .theater-user-settings-content .theater-table .actions-col { 
+      width: 130px; 
+      min-width: 120px;
+    }
+    
+    .theater-user-settings-content .theater-table th {
+      padding: 12px 8px;
+      font-size: 0.75rem;
+    }
+    
+    .theater-user-settings-content .theater-table td {
+      padding: 10px 8px;
+      font-size: 0.8rem;
+    }
+    
+    .theater-user-settings-content .theater-table .sno-number {
+      width: 28px;
+      height: 28px;
+      line-height: 28px;
+      font-size: 0.8rem;
+    }
+    
+    .theater-user-settings-content .theater-table .action-buttons {
+      gap: 6px;
+    }
+    
+    .theater-user-settings-content .status-badge {
+      padding: 3px 8px;
+      font-size: 0.7rem;
+    }
+  }
+
+  /* Very Small Mobile */
+  @media (max-width: 480px) {
+    .theater-user-settings-content .theater-table {
+      min-width: 500px;
+    }
+    
+    .theater-user-settings-content .theater-table th {
+      padding: 10px 6px;
+      font-size: 0.7rem;
+    }
+    
+    .theater-user-settings-content .theater-table td {
+      padding: 8px 6px;
+    }
   }
 `;
 if (typeof document !== 'undefined') {

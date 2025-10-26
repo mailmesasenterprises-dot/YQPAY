@@ -186,6 +186,7 @@ router.put('/:roleId', [
   try {
     console.log('📥 PUT /api/roles/:roleId - Update role');
     console.log('🔍 Role ID:', req.params.roleId);
+    console.log('📦 Update Data:', JSON.stringify(req.body, null, 2));
     
     // Validate request
     const errors = validationResult(req);
@@ -209,8 +210,22 @@ router.put('/:roleId', [
       });
     }
 
+    // Get role before update
+    const roleBefore = rolesDoc.roleList.id(roleId);
+    console.log('🔵 Role BEFORE update:', {
+      _id: roleBefore._id,
+      name: roleBefore.name,
+      isActive: roleBefore.isActive
+    });
+
     // Update the role
     const updatedRole = await rolesDoc.updateRole(roleId, updateData);
+    
+    console.log('🟢 Role AFTER update:', {
+      _id: updatedRole._id,
+      name: updatedRole.name,
+      isActive: updatedRole.isActive
+    });
 
     await rolesDoc.populate('theater', 'name location');
 

@@ -269,6 +269,13 @@ roleArraySchema.methods.updateRole = async function(roleId, updateData) {
     throw new Error('Role not found');
   }
   
+  console.log('🔧 Model updateRole - BEFORE:', {
+    _id: role._id,
+    name: role.name,
+    isActive: role.isActive,
+    updateData
+  });
+  
   // Check if new name conflicts with existing roles
   if (updateData.name && updateData.name !== role.name) {
     const nameExists = this.roleList.find(r => 
@@ -285,6 +292,7 @@ roleArraySchema.methods.updateRole = async function(roleId, updateData) {
   // Update role properties
   Object.keys(updateData).forEach(key => {
     if (updateData[key] !== undefined) {
+      console.log(`   Setting role.${key} = ${updateData[key]}`);
       role[key] = updateData[key];
     }
   });
@@ -295,7 +303,20 @@ roleArraySchema.methods.updateRole = async function(roleId, updateData) {
   }
   
   role.updatedAt = new Date();
+  
+  console.log('🔧 Model updateRole - AFTER assignments:', {
+    _id: role._id,
+    name: role.name,
+    isActive: role.isActive
+  });
+  
   await this.save();
+  
+  console.log('💾 Model updateRole - AFTER save():', {
+    _id: role._id,
+    name: role.name,
+    isActive: role.isActive
+  });
   
   return role;
 };

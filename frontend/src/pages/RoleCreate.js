@@ -89,6 +89,7 @@ const TableRowSkeleton = React.memo(() => (
     <td><div className="skeleton-text"></div></td>
     <td><div className="skeleton-text"></div></td>
     <td><div className="skeleton-text"></div></td>
+    <td><div className="skeleton-text"></div></td>
   </tr>
 ));
 
@@ -126,6 +127,7 @@ const RoleCreate = () => {
   // Filter state with debounced search
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
   
   // Performance refs (matching TheaterList)
   const searchTimeoutRef = useRef(null);
@@ -161,7 +163,7 @@ const RoleCreate = () => {
   // Load role data with pagination and search
   useEffect(() => {
     loadRoleData();
-  }, [currentPage, debouncedSearchTerm, itemsPerPage, theaterId]);
+  }, [currentPage, debouncedSearchTerm, itemsPerPage, theaterId, filterStatus]);
 
   const loadTheaterData = useCallback(async () => {
     if (!theaterId) return;
@@ -205,6 +207,63 @@ const RoleCreate = () => {
     }
   }, [theaterId]);
 
+  // Toggle role active status
+  const toggleRoleStatus = async (roleId, currentStatus) => {
+    try {
+      console.log('🔄 Toggling role status:', { roleId, currentStatus, newStatus: !currentStatus });
+      
+      const response = await fetch(`${config.api.baseUrl}/roles/${roleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({ isActive: !currentStatus })
+      });
+
+      console.log('📡 Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Error response:', errorData);
+        throw new Error(errorData.message || 'Failed to update role status');
+      }
+
+      const result = await response.json();
+      console.log('✅ Success response:', result);
+      
+      if (result.success) {
+        // Update local roles state
+        setRoles(prevRoles => 
+          prevRoles.map(role => 
+            role._id === roleId 
+              ? { ...role, isActive: !currentStatus }
+              : role
+          )
+        );
+        
+        // Update summary counts
+        setSummary(prev => ({
+          ...prev,
+          activeRoles: !currentStatus ? prev.activeRoles + 1 : prev.activeRoles - 1,
+          inactiveRoles: !currentStatus ? prev.inactiveRoles - 1 : prev.inactiveRoles + 1
+        }));
+        
+        showSuccess(`Role ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+        
+        // Reload data to ensure sync with backend
+        await loadRoleData();
+      } else {
+        throw new Error(result.message || 'Failed to update role status');
+      }
+    } catch (error) {
+      console.error('❌ Error updating role status:', error);
+      showError(`Failed to update role status: ${error.message}`);
+      // Reload data to revert UI if update failed
+      await loadRoleData();
+    }
+  };
+
   const loadRoleData = useCallback(async () => {
     try {
       // Cancel previous request if still pending
@@ -231,6 +290,11 @@ const RoleCreate = () => {
       
       if (debouncedSearchTerm.trim()) {
         params.append('search', debouncedSearchTerm.trim());
+      }
+
+      // Add status filter
+      if (filterStatus && filterStatus !== 'all') {
+        params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
       }
       
       // PERFORMANCE OPTIMIZATION: Add cache headers but bust cache when needed
@@ -297,7 +361,7 @@ const RoleCreate = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, debouncedSearchTerm, itemsPerPage]);
+  }, [currentPage, debouncedSearchTerm, itemsPerPage, theaterId, filterStatus]);
 
   // Pagination handlers (matching TheaterList)
   const handlePageChange = useCallback((newPage) => {
@@ -307,6 +371,11 @@ const RoleCreate = () => {
   const handleItemsPerPageChange = useCallback((e) => {
     setItemsPerPage(parseInt(e.target.value));
     setCurrentPage(1); // Reset to first page when changing items per page
+  }, []);
+
+  const handleFilterChange = useCallback((e) => {
+    setFilterStatus(e.target.value);
+    setCurrentPage(1); // Reset to first page when filtering
   }, []);
 
   // Cleanup effect for aborting requests (matching TheaterList)
@@ -526,11 +595,13 @@ const RoleCreate = () => {
           </div>
           <div className="filter-controls">
             <select
-              value="all"
+              value={filterStatus}
+              onChange={handleFilterChange}
               className="status-filter"
-              disabled
             >
               <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="inactive">Inactive Only</option>
             </select>
             <div className="results-count">
               Showing {roles.length} of {totalItems} roles (Page {currentPage} of {totalPages})
@@ -564,6 +635,7 @@ const RoleCreate = () => {
                 <th>Icon</th>
                 <th>Role Name</th>
                 <th>Status</th>
+                <th>Access Status</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -574,7 +646,7 @@ const RoleCreate = () => {
                 ))
               ) : roles.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="no-data">
+                  <td colSpan="6" className="no-data">
                     <div className="empty-state">
                       <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '48px', height: '48px', opacity: 0.3}}>
                         <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
@@ -619,6 +691,51 @@ const RoleCreate = () => {
                       <span className={`status-badge ${role.isActive ? 'active-badge' : 'inactive-badge'}`}>
                         {role.isActive ? 'Active' : 'Inactive'}
                       </span>
+                    </td>
+                    <td className="access-status-cell">
+                      <div className="toggle-wrapper">
+                        <label className="switch" style={{
+                          position: 'relative',
+                          display: 'inline-block',
+                          width: '50px',
+                          height: '24px'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={role.isActive !== false}
+                            onChange={() => toggleRoleStatus(role._id, role.isActive)}
+                            style={{
+                              opacity: 0,
+                              width: 0,
+                              height: 0
+                            }}
+                          />
+                          <span className="slider" style={{
+                            position: 'absolute',
+                            cursor: 'pointer',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: (role.isActive !== false) ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+                            transition: '.4s',
+                            borderRadius: '24px'
+                          }}>
+                            <span style={{
+                              position: 'absolute',
+                              content: '""',
+                              height: '18px',
+                              width: '18px',
+                              left: (role.isActive !== false) ? '26px' : '3px',
+                              bottom: '3px',
+                              backgroundColor: 'white',
+                              transition: '.4s',
+                              borderRadius: '50%',
+                              display: 'block'
+                            }}></span>
+                          </span>
+                        </label>
+                      </div>
                     </td>
                     <td className="actions">
                       <div className="action-buttons">
@@ -685,7 +802,7 @@ const RoleCreate = () => {
         {/* Create Role Modal */}
         {showCreateModal && (
           <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content role-create-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <div className="modal-nav-left">
                 </div>
@@ -763,7 +880,7 @@ const RoleCreate = () => {
         {/* Edit Role Modal */}
         {showEditModal && (
           <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content role-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <div className="modal-nav-left">
                 </div>
@@ -841,7 +958,7 @@ const RoleCreate = () => {
         {/* View Role Modal */}
         {showViewModal && (
           <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content role-view-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <div className="modal-nav-left">
                 </div>
@@ -956,6 +1073,27 @@ const RoleCreate = () => {
         )}
       </PageContainer>
         </div>
+
+    {/* Custom CSS for RoleCreate modals only */}
+    <style dangerouslySetInnerHTML={{
+      __html: `
+        .role-view-modal-content,
+        .role-edit-modal-content,
+        .role-create-modal-content {
+          max-width: 900px !important;
+          width: 85% !important;
+        }
+
+        @media (max-width: 768px) {
+          .role-view-modal-content,
+          .role-edit-modal-content,
+          .role-create-modal-content {
+            width: 95% !important;
+            max-width: none !important;
+          }
+        }
+      `
+    }} />
     </AdminLayout>
   </ErrorBoundary>
   );
