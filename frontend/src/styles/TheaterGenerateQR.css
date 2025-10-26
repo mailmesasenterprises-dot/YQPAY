@@ -1,0 +1,214 @@
+/* ============================================
+   THEATER GENERATE QR - SEPARATE STYLES
+   ============================================ */
+
+/* Import shared QR Generate styles as base */
+@import './QRGenerate.css';
+
+/* Theater-specific overrides and additions can be added here */
+
+/* Progress Modal - Enhanced for Theater View */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
+}
+
+.progress-modal {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 600px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.progress-modal h3 {
+  text-align: center;
+  margin: 0 0 24px 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.progress-spinner {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--background-light);
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.progress-modal p {
+  text-align: center;
+  margin: 12px 0;
+  color: var(--text-gray);
+  font-size: 1rem;
+}
+
+.progress-modal p:first-of-type {
+  font-weight: 600;
+  color: var(--text-dark);
+  font-size: 1.1rem;
+}
+
+.progress-modal p:last-of-type {
+  font-size: 0.95rem;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background: var(--background-light);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 20px 0;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  transition: width 0.3s ease;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(109, 40, 217, 0.4);
+}
+
+.qr-generation-details {
+  background: var(--background-light);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 24px 0 16px 0;
+  border-left: 4px solid var(--primary-color);
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: var(--text-gray);
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  font-weight: 600;
+  color: var(--text-dark);
+  font-size: 0.95rem;
+}
+
+.selected-seats-preview {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.selected-seats-preview .detail-label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.seats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.seat-chip {
+  background: var(--primary-color);
+  color: var(--white);
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* QR Code Icon in Modal */
+.qr-icon-container {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.qr-icon {
+  width: 80px;
+  height: 80px;
+  color: var(--primary-color);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+/* Responsive adjustments for Theater view */
+@media (max-width: 768px) {
+  .progress-modal {
+    padding: 30px 20px;
+    max-width: 95%;
+  }
+
+  .progress-modal h3 {
+    font-size: 1.3rem;
+  }
+
+  .seats-grid {
+    gap: 4px;
+  }
+
+  .seat-chip {
+    padding: 3px 10px;
+    font-size: 0.8rem;
+  }
+}

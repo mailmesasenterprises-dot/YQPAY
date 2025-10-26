@@ -260,13 +260,13 @@ const QRGenerate = React.memo(() => {
               const existingQRsData = await existingQRsResponse.json();
               console.log('📊 Existing Single QR Codes Response:', existingQRsData);
               
-              if (existingQRsData.success && existingQRsData.data) {
+              if (existingQRsData.success && existingQRsData.data && existingQRsData.data.qrCodes) {
                 // Extract unique QR names that already have generated QR codes in singleqrcodes
                 // This checks both single and screen type QR codes in the unified collection
-                existingQRNames = [...new Set(existingQRsData.data.map(qr => qr.name))]; // Using 'name' field from transformed response
+                existingQRNames = [...new Set(existingQRsData.data.qrCodes.map(qr => qr.name))]; // Using 'name' field from transformed response
                 console.log('🚫 Already generated QR names (from singleqrcodes - both single & screen types):', existingQRNames);
-                console.log('🔍 Raw API data for debugging:', existingQRsData.data);
-                console.log('🔍 Number of existing QR records found:', existingQRsData.data.length);
+                console.log('🔍 Raw API data for debugging:', existingQRsData.data.qrCodes);
+                console.log('🔍 Number of existing QR records found:', existingQRsData.data.qrCodes.length);
               } else {
                 console.warn('⚠️ API responded OK but success=false or no data:', existingQRsData);
                 existingQRNames = [];
