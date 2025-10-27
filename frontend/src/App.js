@@ -42,6 +42,7 @@ const QRCodeNameList = React.lazy(() => import('./pages/QRCodeNameList'));
 const RoleAccessManagement = React.lazy(() => import('./pages/RoleAccessManagement'));
 const RoleAccessManagementList = React.lazy(() => import('./pages/RoleAccessManagementList'));
 const PageAccessManagement = React.lazy(() => import('./pages/PageAccessManagement'));
+const PageAccessManagementList = React.lazy(() => import('./pages/PageAccessManagementList'));
 
 // Theater Admin Pages
 const TheaterDashboard = React.lazy(() => import('./pages/theater/TheaterDashboard'));
@@ -136,7 +137,8 @@ function App() {
                 <Route path="/qr-names/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRCodeNameManagement /></RoleBasedRoute>} />
                 <Route path="/role-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><RoleAccessManagementList /></RoleBasedRoute>} />
                 <Route path="/role-access/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><RoleAccessManagement /></RoleBasedRoute>} />
-                <Route path="/page-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagement /></RoleBasedRoute>} />
+                <Route path="/page-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagementList /></RoleBasedRoute>} />
+                <Route path="/page-access/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagement /></RoleBasedRoute>} />
                 <Route path="/qr-generate" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRGenerate /></RoleBasedRoute>} />
 
                 <Route path="/qr-management" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRManagement /></RoleBasedRoute>} />

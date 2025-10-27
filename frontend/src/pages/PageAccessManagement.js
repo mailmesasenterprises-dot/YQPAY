@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import config from '../config';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import PageContainer from '../components/PageContainer';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -23,6 +23,10 @@ const TableRowSkeleton = React.memo(() => (
 ));
 
 const PageAccessManagement = () => {
+  // Get theaterId from URL params
+  const { theaterId } = useParams();
+  const navigate = useNavigate();
+  
   // State management (identical to Role Access Management)
   const [pageAccessConfigs, setPageAccessConfigs] = useState([]);
   const [activeRoles, setActiveRoles] = useState([]);
@@ -84,23 +88,39 @@ const PageAccessManagement = () => {
       // ✅ FIX: Add authentication token
       const token = config.helpers.getAuthToken();
       
-      // ✅ FIX: Request ALL pages (both active and inactive) by omitting isActive filter
-      const response = await fetch(`${config.api.baseUrl}/page-access?limit=1000`, {
+      // ✅ FIX: Fetch theater-specific page access data
+      const url = theaterId 
+        ? `${config.api.baseUrl}/page-access?theaterId=${theaterId}&limit=1000`
+        : `${config.api.baseUrl}/page-access?limit=1000`;
+      
+      const response = await fetch(url, {
         headers: {
           ...token ? { 'Authorization': `Bearer ${token}` } : {}
         }
       });
       
       console.log('📡 Load page access response:', response.status);
+      console.log('📡 Theater ID:', theaterId);
       
       if (response.ok) {
         const data = await response.json();
         console.log('📄 Page access data received:', data);
         
         if (data.success && data.data) {
-          // ✅ FIX: Backend returns data.data as array directly, not data.data.pageAccess
-          const existingPages = Array.isArray(data.data) ? data.data : [];
-          console.log('📄 Existing pages in DB:', existingPages.length);
+          // ✅ FIX: Backend returns data.data.pageAccessList as array for theater-specific query
+          let existingPages = [];
+          
+          if (data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
+            // Theater-specific response: data.data.pageAccessList
+            existingPages = data.data.pageAccessList;
+            console.log('📄 Theater-specific pages found:', existingPages.length);
+          } else if (Array.isArray(data.data)) {
+            // Global response: data.data (array directly)
+            existingPages = data.data;
+            console.log('📄 Global pages found:', existingPages.length);
+          }
+          
+          console.log('📄 Processing existing pages:', existingPages);
           
           const toggleStates = {};
           
@@ -133,7 +153,7 @@ const PageAccessManagement = () => {
       return false; // Failed to load
     }
     return false;
-  }, [theaterAdminPages.length]);
+  }, [theaterAdminPages.length, theaterId]);
 
   // Load page data - mirror frontend pages and load existing toggle states
   const loadPageAccessData = useCallback(async () => {
@@ -208,7 +228,8 @@ const PageAccessManagement = () => {
             route: page.route,
             description: page.description,
             allowedRoles: page.roles || [],
-            isActive: true
+            isActive: true,
+            theaterId: theaterId // ✅ FIX: Include theaterId for theater-specific page access
           })
         });
 
@@ -232,11 +253,48 @@ const PageAccessManagement = () => {
           throw new Error(errorData.error || `HTTP ${response.status}: Failed to save page access`);
         }
       } else {
-        // ✅ FIX: DELETE from backend with proper URL and auth
-        const response = await fetch(`${config.api.baseUrl}/page-access/by-page/${page.page}`, {
+        // ✅ FIX: DELETE - Need to find the page's MongoDB _id first, then delete by ID
+        // First, fetch the page list to find the _id
+        const fetchUrl = theaterId 
+          ? `${config.api.baseUrl}/page-access?theaterId=${theaterId}`
+          : `${config.api.baseUrl}/page-access`;
+        
+        const fetchResponse = await fetch(fetchUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!fetchResponse.ok) {
+          throw new Error('Failed to fetch page list');
+        }
+        
+        const fetchData = await fetchResponse.json();
+        
+        // Find the page to delete
+        let pageToDelete = null;
+        if (fetchData.success && fetchData.data) {
+          const pageList = fetchData.data.pageAccessList || fetchData.data;
+          pageToDelete = pageList.find(p => p.page === page.page);
+        }
+        
+        if (!pageToDelete || !pageToDelete._id) {
+          // Page doesn't exist in database, just toggle locally
+          setPageToggleStates(prev => ({
+            ...prev,
+            [page.page]: false
+          }));
+          showSuccess(`Page "${page.pageName}" was already disabled`);
+          return;
+        }
+        
+        console.log(`🗑️ Deleting page with ID: ${pageToDelete._id}`);
+        
+        // Now delete by ID
+        const response = await fetch(`${config.api.baseUrl}/page-access/${pageToDelete._id}`, {
           method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${token}` // ✅ FIX: Added auth header
+            'Authorization': `Bearer ${token}`
           }
         });
 
@@ -269,7 +327,7 @@ const PageAccessManagement = () => {
         showError(`Failed to ${isEnabled ? 'enable' : 'disable'} page access: ${error.message}`);
       }
     }
-  }, [showSuccess, showError]);
+  }, [showSuccess, showError, theaterId]);
 
   // Debounced search functionality (identical to QR Code Types)
   const debouncedSearch = useCallback((query) => {
