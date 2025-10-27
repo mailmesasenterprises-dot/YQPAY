@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import TheaterLayout from '../../components/theater/TheaterLayout';
@@ -8,10 +8,439 @@ import ErrorBoundary from '../../components/ErrorBoundary';
 import { useModal } from '../../contexts/ModalContext';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import { ActionButton, ActionButtons } from '../../components/ActionButton';
+import JSZip from 'jszip';
 import config from '../../config';
 import '../../styles/TheaterUserDetails.css';
 import '../../styles/TheaterList.css';
 import '../../styles/QRManagementPage.css';
+import '../../styles/AddTheater.css';
+
+// Helper function to get authenticated headers
+const getAuthHeaders = () => {
+  const authToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Accept': 'application/json',
+    ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+  };
+};
+
+// Lazy Loading QR Image Component
+const LazyQRImage = React.memo(({ src, alt, className, style }) => {
+  const [imageSrc, setImageSrc] = useState('/placeholder-qr.png');
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const imgRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && src && src !== '/placeholder-qr.png') {
+          const img = new Image();
+          img.onload = () => {
+            setImageSrc(src);
+            setIsLoading(false);
+            setHasError(false);
+          };
+          img.onerror = () => {
+            setHasError(true);
+            setIsLoading(false);
+          };
+          img.src = src;
+        }
+      },
+      { rootMargin: '50px' }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => {
+      if (imgRef.current) {
+        observer.unobserve(imgRef.current);
+      }
+    };
+  }, [src]);
+
+  return (
+    <div ref={imgRef} style={{ position: 'relative', ...style }}>
+      {isLoading && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)'
+        }}>
+          Loading...
+        </div>
+      )}
+      <img
+        src={imageSrc}
+        alt={alt}
+        className={className}
+        style={{
+          ...style,
+          opacity: isLoading ? 0.3 : 1,
+          transition: 'opacity 0.3s ease'
+        }}
+      />
+      {hasError && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: 'red'
+        }}>
+          Failed to load
+        </div>
+      )}
+    </div>
+  );
+});
+
+LazyQRImage.displayName = 'LazyQRImage';
+
+// CRUD Modal Component (Complete mirror from TheaterQRDetail.js)
+const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, onDelete, onModeChange, actionLoading, displayImageUrl, onSeatEdit, onToggleStatus, qrNames = [], existingQRNames = [] }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    qrType: 'single',
+    screenName: '',
+    seatNumber: '',
+    location: '',
+    isActive: true,
+    ...qrCode
+  });
+
+  useEffect(() => {
+    if (qrCode) {
+      setFormData({ ...qrCode });
+    }
+  }, [qrCode]);
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  const isReadOnly = mode === 'view';
+
+  const getModalTitle = () => {
+    switch (mode) {
+      case 'view': return 'View QR Code';
+      case 'edit': return 'Edit QR Code';
+      case 'create': return 'Create QR Code';
+      default: return 'QR Code Details';
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-nav-left"></div>
+          
+          <div className="modal-title-section">
+            <h2>{getModalTitle()}</h2>
+          </div>
+          
+          <div className="modal-nav-right">
+            <button className="close-btn" onClick={onClose}>
+              <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div className="modal-body">
+          <div className="edit-form">
+            <form onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label>QR Code Name *</label>
+                {isReadOnly ? (
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.name || ''}
+                    disabled
+                  />
+                ) : (
+                  <select
+                    name="name"
+                    className="form-control"
+                    value={formData.name || ''}
+                    onChange={(e) => {
+                      const selectedQRName = qrNames.find(qr => qr.qrName === e.target.value);
+                      setFormData(prev => ({
+                        ...prev,
+                        name: e.target.value,
+                        screenName: selectedQRName?.seatClass || prev.screenName,
+                        seatClass: selectedQRName?.seatClass || prev.seatClass
+                      }));
+                    }}
+                    required
+                  >
+                    <option value="">Select QR Code Name</option>
+                    {qrNames
+                      .filter(qr => !existingQRNames.includes(qr.qrName) || qr.qrName === qrCode?.name)
+                      .map((qr, index) => (
+                        <option key={index} value={qr.qrName}>{qr.qrName}</option>
+                      ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>QR Type</label>
+                <select
+                  name="qrType"
+                  className="form-control"
+                  value={formData.qrType || 'single'}
+                  onChange={handleInputChange}
+                  disabled={isReadOnly}
+                >
+                  <option value="single">Single QR</option>
+                  <option value="screen">Screen QR</option>
+                </select>
+              </div>
+
+              {(formData.qrType === 'screen' || formData.screenName || formData.seatClass) && (
+                <>
+                  <div className="form-group">
+                    <label>Screen Name</label>
+                    <input
+                      type="text"
+                      name="screenName"
+                      className="form-control"
+                      value={formData.screenName || formData.seatClass || ''}
+                      onChange={handleInputChange}
+                      disabled={true}
+                      readOnly
+                      placeholder="Auto-filled from QR Code Name"
+                      style={{backgroundColor: '#f3f4f6', cursor: 'not-allowed'}}
+                    />
+                  </div>
+
+                  {formData.seatNumber && (
+                    <div className="form-group">
+                      <label>Seat Number</label>
+                      <input
+                        type="text"
+                        name="seatNumber"
+                        className="form-control"
+                        value={formData.seatNumber || ''}
+                        onChange={handleInputChange}
+                        disabled={isReadOnly}
+                        placeholder="Enter seat number"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {(() => {
+                const shouldShowSeatGrid = formData.qrType === 'screen' && !formData.isSeatRow && formData.seats && formData.seats.length > 0;
+                return shouldShowSeatGrid;
+              })() && (
+                <div className="form-group">
+                  <label style={{ fontSize: '16px', fontWeight: '600', marginBottom: '15px', display: 'block' }}>
+                    Seat Layout ({formData.seats.length} seats)
+                  </label>
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '12px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{
+                      backgroundColor: '#8b5cf6',
+                      color: 'white',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      marginBottom: '20px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🎬</span>
+                        <span>SCREEN - {formData.seatClass || formData.name}</span>
+                      </div>
+                      
+                      {mode === 'view' && formData.seats.filter(s => s.qrCodeUrl).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
+                            try {
+                              const zip = new JSZip();
+                              const folder = zip.folder(`${formData.seatClass || formData.name}_QR_Codes`);
+                              
+                              const fetchPromises = seatsWithQR.map(async (seat) => {
+                                try {
+                                  const response = await fetch(seat.qrCodeUrl);
+                                  const blob = await response.blob();
+                                  folder.file(`${seat.seat}_QR.png`, blob);
+                                } catch (error) {
+                                  console.error(`Failed to fetch ${seat.seat}:`, error);
+                                }
+                              });
+                              
+                              await Promise.all(fetchPromises);
+                              const zipBlob = await zip.generateAsync({ type: 'blob' });
+                              
+                              const link = document.createElement('a');
+                              link.href = URL.createObjectURL(zipBlob);
+                              link.download = `${formData.seatClass || formData.name}_QR_Codes.zip`;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              URL.revokeObjectURL(link.href);
+                              
+                              alert(`✅ Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
+                            } catch (error) {
+                              alert('❌ Failed to create ZIP file.');
+                            }
+                          }}
+                          style={{
+                            backgroundColor: 'white',
+                            color: '#8b5cf6',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>⬇️</span>
+                          <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {(() => {
+                        const seatsByRow = {};
+                        formData.seats.forEach(seat => {
+                          const rowLetter = seat.seat.match(/^[A-Za-z]+/)?.[0] || 'Other';
+                          if (!seatsByRow[rowLetter]) seatsByRow[rowLetter] = [];
+                          seatsByRow[rowLetter].push(seat);
+                        });
+
+                        return Object.keys(seatsByRow).sort().map(rowLetter => (
+                          <div key={rowLetter} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <div style={{
+                              minWidth: '30px',
+                              fontSize: '16px',
+                              fontWeight: '600',
+                              color: '#374151',
+                              textAlign: 'center'
+                            }}>
+                              {rowLetter}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
+                              {seatsByRow[rowLetter]
+                                .sort((a, b) => {
+                                  const numA = parseInt(a.seat.match(/\d+/)?.[0] || '0');
+                                  const numB = parseInt(b.seat.match(/\d+/)?.[0] || '0');
+                                  return numA - numB;
+                                })
+                                .map((seat, index) => (
+                                  <div
+                                    key={seat._id || index}
+                                    style={{
+                                      backgroundColor: seat.isActive ? '#8b5cf6' : '#d1d5db',
+                                      color: 'white',
+                                      padding: '10px 16px',
+                                      borderRadius: '6px',
+                                      textAlign: 'center',
+                                      fontSize: '12px',
+                                      fontWeight: '600',
+                                      cursor: 'pointer',
+                                      position: 'relative',
+                                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                      minWidth: '50px'
+                                    }}
+                                    title={`Seat ${seat.seat}`}
+                                    onClick={() => {
+                                      if (seat.qrCodeUrl) {
+                                        window.open(seat.qrCodeUrl, '_blank');
+                                      }
+                                    }}
+                                    onContextMenu={(e) => {
+                                      e.preventDefault();
+                                      if (seat.qrCodeUrl) {
+                                        const link = document.createElement('a');
+                                        link.href = seat.qrCodeUrl;
+                                        link.download = `${formData.seatClass}_${seat.seat}_QR.png`;
+                                        link.target = '_blank';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                      }
+                                    }}
+                                  >
+                                    {seat.seat}
+                                    {seat.qrCodeUrl && (
+                                      <div style={{
+                                        position: 'absolute',
+                                        top: '-4px',
+                                        right: '-4px',
+                                        width: '12px',
+                                        height: '12px',
+                                        backgroundColor: '#10b981',
+                                        borderRadius: '50%',
+                                        border: '2px solid white'
+                                      }} />
+                                    )}
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button type="button" className="cancel-btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+CrudModal.displayName = 'CrudModal';
 
 const TheaterQRManagement = () => {
   const navigate = useNavigate();
@@ -22,18 +451,33 @@ const TheaterQRManagement = () => {
   // PERFORMANCE MONITORING
   usePerformanceMonitoring('TheaterQRManagement');
   
+  // Theater state
+  const [theater, setTheater] = useState(null);
+  
   // Data state
   const [qrCodes, setQrCodes] = useState([]);
+  const [qrCodesByName, setQrCodesByName] = useState({});
   const [loading, setLoading] = useState(true);
   const [qrNames, setQrNames] = useState([]);
   const [qrNamesLoading, setQrNamesLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('');
   const [qrNameCounts, setQrNameCounts] = useState({});
   const [actionLoading, setActionLoading] = useState({});
+  
+  // Modal states
   const [crudModal, setCrudModal] = useState({
     isOpen: false,
     qrCode: null,
-    mode: 'view' // 'view', 'edit', 'delete'
+    mode: 'view' // 'view', 'edit'
+  });
+  
+  const [deleteModal, setDeleteModal] = useState({ show: false, qrCode: null });
+  const [displayImageUrl, setDisplayImageUrl] = useState(null);
+  
+  // Filter state
+  const [filters, setFilters] = useState({
+    search: '',
+    isActive: 'all'
   });
   
   const abortControllerRef = useRef(null);
@@ -91,6 +535,74 @@ const TheaterQRManagement = () => {
       setQrNamesLoading(false);
     }
   }, [theaterId, showError]);
+
+  // Load theater data and organize QR codes by name
+  const loadTheaterData = useCallback(async () => {
+    try {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      abortControllerRef.current = new AbortController();
+      setLoading(true);
+      
+      const signal = abortControllerRef.current.signal;
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Accept': 'application/json'
+      };
+      
+      if (!theater) {
+        const theaterResponse = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, { signal, headers });
+        const theaterData = await theaterResponse.json();
+        if (theaterData.success) {
+          setTheater(theaterData.theater);
+        }
+      }
+      
+      const singleUrl = `${config.api.baseUrl}/single-qrcodes/theater/${theaterId}`;
+      const singleResponse = await fetch(singleUrl, { signal, headers });
+      
+      const singleData = singleResponse.ok ? await singleResponse.json().catch(() => ({ success: false })) : { success: false };
+      
+      const qrsByName = {};
+      
+      if (singleData.success) {
+        (singleData.data?.qrCodes || []).forEach(qr => {
+          if (!qrsByName[qr.name]) {
+            qrsByName[qr.name] = [];
+          }
+          qrsByName[qr.name].push({ ...qr });
+        });
+      }
+      
+      setQrCodesByName(qrsByName);
+      
+      // Also set qrCodes for backward compatibility
+      const allQRs = Object.values(qrsByName).flat();
+      setQrCodes(allQRs);
+      
+      // Calculate counts
+      const counts = {};
+      Object.keys(qrsByName).forEach(name => {
+        counts[name] = qrsByName[name].length;
+      });
+      setQrNameCounts(counts);
+      
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        return;
+      }
+      console.error('Error loading theater data:', error);
+      showError('Failed to load theater data');
+    } finally {
+      setLoading(false);
+    }
+  }, [theaterId, theater, showError]);
 
   // Load QR codes
   const loadQRCodes = useCallback(async () => {
@@ -162,14 +674,18 @@ const TheaterQRManagement = () => {
 
   useEffect(() => {
     loadQRNames();
-    loadQRCodes();
+    loadTheaterData(); // This now handles both theater and QR codes
     
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      setQrCodesByName({});
+      setActiveCategory(null);
+      setQrNames([]);
+      setLoading(true);
     };
-  }, [loadQRNames, loadQRCodes]);
+  }, [loadQRNames, loadTheaterData]);
 
   // Filter QR codes by active category
   const currentQRs = useMemo(() => {
@@ -185,6 +701,13 @@ const TheaterQRManagement = () => {
       qrCode: qrCode,
       mode: mode
     });
+    
+    // Set display image URL
+    if (qrCode && qrCode.qrImageUrl) {
+      setDisplayImageUrl(qrCode.qrImageUrl);
+    } else {
+      setDisplayImageUrl(null);
+    }
   }, []);
 
   const closeCrudModal = useCallback(() => {
@@ -194,6 +717,147 @@ const TheaterQRManagement = () => {
       mode: 'view'
     });
   }, []);
+
+  // Handle CRUD Save (mirrored from admin page)
+  const handleCrudSave = useCallback(async (formData) => {
+    try {
+      setActionLoading(prev => ({ ...prev, [formData._id || 'new']: true }));
+      
+      const isEditing = crudModal.mode === 'edit';
+      
+      if (isEditing) {
+        if (formData.isSeatRow && formData.parentQRDetailId && formData.seatId) {
+          if (formData.isNewSeat || formData.seatId.toString().startsWith('new_')) {
+            const response = await fetch(
+              `${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData.parentQRDetailId}/seats`,
+              {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                  seat: formData.seatNumber,
+                  isActive: formData.isActive
+                })
+              }
+            );
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Failed to create new seat');
+            }
+
+            await loadTheaterData();
+            closeCrudModal();
+            showSuccess(`Seat ${formData.seatNumber} added successfully!`);
+            
+          } else {
+            const response = await fetch(
+              `${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData.parentQRDetailId}/seats/${formData.seatId}`,
+              {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                  seat: formData.seatNumber,
+                  isActive: formData.isActive,
+                  qrCodeUrl: formData.qrImageUrl
+                })
+              }
+            );
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Failed to update seat');
+            }
+
+            showSuccess(`Seat ${formData.seatNumber} updated successfully`);
+          }
+          
+        } else {
+          if (!formData.parentDocId) {
+            setActionLoading(prev => ({ ...prev, [formData._id]: false }));
+            return;
+          }
+
+          const updatePayload = {
+            qrName: formData.name,
+            seatClass: formData.seatClass,
+            seat: formData.seat || null,
+            logoUrl: formData.logoUrl,
+            logoType: formData.logoType || 'default',
+            isActive: formData.isActive
+          };
+
+          const response = await fetch(`${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData._id}`, {
+            method: 'PUT',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(updatePayload)
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            await loadTheaterData();
+            showSuccess('QR code updated successfully');
+            closeCrudModal();
+          }
+        }
+        
+        await loadTheaterData();
+        closeCrudModal();
+      }
+    } catch (error) {
+      console.error('Error saving QR code:', error);
+      showError(error.message || 'Failed to save QR code');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [formData._id || 'new']: false }));
+    }
+  }, [crudModal.mode, loadTheaterData, closeCrudModal, showSuccess, showError]);
+
+  // Delete Seat (mirrored from admin page)
+  const deleteSeat = async (seatId, seatName) => {
+    const parentDocId = crudModal.qrCode?.parentDocId;
+    const parentQRDetailId = crudModal.qrCode?.parentQRDetailId;
+    
+    if (!parentDocId || !parentQRDetailId || !seatId) {
+      showError('Missing required information to delete seat');
+      return;
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to delete ${seatName}? This action cannot be undone.`);
+    
+    if (!confirmed) return;
+    
+    try {
+      setActionLoading(prev => ({ ...prev, [seatId]: true }));
+      
+      const response = await fetch(
+        `${config.api.baseUrl}/single-qrcodes/${parentDocId}/details/${parentQRDetailId}/seats/${seatId}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete seat');
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        closeCrudModal();
+        await loadTheaterData();
+        showSuccess(`${seatName} deleted successfully`);
+      } else {
+        throw new Error(data.message || 'Failed to delete seat');
+      }
+    } catch (error) {
+      console.error('Error deleting seat:', error);
+      showError(error.message || 'Failed to delete seat');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [seatId]: false }));
+    }
+  };
 
   // Download QR code
   const downloadQRCode = useCallback(async (qrCode) => {
@@ -528,316 +1192,39 @@ const TheaterQRManagement = () => {
           </PageContainer>
         </div>
 
-        {/* CRUD Modal - Matching Admin Design */}
+        {/* CRUD Modal - Complete Mirror from Admin Page */}
         {crudModal.isOpen && crudModal.qrCode && (
-          <div className="modal-overlay" onClick={closeCrudModal}>
-            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <div className="modal-nav-left"></div>
-                
-                <div className="modal-title-section">
-                  <h2>View QR Code</h2>
-                </div>
-                
-                <div className="modal-nav-right">
-                  <button className="close-btn" onClick={closeCrudModal}>
-                    <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
-                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              
-              <div className="modal-body">
-                <div className="edit-form">
-                  {console.log('🔄 View Modal Rendered - Active Toggle Version:', crudModal.qrCode.isActive)}
-                  {/* QR Code Name */}
-                  <div className="form-group">
-                    <label>QR Code Name *</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={crudModal.qrCode.name || ''}
-                      disabled
-                      placeholder="Enter QR code name"
-                    />
-                  </div>
-
-                  {/* QR Type */}
-                  <div className="form-group">
-                    <label>QR Type</label>
-                    <select
-                      className="form-control"
-                      value={crudModal.qrCode.qrType || 'single'}
-                      disabled
-                    >
-                      <option value="single">Single QR</option>
-                      <option value="screen">Screen QR</option>
-                    </select>
-                  </div>
-
-                  {/* Screen Name - Only for screen type QR */}
-                  {crudModal.qrCode.qrType === 'screen' && (
-                    <div className="form-group">
-                      <label>Screen Name</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={crudModal.qrCode.screenName || crudModal.qrCode.seatClass || ''}
-                        disabled
-                        placeholder="Enter screen name"
-                      />
-                    </div>
-                  )}
-
-                  {/* Seat Number - Only for individual screen seats */}
-                  {crudModal.qrCode.qrType === 'screen' && crudModal.qrCode.seatNumber && (
-                    <div className="form-group">
-                      <label>Seat Number</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={crudModal.qrCode.seatNumber || ''}
-                        disabled
-                        placeholder="Enter seat number"
-                      />
-                    </div>
-                  )}
-
-                  {/* Location */}
-                  <div className="form-group">
-                    <label>Location</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={crudModal.qrCode.location || ''}
-                      disabled
-                      placeholder="e.g., Entrance, Lobby, Screen 1"
-                    />
-                  </div>
-
-                  {/* Active Checkbox - Clickable */}
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={crudModal.qrCode.isActive || false}
-                        onChange={() => {
-                          toggleQRStatus(crudModal.qrCode._id, crudModal.qrCode.isActive);
-                          // Update modal state optimistically
-                          setCrudModal(prev => ({
-                            ...prev,
-                            qrCode: {
-                              ...prev.qrCode,
-                              isActive: !prev.qrCode.isActive
-                            }
-                          }));
-                        }}
-                        disabled={actionLoading[crudModal.qrCode._id]}
-                        style={{
-                          marginRight: '8px',
-                          width: '18px',
-                          height: '18px',
-                          cursor: actionLoading[crudModal.qrCode._id] ? 'not-allowed' : 'pointer'
-                        }}
-                      />
-                      Active
-                    </label>
-                  </div>
-
-                  {/* Visual Seat Grid for Screen QR with multiple seats (parent screen record) */}
-                  {crudModal.qrCode.qrType === 'screen' && !crudModal.qrCode.isSeatRow && crudModal.qrCode.seats && crudModal.qrCode.seats.length > 0 && (
-                    <div className="form-group">
-                      <label style={{ fontSize: '16px', fontWeight: '600', marginBottom: '15px', display: 'block' }}>
-                        Seat Layout ({crudModal.qrCode.seats.length} seats)
-                      </label>
-                      <div style={{
-                        padding: '20px',
-                        backgroundColor: '#f9fafb',
-                        borderRadius: '12px',
-                        border: '1px solid #e5e7eb'
-                      }}>
-                        {/* Screen Header with Download All Button */}
-                        <div style={{
-                          backgroundColor: '#8b5cf6',
-                          color: 'white',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          marginBottom: '20px',
-                          fontSize: '14px',
-                          fontWeight: '600',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '12px'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span>🎬</span>
-                            <span>SCREEN - {crudModal.qrCode.seatClass || crudModal.qrCode.name}</span>
-                          </div>
-                          
-                          {/* Download All Button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Download all QR codes for this screen
-                              console.log('Download all QRs for screen:', crudModal.qrCode.name);
-                              crudModal.qrCode.seats.forEach((seat, index) => {
-                                if (seat.qrCodeUrl) {
-                                  setTimeout(() => {
-                                    const link = document.createElement('a');
-                                    link.href = seat.qrCodeUrl;
-                                    link.download = `${crudModal.qrCode.seatClass || crudModal.qrCode.name}_Seat_${seat.seat}_QR.png`;
-                                    link.target = '_blank';
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    document.body.removeChild(link);
-                                  }, index * 300); // Stagger downloads to avoid browser blocking
-                                }
-                              });
-                            }}
-                            style={{
-                              backgroundColor: 'white',
-                              color: '#8b5cf6',
-                              border: 'none',
-                              padding: '6px 12px',
-                              borderRadius: '6px',
-                              fontSize: '12px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#f3f4f6';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'white';
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '16px', height: '16px'}}>
-                              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-                            </svg>
-                            Download All ({crudModal.qrCode.seats.filter(s => s.qrCodeUrl).length})
-                          </button>
-                        </div>
-
-                        {/* Seat Grid */}
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: `repeat(auto-fill, minmax(50px, 1fr))`,
-                          gap: '8px'
-                        }}>
-                          {crudModal.qrCode.seats.map((seat, index) => (
-                            <div
-                              key={seat._id || index}
-                              style={{
-                                backgroundColor: seat.isActive ? '#8b5cf6' : '#d1d5db',
-                                color: 'white',
-                                padding: '10px 6px',
-                                borderRadius: '6px',
-                                textAlign: 'center',
-                                fontSize: '12px',
-                                fontWeight: '600',
-                                cursor: seat.qrCodeUrl ? 'pointer' : 'default',
-                                transition: 'all 0.2s',
-                                position: 'relative',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                              }}
-                              onClick={() => {
-                                if (seat.qrCodeUrl) {
-                                  window.open(seat.qrCodeUrl, '_blank');
-                                }
-                              }}
-                              title={seat.qrCodeUrl ? `Click to view QR for ${seat.seat}` : `Seat ${seat.seat}`}
-                            >
-                              {seat.seat || index + 1}
-                              {seat.qrCodeUrl && (
-                                <div style={{
-                                  position: 'absolute',
-                                  top: '-4px',
-                                  right: '-4px',
-                                  width: '12px',
-                                  height: '12px',
-                                  backgroundColor: '#10b981',
-                                  borderRadius: '50%',
-                                  border: '2px solid white'
-                                }} />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Legend */}
-                        <div style={{
-                          marginTop: '20px',
-                          paddingTop: '15px',
-                          borderTop: '1px solid #e5e7eb',
-                          display: 'flex',
-                          gap: '20px',
-                          fontSize: '12px',
-                          color: '#6b7280',
-                          flexWrap: 'wrap'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ width: '20px', height: '20px', backgroundColor: '#8b5cf6', borderRadius: '4px' }}></div>
-                            <span>Active Seat</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <div style={{ width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '50%' }}></div>
-                            <span>QR Available (click to view)</span>
-                          </div>
-                        </div>
-
-                        {/* Summary */}
-                        <div style={{
-                          marginTop: '15px',
-                          padding: '12px',
-                          backgroundColor: '#f3f4f6',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          color: '#374151'
-                        }}>
-                          <strong>Summary:</strong> {crudModal.qrCode.seats.filter(s => s.isActive).length} active seats, 
-                          {' '}{crudModal.qrCode.seats.filter(s => s.qrCodeUrl).length} with QR codes
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => {
-                    // Edit functionality - theater users might not have edit permission
-                    console.log('Edit clicked for:', crudModal.qrCode.name);
-                  }}
-                >
-                  EDIT
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    deleteQRCode(crudModal.qrCode._id, crudModal.qrCode.name);
-                    closeCrudModal();
-                  }}
-                  disabled={actionLoading[crudModal.qrCode._id]}
-                >
-                  {actionLoading[crudModal.qrCode._id] ? 'Deleting...' : 'DELETE'}
-                </button>
-                <button type="button" className="cancel-btn" onClick={closeCrudModal}>
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
+          <CrudModal
+            isOpen={crudModal.isOpen}
+            qrCode={crudModal.qrCode}
+            mode={crudModal.mode}
+            theater={theater}
+            onClose={closeCrudModal}
+            onSave={handleCrudSave}
+            onDelete={deleteSeat}
+            onModeChange={(mode, newQrCode) => {
+              if (newQrCode) {
+                setCrudModal(prev => ({ ...prev, mode, qrCode: newQrCode }));
+              } else {
+                setCrudModal(prev => ({ ...prev, mode }));
+              }
+            }}
+            actionLoading={actionLoading}
+            displayImageUrl={displayImageUrl}
+            onSeatEdit={(seatData) => {
+              closeCrudModal();
+              setTimeout(() => {
+                setCrudModal({
+                  isOpen: true,
+                  qrCode: seatData,
+                  mode: 'edit'
+                });
+              }, 100);
+            }}
+            onToggleStatus={toggleQRStatus}
+            qrNames={qrNames}
+            existingQRNames={Object.keys(qrCodesByName)}
+          />
         )}
       </TheaterLayout>
     </ErrorBoundary>

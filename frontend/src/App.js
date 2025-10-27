@@ -150,29 +150,29 @@ function App() {
                 <Route path="/theater-admin" element={<RoleBasedRoute allowedRoles={['super_admin']}><TheaterAdminList /></RoleBasedRoute>} />
                 <Route path="/theater-admin-management" element={<RoleBasedRoute allowedRoles={['super_admin']}><TheaterAdminManagement /></RoleBasedRoute>} />
                 
-                {/* Theater User Routes - Role-based permissions will be checked within components */}
-                <Route path="/theater-dashboard/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterDashboard /></RoleBasedRoute>} />
-                <Route path="/theater-settings/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterSettings /></RoleBasedRoute>} />
-                <Route path="/theater-categories/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterCategories /></RoleBasedRoute>} />
-                <Route path="/theater-kiosk-types/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterKioskTypes /></RoleBasedRoute>} />
-                <Route path="/theater-product-types/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterProductTypes /></RoleBasedRoute>} />
-                <Route path="/theater-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterOrderHistory /></RoleBasedRoute>} />
-                <Route path="/theater-reports/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterReports /></RoleBasedRoute>} /> {/* ✅ NEW */}
-                <Route path="/theater-roles/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterRoles /></RoleBasedRoute>} /> {/* ✅ Theater Roles */}
-                <Route path="/theater-role-access/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterRoleAccess /></RoleBasedRoute>} /> {/* ✅ Theater Role Access */}
-                <Route path="/theater-qr-code-names/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterQRCodeNames /></RoleBasedRoute>} /> {/* ✅ Theater QR Code Names */}
-                <Route path="/theater-generate-qr/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterGenerateQR /></RoleBasedRoute>} /> {/* ✅ Theater Generate QR */}
-                <Route path="/theater-qr-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterQRManagement /></RoleBasedRoute>} /> {/* ✅ Theater QR Management */}
-                <Route path="/theater-user-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterUserManagementPage /></RoleBasedRoute>} /> {/* ✅ Theater User Management */}
+                {/* Theater User Routes - WITH PROPER ROLE-BASED PAGE ACCESS CONTROL */}
+                <Route path="/theater-dashboard/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterDashboardWithId']}><TheaterDashboard /></RoleBasedRoute>} />
+                <Route path="/theater-settings/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterSettingsWithId']}><TheaterSettings /></RoleBasedRoute>} />
+                <Route path="/theater-categories/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterCategories']}><TheaterCategories /></RoleBasedRoute>} />
+                <Route path="/theater-kiosk-types/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterKioskTypes']}><TheaterKioskTypes /></RoleBasedRoute>} />
+                <Route path="/theater-product-types/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterProductTypes']}><TheaterProductTypes /></RoleBasedRoute>} />
+                <Route path="/theater-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterOrderHistory']}><TheaterOrderHistory /></RoleBasedRoute>} />
+                <Route path="/theater-reports/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterReports']}><TheaterReports /></RoleBasedRoute>} />
+                <Route path="/theater-roles/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterRoles']}><TheaterRoles /></RoleBasedRoute>} />
+                <Route path="/theater-role-access/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterRoleAccess']}><TheaterRoleAccess /></RoleBasedRoute>} />
+                <Route path="/theater-qr-code-names/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterQRCodeNames']}><TheaterQRCodeNames /></RoleBasedRoute>} />
+                <Route path="/theater-generate-qr/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterGenerateQR']}><TheaterGenerateQR /></RoleBasedRoute>} />
+                <Route path="/theater-qr-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterQRManagement']}><TheaterQRManagement /></RoleBasedRoute>} />
+                <Route path="/theater-user-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterUserManagement']}><TheaterUserManagementPage /></RoleBasedRoute>} />
                 {/* <Route path="/staff-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StaffOrderHistory /></RoleBasedRoute>} /> */} {/* ❌ Component doesn't exist */}
-                <Route path="/theater-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterProductList /></RoleBasedRoute>} />
-                <Route path="/theater-stock-management/:theaterId/:productId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StockManagement /></RoleBasedRoute>} />
+                <Route path="/theater-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterProductList']}><TheaterProductList /></RoleBasedRoute>} />
+                <Route path="/theater-stock-management/:theaterId/:productId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['StockManagement']}><StockManagement /></RoleBasedRoute>} />
                 <Route path="/test-stock-management/:theaterId/:productId" element={<TestStockManagement />} />
-                <Route path="/simple-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><SimpleProductList /></RoleBasedRoute>} />
-                <Route path="/theater-order/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterOrderInterface /></RoleBasedRoute>} />
-                <Route path="/online-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><OnlinePOSInterface /></RoleBasedRoute>} />
-                <Route path="/view-cart/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><ViewCart /></RoleBasedRoute>} />
-                <Route path="/theater-order-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><ProfessionalPOSInterface /></RoleBasedRoute>} />
+                <Route path="/simple-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['SimpleProductList']}><SimpleProductList /></RoleBasedRoute>} />
+                <Route path="/theater-order/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterOrderInterface']}><TheaterOrderInterface /></RoleBasedRoute>} />
+                <Route path="/online-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['OnlinePOSInterface']}><OnlinePOSInterface /></RoleBasedRoute>} />
+                <Route path="/view-cart/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['ViewCart']}><ViewCart /></RoleBasedRoute>} />
+                <Route path="/theater-order-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['ProfessionalPOSInterface']}><ProfessionalPOSInterface /></RoleBasedRoute>} />
                 <Route path="/theater-add-product/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><AddProduct /></RoleBasedRoute>} />
                 <Route path="/test-add-product-dropdowns/:theaterId" element={<TestAddProductDropdowns />} />
                 <Route path="/test-add-product-dropdowns" element={<TestAddProductDropdowns />} />

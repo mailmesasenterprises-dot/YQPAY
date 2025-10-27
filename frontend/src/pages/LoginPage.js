@@ -18,7 +18,36 @@ const LoginPage = () => {
   const [pin, setPin] = useState(''); // 4-digit PIN
   const [pendingAuth, setPendingAuth] = useState(null); // Store pending authentication data
   const navigate = useNavigate();
-  const { login, isAuthenticated, userType, theaterId, isLoading: authLoading } = useAuth();
+  const { login, isAuthenticated, userType, theaterId, rolePermissions, isLoading: authLoading } = useAuth();
+
+  // Helper function to get route from page ID
+  const getRouteFromPageId = (pageId, theaterId) => {
+    const pageRouteMap = {
+      'TheaterDashboardWithId': `/theater-dashboard/${theaterId}`,
+      'TheaterSettingsWithId': `/theater-settings/${theaterId}`,
+      'TheaterCategories': `/theater-categories/${theaterId}`,
+      'TheaterKioskTypes': `/theater-kiosk-types/${theaterId}`,
+      'TheaterProductTypes': `/theater-product-types/${theaterId}`,
+      'TheaterProductList': `/theater-products/${theaterId}`,
+      'TheaterOrderInterface': `/theater-order/${theaterId}`,
+      'OnlinePOSInterface': `/online-pos/${theaterId}`,
+      'TheaterOrderHistory': `/theater-order-history/${theaterId}`,
+      'TheaterAddProductWithId': `/theater-add-product/${theaterId}`,
+      'TheaterRoles': `/theater-roles/${theaterId}`,
+      'TheaterRoleAccess': `/theater-role-access/${theaterId}`,
+      'TheaterQRCodeNames': `/theater-qr-code-names/${theaterId}`,
+      'TheaterGenerateQR': `/theater-generate-qr/${theaterId}`,
+      'TheaterQRManagement': `/theater-qr-management/${theaterId}`,
+      'TheaterUserManagement': `/theater-user-management/${theaterId}`,
+      'StockManagement': `/theater-stock-management/${theaterId}`,
+      'SimpleProductList': `/simple-products/${theaterId}`,
+      'ViewCart': `/view-cart/${theaterId}`,
+      'ProfessionalPOSInterface': `/theater-order-pos/${theaterId}`,
+      'TheaterReports': `/theater-reports/${theaterId}`
+    };
+    
+    return pageRouteMap[pageId] || null;
+  };
 
   // ✅ REDIRECT LOGIC: Check if user is already authenticated
   useEffect(() => {
@@ -28,6 +57,24 @@ const LoginPage = () => {
       // Redirect based on user type
       if (userType === 'theater_user' || userType === 'theater_admin') {
         if (theaterId) {
+          // ✅ Navigate to FIRST ACCESSIBLE PAGE based on role permissions
+          if (rolePermissions && rolePermissions.length > 0 && rolePermissions[0].permissions) {
+            const accessiblePages = rolePermissions[0].permissions.filter(p => p.hasAccess === true);
+            if (accessiblePages.length > 0) {
+              const firstPage = accessiblePages[0];
+              // Get route from page ID using helper function
+              const firstRoute = firstPage.route 
+                ? firstPage.route.replace(':theaterId', theaterId)
+                : getRouteFromPageId(firstPage.page, theaterId);
+              
+              if (firstRoute) {
+                console.log('🎯 Redirecting to first accessible page:', firstRoute);
+                navigate(firstRoute, { replace: true });
+                return;
+              }
+            }
+          }
+          // Fallback to theater dashboard if no permissions found
           navigate(`/theater-dashboard/${theaterId}`, { replace: true });
         } else {
           // Fallback if theaterId is missing
@@ -38,7 +85,7 @@ const LoginPage = () => {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [isAuthenticated, userType, theaterId, authLoading, navigate]);
+  }, [isAuthenticated, userType, theaterId, rolePermissions, authLoading, navigate]);
 
   // Show loading while checking authentication status
   if (authLoading) {
@@ -126,9 +173,19 @@ const LoginPage = () => {
           if (accessiblePages.length > 0) {
             // Navigate to FIRST accessible page (not always theater-dashboard)
             const firstPage = accessiblePages[0];
-            const firstRoute = firstPage.route.replace(':theaterId', theaterId);
-            console.log('🎯 Navigating to first accessible page:', firstRoute);
-            navigate(firstRoute);
+            // Get route from page ID using helper function
+            const firstRoute = firstPage.route 
+              ? firstPage.route.replace(':theaterId', theaterId)
+              : getRouteFromPageId(firstPage.page, theaterId);
+            
+            if (firstRoute) {
+              console.log('🎯 Navigating to first accessible page:', firstRoute);
+              navigate(firstRoute);
+            } else {
+              console.error('❌ Could not determine route for page:', firstPage.page);
+              setErrors({ pin: 'Navigation error. Contact administrator.' });
+              return;
+            }
           } else {
             // ❌ NO accessible pages - show error, don't navigate
             console.error('❌ User has NO accessible pages - cannot login');
@@ -235,9 +292,20 @@ const LoginPage = () => {
             if (accessiblePages.length > 0) {
               // Navigate to FIRST accessible page (not always theater-dashboard)
               const firstPage = accessiblePages[0];
-              const firstRoute = firstPage.route.replace(':theaterId', theaterId);
-              console.log('🎯 Navigating to first accessible page:', firstRoute);
-              navigate(firstRoute);
+              // Get route from page ID using helper function
+              const firstRoute = firstPage.route 
+                ? firstPage.route.replace(':theaterId', theaterId)
+                : getRouteFromPageId(firstPage.page, theaterId);
+              
+              if (firstRoute) {
+                console.log('🎯 Navigating to first accessible page:', firstRoute);
+                navigate(firstRoute);
+              } else {
+                console.error('❌ Could not determine route for page:', firstPage.page);
+                setErrors({ password: 'Navigation error. Contact administrator.' });
+                setIsLoading(false);
+                return;
+              }
             } else {
               // ❌ NO accessible pages - show error, don't navigate
               console.error('❌ User has NO accessible pages - cannot login');
