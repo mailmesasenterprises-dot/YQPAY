@@ -127,7 +127,8 @@ const orderRoutes = require('./routes/orders');
 const settingsRoutes = require('./routes/settings');
 const uploadRoutes = require('./routes/upload');
 const stockRoutes = require('./routes/stock');
-const pageAccessRoutes = require('./routes/pageAccess');
+const pageAccessRoutes = require('./routes/pageAccess'); // OLD global routes
+const pageAccessArrayRoutes = require('./routes/pageAccessArray'); // NEW theater-based routes
 const qrCodeRoutes = require('./routes/qrcodes');
 const qrCodeNameRoutes = require('./routes/qrcodenames');
 const singleQRCodeRoutes = require('./routes/singleqrcodes');
@@ -162,7 +163,10 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/theater-stock', stockRoutes);
-app.use('/api/page-access', pageAccessRoutes);
+// Page Access Routes - NEW theater-based array structure (prioritized)
+app.use('/api/page-access', pageAccessArrayRoutes);
+// OLD global routes still available for backward compatibility
+// app.use('/api/page-access-old', pageAccessRoutes); // Uncomment if needed
 app.use('/api/qrcodes', qrCodeRoutes);
 app.use('/api/qrcodenames', qrCodeNameRoutes);
 console.log('🎯 Mounting singleQRCodeRoutes at /api/single-qrcodes');
