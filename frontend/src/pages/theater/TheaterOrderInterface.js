@@ -329,6 +329,10 @@ const TheaterOrderInterface = () => {
         if (location.state.orderNumber) {
           console.log(`🎉 Order ${location.state.orderNumber} completed successfully`);
         }
+        
+        // Trigger product refresh by updating a refresh flag
+        setLoading(true);
+        setTimeout(() => setLoading(false), 100);
       }
       // Handle cart restoration (Edit Order functionality)
       else if (location.state.cartItems) {

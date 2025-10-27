@@ -121,6 +121,7 @@ const theaterOrdersSchema = new mongoose.Schema({
   metadata: {
     totalOrders: { type: Number, default: 0 },
     pendingOrders: { type: Number, default: 0 },
+    confirmedOrders: { type: Number, default: 0 },
     completedOrders: { type: Number, default: 0 },
     cancelledOrders: { type: Number, default: 0 },
     totalRevenue: { type: Number, default: 0 },

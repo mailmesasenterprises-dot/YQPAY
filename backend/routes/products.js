@@ -5,6 +5,7 @@ const Product = require('../models/Product');
 const Category = require('../models/Category');
 const ProductType = require('../models/ProductType');
 const Theater = require('../models/Theater');
+const MonthlyStock = require('../models/MonthlyStock');  // ✅ Import MonthlyStock
 const { authenticateToken, optionalAuth, requireTheaterAccess } = require('../middleware/auth');
 const { uploadFile, deleteFile } = require('../utils/gcsUploadUtil');
 const mongoose = require('mongoose');
@@ -140,12 +141,48 @@ router.get('/:theaterId', [
     const total = filtered.length;
     const paginatedProducts = filtered.slice(skip, skip + limit);
 
-    console.log('� Filtered:', filtered.length, '| Paginated:', paginatedProducts.length);
+    console.log('📊 Filtered:', filtered.length, '| Paginated:', paginatedProducts.length);
+
+    // ✅ Fetch real stock balances from MonthlyStock for each product
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+    
+    console.log('📦 Fetching real stock balances from MonthlyStock...');
+    const productsWithRealStock = await Promise.all(
+      paginatedProducts.map(async (product) => {
+        try {
+          const monthlyDoc = await MonthlyStock.findOne({
+            theaterId: new mongoose.Types.ObjectId(theaterId),
+            productId: product._id,
+            year,
+            monthNumber: month
+          });
+
+          // Use closing balance from MonthlyStock, or fall back to inventory.currentStock
+          const realStock = monthlyDoc?.closingBalance ?? product.inventory?.currentStock ?? 0;
+          
+          return {
+            ...product,
+            inventory: {
+              ...product.inventory,
+              currentStock: Math.max(0, realStock)  // Ensure non-negative
+            }
+          };
+        } catch (err) {
+          console.error(`  ⚠️ Error fetching stock for ${product.name}:`, err.message);
+          // Return product with existing stock if MonthlyStock fetch fails
+          return product;
+        }
+      })
+    );
+
+    console.log('✅ Stock balances updated from MonthlyStock');
 
     res.json({
       success: true,
       data: {
-        products: paginatedProducts,
+        products: productsWithRealStock,
         pagination: {
           current: page,
           limit,

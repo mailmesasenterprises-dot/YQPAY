@@ -179,7 +179,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
 SimpleToggle.displayName = 'SimpleToggle';
 
 // Product Row Component - FIXED with toggle progress state
-const ProductRow = React.memo(({ product, index, theaterId, categories = [], productToggleStates, toggleInProgress, stockBalance, onView, onEdit, onDelete, onToggle, onManageStock }) => {
+const ProductRow = React.memo(({ product, index, theaterId, categories = [], productToggleStates, toggleInProgress, onView, onEdit, onDelete, onToggle, onManageStock }) => {
   const globalIndex = index + 1;
   
   // Format price
@@ -207,8 +207,8 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], pro
     null;
     
   const sellingPrice = product.pricing?.basePrice || product.sellingPrice || 0;
-  // Use current month overall balance if available, otherwise fallback to regular stock
-  const stockQuantity = stockBalance !== undefined ? stockBalance : (product.inventory?.currentStock ?? product.stockQuantity ?? 0);
+  // ✅ Use stock directly from product (backend now sends real MonthlyStock balance)
+  const stockQuantity = product.inventory?.currentStock ?? product.stockQuantity ?? 0;
   const lowStockAlert = product.inventory?.minStock || product.lowStockAlert || 5;
   
   // Category extraction - handle multiple scenarios
@@ -441,7 +441,7 @@ const TheaterProductList = () => {
   const [productToggleStates, setProductToggleStates] = useState({}); // Add toggle states tracking
   const [toggleInProgress, setToggleInProgress] = useState({}); // Track ongoing toggle operations
   const [networkStatus, setNetworkStatus] = useState({ isOnline: navigator.onLine, lastError: null }); // Network monitoring
-  const [productStockBalances, setProductStockBalances] = useState({}); // Store current month overall balances
+  // ✅ REMOVED: productStockBalances state - no longer needed since backend sends real stock
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewModal, setViewModal] = useState({ show: false, product: null, currentIndex: 0 });
@@ -978,7 +978,10 @@ const TheaterProductList = () => {
     }
   }, [theaterId, authHeaders]);
 
-  // Fetch current month overall balance for all products
+  // ✅ REMOVED: fetchProductStockBalances function
+  // The backend now fetches real stock from MonthlyStock and includes it in the product list response
+  // This eliminates the need for separate API calls and prevents the flash of incorrect values
+  /*
   const fetchProductStockBalances = useCallback(async (productList) => {
     if (!isMountedRef.current || !theaterId || !productList || productList.length === 0) return;
     
@@ -991,7 +994,6 @@ const TheaterProductList = () => {
       
       const balances = {};
       
-      // Fetch stock balance for each product
       await Promise.all(
         productList.map(async (product) => {
           try {
@@ -1003,9 +1005,8 @@ const TheaterProductList = () => {
             if (response.ok) {
               const data = await response.json();
               if (data.success && data.data?.statistics) {
-                // Get the overall balance (closing balance) from current month
                 const overallBalance = data.data.statistics.closingBalance || 0;
-                balances[product._id] = Math.max(0, overallBalance); // Ensure non-negative
+                balances[product._id] = Math.max(0, overallBalance);
                 console.log(`  ✅ ${product.name}: Overall Balance = ${balances[product._id]}`);
               } else {
                 balances[product._id] = 0;
@@ -1030,6 +1031,7 @@ const TheaterProductList = () => {
       console.error('❌ Error fetching product stock balances:', error);
     }
   }, [theaterId, authHeaders]);
+  */
 
   // Load data on component mount and when dependencies change
   useEffect(() => {
@@ -1075,14 +1077,10 @@ const TheaterProductList = () => {
 
   }, [theaterId, currentPage, searchTerm, selectedCategory, statusFilter, stockFilter, fetchProducts, fetchCategories, fetchProductTypes]);
 
-  // Fetch stock balances whenever products change
-  useEffect(() => {
-    if (products.length > 0 && theaterId && isMountedRef.current) {
-      console.log('📊 Products loaded, fetching stock balances...');
-      fetchProductStockBalances(products);
-    }
-  }, [products, theaterId, fetchProductStockBalances]);
-
+  // ✅ REMOVED: Fetch stock balances whenever products change
+  // The backend now returns real stock values from MonthlyStock directly in the product list
+  // This eliminates the flash of incorrect dummy values
+  
   // Page visibility and focus handler - Refresh products when page becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -1530,7 +1528,6 @@ const TheaterProductList = () => {
                             categories={categories}
                             productToggleStates={productToggleStates}
                             toggleInProgress={toggleInProgress}
-                            stockBalance={productStockBalances[product._id]}
                             onView={handleViewProduct}
                             onEdit={handleEditProduct}
                             onDelete={handleDeleteProduct}

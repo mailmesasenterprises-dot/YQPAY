@@ -5,9 +5,61 @@ const ExcelJS = require('exceljs');
 const Order = require('../models/Order');
 const TheaterOrders = require('../models/TheaterOrders');  // ✅ New array-based model
 const Product = require('../models/Product');
+const MonthlyStock = require('../models/MonthlyStock');  // ✅ Import MonthlyStock model
 const { authenticateToken, optionalAuth, requireTheaterAccess } = require('../middleware/auth');
 
 const router = express.Router();
+
+/**
+ * Helper function to record stock usage in MonthlyStock
+ */
+async function recordStockUsage(theaterId, productId, quantity, orderDate) {
+  try {
+    const entryDate = new Date(orderDate);
+    const year = entryDate.getFullYear();
+    const monthNumber = entryDate.getMonth() + 1;
+
+    // Get previous month's closing balance
+    const previousBalance = await MonthlyStock.getPreviousMonthBalance(theaterId, productId, year, monthNumber);
+    
+    // Get or create monthly document
+    let monthlyDoc = await MonthlyStock.getOrCreateMonthlyDoc(theaterId, productId, year, monthNumber, previousBalance);
+
+    // Calculate current balance from existing entries
+    let currentBalance = monthlyDoc.carryForward;
+    if (monthlyDoc.stockDetails.length > 0) {
+      const lastEntry = monthlyDoc.stockDetails[monthlyDoc.stockDetails.length - 1];
+      currentBalance = lastEntry.balance;
+    }
+
+    // Create SOLD entry
+    const newEntry = {
+      date: entryDate,
+      type: 'SOLD',
+      quantity: quantity,
+      stockAdded: 0,
+      usedStock: quantity,
+      expiredStock: 0,
+      damageStock: 0,
+      balance: Math.max(0, currentBalance - quantity),
+      notes: 'Auto-generated from order'
+    };
+
+    // Add to stock details
+    monthlyDoc.stockDetails.push(newEntry);
+    
+    // Save the document (pre-save hook will update totals)
+    await monthlyDoc.save();
+
+    console.log(`  ✅ Recorded stock usage in MonthlyStock: ${quantity} units of product ${productId}`);
+    
+    return monthlyDoc;
+  } catch (error) {
+    console.error(`  ⚠️ Failed to record stock usage in MonthlyStock:`, error.message);
+    // Don't throw - allow order to complete even if MonthlyStock update fails
+    return null;
+  }
+}
 
 /**
  * POST /api/orders/theater
@@ -97,6 +149,16 @@ router.post('/theater', [
       const currentStock = product.inventory?.currentStock ?? 0;
       const trackStock = product.inventory?.trackStock ?? true;
       
+      console.log(`🔍 Product Inventory Check for ${product.name}:`, {
+        productId: productObjectId.toString(),
+        inventoryExists: !!product.inventory,
+        currentStock,
+        trackStock,
+        rawTrackStock: product.inventory?.trackStock,
+        isActive: product.isActive,
+        isAvailable: product.isAvailable
+      });
+      
       if (trackStock && currentStock < item.quantity) {
         return res.status(400).json({
           error: `Insufficient stock for ${product.name}`,
@@ -122,7 +184,15 @@ router.post('/theater', [
       if (trackStock) {
         const newStock = currentStock - item.quantity;
         
-        await db.collection('productlist').updateOne(
+        console.log(`📦 Stock Update for ${product.name}:`, {
+          productId: productObjectId.toString(),
+          currentStock,
+          orderQuantity: item.quantity,
+          newStock,
+          trackStock
+        });
+        
+        const updateResult = await db.collection('productlist').updateOne(
           {
             theater: theaterIdObjectId,
             'productList._id': productObjectId
@@ -134,6 +204,18 @@ router.post('/theater', [
             }
           }
         );
+        
+        console.log(`✅ Stock update result:`, {
+          matched: updateResult.matchedCount,
+          modified: updateResult.modifiedCount,
+          acknowledged: updateResult.acknowledged
+        });
+
+        // ✅ Record stock usage in MonthlyStock collection
+        await recordStockUsage(theaterId, productObjectId, item.quantity, new Date());
+        
+      } else {
+        console.log(`⚠️ Stock tracking disabled for ${product.name}`);
       }
     }
 
@@ -204,7 +286,7 @@ router.post('/theater', [
         method: paymentMethod || 'cash',
         status: 'pending'
       },
-      status: 'pending',  // ✅ Default status
+      status: 'confirmed',  // ✅ Default status changed to confirmed
       orderType: 'dine_in',
       staffInfo: staffInfo,  // ✅ Use the created staffInfo object
       source: req.user ? 'staff' : 'qr_code',
@@ -228,7 +310,7 @@ router.post('/theater', [
         $push: { orderList: newOrder },
         $inc: {
           'metadata.totalOrders': 1,
-          'metadata.pendingOrders': 1,
+          'metadata.confirmedOrders': 1,  // ✅ Increment confirmed orders since default status is 'confirmed'
           'metadata.totalRevenue': total
         },
         $set: {
