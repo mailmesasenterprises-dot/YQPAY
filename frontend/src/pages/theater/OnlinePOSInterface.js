@@ -148,7 +148,12 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
       
       {/* Product Name - Outside Card */}
       <div className="modern-product-name-section">
-        <h3 className="modern-product-name">{product.name || 'Unknown Product'}</h3>
+        <h3 className="modern-product-name">
+          {product.name || 'Unknown Product'}
+          {(product.quantity || product.sizeLabel) && (
+            <span className="modern-product-size"> {product.quantity || product.sizeLabel}</span>
+          )}
+        </h3>
       </div>
     </div>
   );
@@ -993,16 +998,16 @@ const OnlinePOSInterface = () => {
       // Try React Router navigation first
       if (navigate && typeof navigate === 'function') {
         navigate(`/view-cart/${theaterId}`, { 
-          state: cartData 
+          state: { ...cartData, source: 'online-pos' }
         });
       } else {
         // Fallback to window.location
-        window.location.href = `/view-cart/${theaterId}`;
+        window.location.href = `/view-cart/${theaterId}?source=online-pos`;
       }
     } catch (error) {
       alert('Navigation failed: ' + error.message);
       // Final fallback
-      window.location.href = `/view-cart/${theaterId}`;
+      window.location.href = `/view-cart/${theaterId}?source=online-pos`;
     }
   }, [currentOrder, customerName, orderNotes, orderImages, orderTotals, theaterId, navigate]);
 
@@ -1106,41 +1111,6 @@ const OnlinePOSInterface = () => {
                     🔊 Enable Sound
                   </button>
                 )}
-                {audioEnabled && (
-                  <button 
-                    onClick={playBeepSound}
-                    style={{
-                      background: '#f59e0b',
-                      color: 'white',
-                      border: 'none',
-                      padding: '6px 12px',
-                      borderRadius: '4px',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      fontWeight: 'bold'
-                    }}
-                    title="Test the beep sound"
-                  >
-                    🔔 Test Sound
-                  </button>
-                )}
-                <button 
-                  className="pos-clear-btn"
-                  onClick={fetchOnlineOrders}
-                  disabled={loadingOrders}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  color: 'white',
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '500'
-                }}
-              >
-                {loadingOrders ? '🔄' : '🔄 Refresh'}
-              </button>
               </div>
             </div>
 

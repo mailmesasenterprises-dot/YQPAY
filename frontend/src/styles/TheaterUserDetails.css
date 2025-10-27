@@ -87,6 +87,41 @@
   min-width: 20px;
 }
 
+.theater-user-tab-count {
+  margin-left: auto;
+  background: rgba(107, 14, 155, 0.1);
+  color: #6B0E9B;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 24px;
+  text-align: center;
+}
+
+.theater-user-settings-tab.active .theater-user-tab-count {
+  background: #6B0E9B;
+  color: white;
+}
+
+.theater-user-loading {
+  padding: 20px 24px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.theater-user-no-names {
+  padding: 20px 24px;
+  text-align: center;
+  color: #dc2626;
+  font-size: 14px;
+  background: #fef2f2;
+  border-radius: 8px;
+  margin: 12px;
+}
+
 .theater-user-settings-content {
   flex: 1;
   padding: 32px;
@@ -113,6 +148,17 @@
   color: #1e293b;
   font-size: 20px;
   font-weight: 600;
+}
+
+.theater-user-section-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.theater-user-section-stats span {
+  font-weight: 500;
 }
 
 /* Table Container - Force TheaterList table styling */
@@ -177,10 +223,12 @@
 
 /* Column Widths for UserDetails table */
 .theater-user-settings-content .sno-col { width: 80px; min-width: 60px; }
-.theater-user-settings-content .name-col { width: 180px; min-width: 150px; }
+.theater-user-settings-content .name-col { width: 250px; min-width: 200px; }
+.theater-user-settings-content .owner-col { width: 200px; min-width: 150px; }
 .theater-user-settings-content .contact-col { width: 200px; min-width: 180px; }
 .theater-user-settings-content .location-col { width: 150px; min-width: 120px; }
 .theater-user-settings-content .agreement-col { width: 140px; min-width: 120px; }
+.theater-user-settings-content .access-status-col { width: 120px; min-width: 100px; }
 .theater-user-settings-content .status-col { width: 100px; min-width: 80px; }
 .theater-user-settings-content .actions-col { width: 150px; min-width: 120px; } /* Increased width for actions */
 
@@ -208,6 +256,90 @@
 
 .theater-user-settings-content .theater-table tbody tr:last-child {
   border-bottom: none;
+}
+
+/* Cell-specific styles for QR Management */
+.theater-user-settings-content .sno-cell {
+  text-align: center;
+}
+
+.theater-user-settings-content .sno-number {
+  font-weight: 600;
+  color: #374151;
+}
+
+.theater-user-settings-content .theater-name-cell {
+  text-align: left;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.theater-user-settings-content .theater-name-full {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.theater-user-settings-content .owner-cell {
+  text-align: center;
+}
+
+.theater-user-settings-content .seat-class-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.theater-user-settings-content .screen-name {
+  font-weight: 600;
+  color: #374151;
+}
+
+.theater-user-settings-content .seat-number {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.theater-user-settings-content .owner-name {
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.theater-user-settings-content .status-cell {
+  text-align: center;
+}
+
+.theater-user-settings-content .status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.theater-user-settings-content .status-badge.active {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  color: #065f46;
+}
+
+.theater-user-settings-content .status-badge.inactive {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #dc2626;
+}
+
+.theater-user-settings-content .access-status-cell {
+  text-align: center;
+}
+
+.theater-user-settings-content .toggle-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Ensure action buttons are visible */

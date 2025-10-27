@@ -154,7 +154,7 @@ const QRCard = React.memo(({ qrCode, onView, onDownload, onToggleStatus, onDelet
 QRCard.displayName = 'QRCard';
 
 // CRUD Modal Component
-const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, onDelete, onModeChange, actionLoading, displayImageUrl, onSeatEdit }) => {
+const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, onDelete, onModeChange, actionLoading, displayImageUrl, onSeatEdit, onToggleStatus }) => {
   const [formData, setFormData] = useState({
     name: '',
     qrType: 'single',
@@ -266,7 +266,8 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
               </select>
             </div>
 
-            {formData.qrType === 'screen' && (
+            {/* Show Screen Name and Seat Number if they exist in the data */}
+            {(formData.qrType === 'screen' || formData.screenName || formData.seatClass) && (
               <>
                 <div className="form-group">
                   <label>Screen Name</label>
@@ -274,54 +275,29 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                     type="text"
                     name="screenName"
                     className="form-control"
-                    value={formData.screenName || ''}
+                    value={formData.screenName || formData.seatClass || ''}
                     onChange={handleInputChange}
                     disabled={isReadOnly}
                     placeholder="Enter screen name"
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Seat Number</label>
-                  <input
-                    type="text"
-                    name="seatNumber"
-                    className="form-control"
-                    value={formData.seatNumber || ''}
-                    onChange={handleInputChange}
-                    disabled={isReadOnly}
-                    placeholder="Enter seat number"
-                  />
-                </div>
+                {formData.seatNumber && (
+                  <div className="form-group">
+                    <label>Seat Number</label>
+                    <input
+                      type="text"
+                      name="seatNumber"
+                      className="form-control"
+                      value={formData.seatNumber || ''}
+                      onChange={handleInputChange}
+                      disabled={isReadOnly}
+                      placeholder="Enter seat number"
+                    />
+                  </div>
+                )}
               </>
             )}
-
-            <div className="form-group">
-              <label>Location</label>
-              <input
-                type="text"
-                name="location"
-                className="form-control"
-                value={formData.location || ''}
-                onChange={handleInputChange}
-                disabled={isReadOnly}
-                placeholder="e.g., Entrance, Lobby, Screen 1"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={formData.isActive || false}
-                  onChange={handleInputChange}
-                  disabled={isReadOnly}
-                  style={{marginRight: '8px'}}
-                />
-                Active
-              </label>
-            </div>
 
             {/* PHASE 2 FIX: Hide QR Preview for screen-type QR codes (seat rows) */}
             {(() => {
@@ -600,10 +576,75 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                       <span>SCREEN - {formData.seatClass || formData.name}</span>
                     </div>
                     
-                    {mode === 'view' && formData.seats.filter(s => s.qrCodeUrl).length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      {mode === 'view' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentMaxSeat = Math.max(...formData.seats.map(s => {
+                              const match = s.seat.match(/\d+/);
+                              return match ? parseInt(match[0]) : 0;
+                            }));
+                            const nextSeatNumber = currentMaxSeat + 1;
+                            const newSeatName = `A${nextSeatNumber}`;
+                            
+                            // Create new seat data
+                            const newSeatData = {
+                              ...formData,
+                              isSeatRow: true,
+                              seatNumber: newSeatName,
+                              qrImageUrl: null,
+                              isActive: true,
+                              scanCount: 0,
+                              seatId: `new_${Date.now()}`,
+                              parentQRDetailId: formData._id,
+                              parentDocId: formData.parentDocId || formData._id,
+                              _id: `${formData._id}_new_${Date.now()}`,
+                              parentQRName: formData.name,
+                              seatClass: formData.seatClass,
+                              seats: formData.seats,
+                              isNewSeat: true
+                            };
+                            
+                            console.log('➕ Adding new seat:', newSeatName);
+                            
+                            // Switch to edit mode for the new seat
+                            if (onSeatEdit) {
+                              onSeatEdit(newSeatData);
+                            }
+                          }}
+                          style={{
+                            backgroundColor: 'white',
+                            color: '#8b5cf6',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'white';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <span>➕</span>
+                          <span>Add Seat</span>
+                        </button>
+                      )}
+                      
+                      {mode === 'view' && formData.seats.filter(s => s.qrCodeUrl).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
                           const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
                           console.log(`📥 Downloading ${seatsWithQR.length} QR codes...`);
                           
@@ -654,6 +695,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                         <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
                       </button>
                     )}
+                    </div>
                   </div>
 
                   {/* Seat Grid */}
@@ -826,8 +868,11 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
 
         {/* Modal Footer */}
         <div className="modal-actions">
-          {mode === 'view' && (
+          {mode === 'view' && !formData.isSeatRow && (
             <>
+              <button type="button" className="cancel-btn" onClick={onClose}>
+                Close
+              </button>
               <button
                 type="button"
                 className="btn-primary"
@@ -835,21 +880,89 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
               >
                 Edit
               </button>
+            </>
+          )}
+          
+          {mode === 'view' && formData.isSeatRow && (
+            <>
+              <button 
+                type="button" 
+                className="cancel-btn" 
+                onClick={onClose}
+                style={{ marginRight: 'auto' }}
+              >
+                Back
+              </button>
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={handleDelete}
-                disabled={actionLoading[formData._id]}
+                onClick={() => {
+                  if (onDelete && formData.seatId) {
+                    onDelete(formData.seatId, `Seat ${formData.seatNumber}`);
+                  }
+                }}
+                disabled={actionLoading[formData.seatId]}
+                style={{ 
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
               >
-                {actionLoading[formData._id] ? 'Deleting...' : 'Delete'}
+                {actionLoading[formData.seatId] ? 'Deleting...' : 'Delete'}
               </button>
-              <button type="button" className="cancel-btn" onClick={onClose}>
-                Close
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => onModeChange('edit')}
+              >
+                Edit
               </button>
             </>
           )}
           
-          {mode === 'edit' && (
+          {mode === 'edit' && formData.isSeatRow && (
+            <>
+              <button 
+                type="button" 
+                className="cancel-btn" 
+                onClick={onClose}
+                style={{ marginRight: 'auto' }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  if (onDelete && formData.seatId) {
+                    onDelete(formData.seatId, `Seat ${formData.seatNumber}`);
+                  }
+                }}
+                disabled={actionLoading[formData.seatId]}
+                style={{ 
+                  backgroundColor: '#ef4444',
+                  color: 'white',
+                  border: 'none'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
+              >
+                {actionLoading[formData.seatId] ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+                onClick={handleSubmit}
+                disabled={actionLoading[formData._id]}
+              >
+                {actionLoading[formData._id] ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          )}
+          
+          {mode === 'edit' && !formData.isSeatRow && (
             <>
               <button type="button" className="cancel-btn" onClick={onClose}>
                 Cancel
@@ -1265,31 +1378,65 @@ const TheaterQRDetail = () => {
           console.log('Updating individual seat:', {
             parentQRDetailId: formData.parentQRDetailId,
             seatId: formData.seatId,
-            parentDocId: formData.parentDocId
+            parentDocId: formData.parentDocId,
+            isNewSeat: formData.isNewSeat
           });
           
-          // Seat-wise update endpoint
-          const response = await fetch(
-            `${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData.parentQRDetailId}/seats/${formData.seatId}`,
-            {
-              method: 'PUT',
-              headers: getAuthHeaders(),
-              body: JSON.stringify({
-                seat: formData.seatNumber,
-                isActive: formData.isActive,
-                qrCodeUrl: formData.qrImageUrl // Include QR code URL update
-              })
+          // Check if this is a new seat (seatId starts with 'new_')
+          if (formData.isNewSeat || formData.seatId.toString().startsWith('new_')) {
+            console.log('➕ Creating new seat:', formData.seatNumber);
+            
+            // For new seats, use the new POST endpoint to add seat to existing screen
+            const response = await fetch(
+              `${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData.parentQRDetailId}/seats`,
+              {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                  seat: formData.seatNumber,
+                  isActive: formData.isActive
+                  // QR code will be auto-generated by backend
+                })
+              }
+            );
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Failed to create new seat');
             }
-          );
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to update seat');
+            const result = await response.json();
+            console.log('New seat created successfully:', result);
+            
+            // Reload theater data to reflect the new seat
+            await loadTheaterData();
+            closeCrudModal();
+            showSuccess(`Seat ${formData.seatNumber} added successfully!`);
+            
+          } else {
+            // Update existing seat
+            const response = await fetch(
+              `${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData.parentQRDetailId}/seats/${formData.seatId}`,
+              {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                  seat: formData.seatNumber,
+                  isActive: formData.isActive,
+                  qrCodeUrl: formData.qrImageUrl // Include QR code URL update
+                })
+              }
+            );
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || 'Failed to update seat');
+            }
+
+            const result = await response.json();
+            console.log('Seat updated successfully:', result);
+            showSuccess(`Seat ${formData.seatNumber} updated successfully`);
           }
-
-          const result = await response.json();
-          console.log('Seat updated successfully:', result);
-          showSuccess(`Seat ${formData.seatNumber} updated successfully`);
           
         } else {
           // Regular QR detail update
@@ -1506,6 +1653,61 @@ const TheaterQRDetail = () => {
     }
   };
 
+  const deleteSeat = async (seatId, seatName) => {
+    const confirmed = await new Promise((resolve) => {
+      alert({
+        title: 'Delete Seat',
+        message: `Are you sure you want to delete ${seatName}? This action cannot be undone.`,
+        type: 'warning',
+        onConfirm: () => resolve(true),
+        onCancel: () => resolve(false)
+      });
+    });
+    
+    if (!confirmed) return;
+    
+    // Get the parent document ID and detail ID from the current crud modal data
+    const parentDocId = crudModal.qrCode?.parentDocId;
+    const parentQRDetailId = crudModal.qrCode?.parentQRDetailId;
+    
+    if (!parentDocId || !parentQRDetailId || !seatId) {
+      showError('Missing required information to delete seat');
+      return;
+    }
+    
+    try {
+      setActionLoading(prev => ({ ...prev, [seatId]: true }));
+      
+      const response = await fetch(
+        `${config.api.baseUrl}/single-qrcodes/${parentDocId}/details/${parentQRDetailId}/seats/${seatId}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete seat');
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        closeCrudModal();
+        await loadTheaterData();
+        showSuccess(`${seatName} deleted successfully`);
+      } else {
+        throw new Error(data.message || 'Failed to delete seat');
+      }
+    } catch (error) {
+      console.error('Error deleting seat:', error);
+      showError(error.message || 'Failed to delete seat');
+    } finally {
+      setActionLoading(prev => ({ ...prev, [seatId]: false }));
+    }
+  };
+
   const deleteQRCode = async (qrCodeId, qrCodeName) => {
     // Find the QR code to delete and set it in modal
     let qrToDelete = null;
@@ -1606,7 +1808,7 @@ const TheaterQRDetail = () => {
           <div className="error-container">
             <h2>Theater not found</h2>
             <button onClick={() => navigate('/qr-management')}>
-              Back to QR Management
+              Return to QR List
             </button>
           </div>
         </PageContainer>
@@ -1628,8 +1830,7 @@ const TheaterQRDetail = () => {
           {/* Global Vertical Header Component */}
           <VerticalPageHeader
             title={theater?.name || 'Loading Theater...'}
-            backButtonText="Back to QR Management"
-            backButtonPath="/qr-management"
+            showBackButton={false}
             actionButton={
               <button 
                 className="header-btn"
@@ -1692,18 +1893,17 @@ const TheaterQRDetail = () => {
                     <table className="theater-table">
                       <thead>
                         <tr>
-                          <th className="sno-col">S.No</th>
-                          <th className="name-col">QR Code Name</th>
-                          <th className="owner-col">Seat Class</th>
-                          <th className="status-col">Status</th>
-                          <th className="access-status-col">Access Status</th>
-                          <th className="actions-col">Actions</th>
+                          <th className="sno-col">S NO</th>
+                          <th className="name-col">QR CODE NAME</th>
+                          <th className="access-status-col">ACCESS STATUS</th>
+                          <th className="status-col">STATUS</th>
+                          <th className="actions-col">ACTION</th>
                         </tr>
                       </thead>
                       <tbody>
                         {currentQRs.length === 0 ? (
                           <tr>
-                            <td colSpan="6" className="no-data">
+                            <td colSpan="5" className="no-data">
                               <div className="empty-state">
                                 <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '48px', height: '48px', opacity: 0.3}}>
                                   <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1V3H9V1L3 7V9H1V11H3V19C3 20.1 3.9 21 5 21H11V19H5V11H3V9H21M16 12C14.9 12 14 12.9 14 14S14.9 16 16 16 18 15.1 18 14 17.1 12 16 12M24 20V18H18V20C18 21.1 18.9 22 20 22H22C23.1 22 24 21.1 24 20Z"/>
@@ -1729,27 +1929,6 @@ const TheaterQRDetail = () => {
                               {/* QR Name Column */}
                               <td className="theater-name-cell">
                                 <div className="theater-name-full">{qrCode.name}</div>
-                              </td>
-
-                              {/* Seat Class Column */}
-                              <td className="owner-cell">
-                                <div className="owner-info">
-                                  {qrCode.qrType === 'screen' && qrCode.isSeatRow ? (
-                                    <div className="seat-class-info">
-                                      <div className="screen-name">{qrCode.seatClass || qrCode.name}</div>
-                                      <div className="seat-number">Seat {qrCode.seatNumber}</div>
-                                    </div>
-                                  ) : (
-                                    <div className="owner-name">{qrCode.seatClass || 'Single QR'}</div>
-                                  )}
-                                </div>
-                              </td>
-
-                              {/* Status Column */}
-                              <td className="status-cell">
-                                <span className={`status-badge ${qrCode.isActive ? 'active' : 'inactive'}`}>
-                                  {qrCode.isActive ? 'Active' : 'Inactive'}
-                                </span>
                               </td>
 
                               {/* Access Status Column - Toggle Button */}
@@ -1801,6 +1980,13 @@ const TheaterQRDetail = () => {
                                 </div>
                               </td>
 
+                              {/* Status Column */}
+                              <td className="status-cell">
+                                <span className={`status-badge ${qrCode.isActive ? 'active' : 'inactive'}`}>
+                                  {qrCode.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+
                               {/* Actions Column */}
                               <td className="actions-cell">
                                 <ActionButtons>
@@ -1845,10 +2031,11 @@ const TheaterQRDetail = () => {
               theater={theater}
               onClose={closeCrudModal}
               onSave={handleCrudSave}
-              onDelete={deleteQRCode}
+              onDelete={crudModal.qrCode?.isSeatRow ? deleteSeat : deleteQRCode}
               onModeChange={(mode) => setCrudModal(prev => ({ ...prev, mode }))}
               actionLoading={actionLoading}
               displayImageUrl={displayImageUrl}
+              onToggleStatus={toggleQRStatus}
               onSeatEdit={(seatData) => {
                 // Close current modal and open seat edit modal
                 closeCrudModal();

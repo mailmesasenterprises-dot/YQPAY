@@ -137,22 +137,21 @@ async function generateQRCodeImage(data, options = {}) {
       
       // Calculate logo size (20% of QR code size)
       const logoSize = Math.min(qrImage.width, qrImage.height) * 0.20;
-      const x = (qrImage.width - logoSize) / 2;
-      const y = (qrImage.height - logoSize) / 2;
       
-      // Draw white background circle for logo
+      // Calculate exact center position
+      const centerX = qrImage.width / 2;
+      const centerY = qrImage.height / 2;
+      const x = centerX - (logoSize / 2);
+      const y = centerY - (logoSize / 2);
+      
+      // Draw white background circle for logo (perfectly centered)
+      const bgRadius = logoSize / 2 + 10;
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
-      ctx.arc(
-        qrImage.width / 2, 
-        qrImage.height / 2, 
-        logoSize / 2 + 10, 
-        0, 
-        Math.PI * 2
-      );
+      ctx.arc(centerX, centerY, bgRadius, 0, Math.PI * 2);
       ctx.fill();
       
-      // Draw logo
+      // Draw logo (perfectly centered)
       ctx.drawImage(logo, x, y, logoSize, logoSize);
       
     } catch (logoError) {
@@ -474,5 +473,7 @@ module.exports = {
   generateQRCodes,
   generateSingleQRCode,
   generateScreenQRCodes,
-  generateQRCodeImage
+  generateQRCodeImage,
+  getQRSettings,
+  fetchLogo
 };

@@ -550,6 +550,7 @@ const TheaterQRManagement = () => {
               
               <div className="modal-body">
                 <div className="edit-form">
+                  {console.log('🔄 View Modal Rendered - Active Toggle Version:', crudModal.qrCode.isActive)}
                   {/* QR Code Name */}
                   <div className="form-group">
                     <label>QR Code Name *</label>
@@ -615,14 +616,30 @@ const TheaterQRManagement = () => {
                     />
                   </div>
 
-                  {/* Active Checkbox */}
+                  {/* Active Checkbox - Clickable */}
                   <div className="form-group">
-                    <label>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={crudModal.qrCode.isActive || false}
-                        disabled
-                        style={{marginRight: '8px'}}
+                        onChange={() => {
+                          toggleQRStatus(crudModal.qrCode._id, crudModal.qrCode.isActive);
+                          // Update modal state optimistically
+                          setCrudModal(prev => ({
+                            ...prev,
+                            qrCode: {
+                              ...prev.qrCode,
+                              isActive: !prev.qrCode.isActive
+                            }
+                          }));
+                        }}
+                        disabled={actionLoading[crudModal.qrCode._id]}
+                        style={{
+                          marginRight: '8px',
+                          width: '18px',
+                          height: '18px',
+                          cursor: actionLoading[crudModal.qrCode._id] ? 'not-allowed' : 'pointer'
+                        }}
                       />
                       Active
                     </label>

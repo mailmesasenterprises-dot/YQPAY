@@ -231,12 +231,14 @@
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 5px 0;
+  text-align: left;
 }
 
 .item-price {
   color: #6B0E9B;
   font-size: 14px;
   font-weight: 500;
+  text-align: left;
 }
 
 .item-quantity {
@@ -248,6 +250,16 @@
   border-radius: 8px;
   color: #6B0E9B;
   font-weight: 600;
+}
+
+.quantity-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.quantity-value {
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .item-total {

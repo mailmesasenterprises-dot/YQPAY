@@ -223,7 +223,8 @@ const TheaterUserManagement = () => {
       setLoading(false);
     };
     init();
-  }, [fetchTheaterDetails, fetchAvailableRoles]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theaterId]);
 
   // Fetch users when component mounts or when selected role changes
   useEffect(() => {
@@ -503,8 +504,7 @@ const TheaterUserManagement = () => {
             {/* Vertical Page Header */}
             <VerticalPageHeader
               title={theater?.name || 'Theater User Management'}
-              backButtonText="← Back"
-              backButtonPath={`/theater-dashboard/${theaterId}`}
+              showBackButton={false}
               actionButton={
                 <button className="header-btn" onClick={() => openCrudModal(null, 'create')}>
                   <span className="btn-icon">

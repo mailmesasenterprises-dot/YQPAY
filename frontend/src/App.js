@@ -52,7 +52,6 @@ const TheaterCategories = React.lazy(() => import('./pages/theater/TheaterCatego
 const TheaterKioskTypes = React.lazy(() => import('./pages/theater/TheaterKioskTypes'));
 const TheaterProductTypes = React.lazy(() => import('./pages/theater/TheaterProductTypes'));
 const TheaterOrderHistory = React.lazy(() => import('./pages/theater/TheaterOrderHistory'));
-const StaffOrderHistory = React.lazy(() => import('./pages/theater/StaffOrderHistory'));
 const TheaterProductList = React.lazy(() => import('./pages/theater/TheaterProductList'));
 const TheaterReports = React.lazy(() => import('./pages/theater/TheaterReports')); // ✅ NEW
 const TheaterRoles = React.lazy(() => import('./pages/theater/TheaterRoles')); // ✅ Theater Roles Management
@@ -160,7 +159,6 @@ function App() {
                 <Route path="/theater-generate-qr/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterGenerateQR /></RoleBasedRoute>} /> {/* ✅ Theater Generate QR */}
                 <Route path="/theater-qr-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterQRManagement /></RoleBasedRoute>} /> {/* ✅ Theater QR Management */}
                 <Route path="/theater-user-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterUserManagementPage /></RoleBasedRoute>} /> {/* ✅ Theater User Management */}
-                <Route path="/staff-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StaffOrderHistory /></RoleBasedRoute>} />
                 <Route path="/theater-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterProductList /></RoleBasedRoute>} />
                 <Route path="/theater-stock-management/:theaterId/:productId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StockManagement /></RoleBasedRoute>} />
                 <Route path="/test-stock-management/:theaterId/:productId" element={<TestStockManagement />} />

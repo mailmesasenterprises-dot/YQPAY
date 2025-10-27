@@ -141,10 +141,12 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
       
       {/* Product Name - Outside Card */}
       <div className="modern-product-name-section">
-        <h3 className="modern-product-name">{product.name || 'Unknown Product'}</h3>
-        <div className="modern-product-quantity">
-          {product.quantity || product.sizeLabel || ''}
-        </div>
+        <h3 className="modern-product-name">
+          {product.name || 'Unknown Product'}
+          {(product.quantity || product.sizeLabel) && (
+            <span className="modern-product-size"> {product.quantity || product.sizeLabel}</span>
+          )}
+        </h3>
       </div>
     </div>
   );
@@ -791,16 +793,16 @@ const TheaterOrderInterface = () => {
       // Try React Router navigation first
       if (navigate && typeof navigate === 'function') {
         navigate(`/view-cart/${theaterId}`, { 
-          state: cartData 
+          state: { ...cartData, source: 'order-interface' }
         });
       } else {
         // Fallback to window.location
-        window.location.href = `/view-cart/${theaterId}`;
+        window.location.href = `/view-cart/${theaterId}?source=order-interface`;
       }
     } catch (error) {
       alert('Navigation failed: ' + error.message);
       // Final fallback
-      window.location.href = `/view-cart/${theaterId}`;
+      window.location.href = `/view-cart/${theaterId}?source=order-interface`;
     }
   }, [currentOrder, customerName, orderNotes, orderImages, orderTotals, theaterId, navigate]);
 

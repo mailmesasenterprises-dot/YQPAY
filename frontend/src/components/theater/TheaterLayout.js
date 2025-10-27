@@ -45,7 +45,7 @@ const TheaterLayout = ({ children, pageTitle = 'Theater Dashboard' }) => {
     const path = location.pathname;
     if (path.includes('/theater-dashboard')) return 'dashboard';
     if (path.includes('/theater-order-history')) return 'order-history';
-    if (path.includes('/staff-order-history')) return 'staff-order-history';
+    if (path.includes('/view-cart')) return 'order-interface'; // View Cart should highlight Order Interface
     if (path.includes('/theater-order/')) return 'order-interface';
     if (path.includes('/online-pos/')) return 'online-pos';
     if (path.includes('/theater/orders')) return 'orders';

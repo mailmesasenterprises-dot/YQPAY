@@ -50,7 +50,6 @@ export const filterNavigationByPermissions = (navigationItems = [], rolePermissi
       'order-interface': 'TheaterOrderInterface',
       'online-pos': 'OnlinePOSInterface',
       'order-history': 'TheaterOrderHistory',
-      'staff-order-history': 'StaffOrderHistory', // Staff can see only their own orders
       'products': 'TheaterProductList',
       'add-product': 'TheaterAddProductWithId', 
       'categories': 'TheaterCategories',

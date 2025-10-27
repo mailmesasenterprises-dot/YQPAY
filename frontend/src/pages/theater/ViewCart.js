@@ -16,13 +16,16 @@ const ViewCart = () => {
     pathname: location.pathname 
   });
 
-  // Extract qrName and seat from URL parameters or cart data
+  // Determine which page to highlight in sidebar based on where we came from
+  // Check location.state.source first, then URL parameter, then default to 'order-interface'
   const urlParams = new URLSearchParams(location.search);
-  const qrName = urlParams.get('qrname') || cartData?.qrName || null;
-  const seat = urlParams.get('seat') || cartData?.seat || null;
-  
-  console.log('🔍 Extracted values:', { qrName, seat });
-  
+  const source = location.state?.source || urlParams.get('source') || 'order-interface';
+  const currentPage = source;
+
+  console.log('🎯 ViewCart source page:', currentPage);
+  console.log('🎯 Location state:', location.state);
+  console.log('🎯 URL params source:', urlParams.get('source'));
+
   // Get cart data from React Router state or sessionStorage fallback
   const getCartData = () => {
     console.log('🔍 Looking for cart data...');
@@ -56,6 +59,12 @@ const ViewCart = () => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [isLoading, setIsLoading] = useState(false);
   const [customerName, setCustomerName] = useState(cartData?.customerName || '');
+  
+  // Extract qrName and seat from URL parameters or cart data (reuse urlParams from above)
+  const qrName = urlParams.get('qrname') || cartData?.qrName || null;
+  const seat = urlParams.get('seat') || cartData?.seat || null;
+  
+  console.log('🔍 Extracted values:', { qrName, seat });
   
   // Modal state for order confirmation
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -278,7 +287,7 @@ const ViewCart = () => {
 
   if (!cartData.items || cartData.items.length === 0) {
     return (
-      <TheaterLayout pageTitle="View Cart" currentPage="order-interface">
+      <TheaterLayout pageTitle="View Cart" currentPage={currentPage}>
         <div className="empty-cart">
           <div className="empty-cart-icon">🛒</div>
           <h2>Your cart is empty</h2>
@@ -295,7 +304,7 @@ const ViewCart = () => {
   }
 
   return (
-    <TheaterLayout pageTitle="View Cart" currentPage="order-interface">
+    <TheaterLayout pageTitle="View Cart" currentPage={currentPage}>
       {/* Header */}
       <div className="view-cart-header">
         <h1 className="cart-title">Review Your Order</h1>
@@ -323,20 +332,37 @@ const ViewCart = () => {
             </div>
             
             <div className="cart-items-list">
-              {cartData.items.map((item, index) => (
+              {cartData.items.map((item, index) => {
+                // Get the correct image URL
+                let imageUrl = null;
+                if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+                  const firstImage = item.images[0];
+                  imageUrl = typeof firstImage === 'string' ? firstImage : firstImage?.url;
+                } else if (item.productImage) {
+                  imageUrl = item.productImage;
+                } else if (item.image) {
+                  imageUrl = item.image;
+                }
+                
+                return (
                 <div key={item._id || index} className="cart-item">
                   <div className="item-image">
-                    {item.productImage ? (
+                    {imageUrl ? (
                       <img 
-                        src={item.productImage} 
+                        src={imageUrl} 
                         alt={item.name}
                         loading="eager"
                         decoding="async"
                         style={{imageRendering: 'auto'}}
+                        onError={(e) => {
+                          console.error('Image failed to load:', imageUrl);
+                          e.target.style.display = 'none';
+                          const placeholder = e.target.parentElement.querySelector('.placeholder-image');
+                          if (placeholder) placeholder.style.display = 'flex';
+                        }}
                       />
-                    ) : (
-                      <div className="placeholder-image">🍽️</div>
-                    )}
+                    ) : null}
+                    <div className="placeholder-image" style={{ display: imageUrl ? 'none' : 'flex' }}>🍽️</div>
                   </div>
                   
                   <div className="item-details">
@@ -355,7 +381,8 @@ const ViewCart = () => {
                     {formatPrice(item.sellingPrice * item.quantity)}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Order Notes */}

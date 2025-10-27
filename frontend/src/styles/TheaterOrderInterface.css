@@ -805,6 +805,14 @@
   overflow-x: auto;
   border-radius: 0;
   box-shadow: 0 2px 8px rgba(107, 14, 155, 0.15) !important;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.pos-menu-section .pos-category-tabs::-webkit-scrollbar,
+.pos-category-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 /* High specificity tab styling */
@@ -995,6 +1003,13 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.modern-product-size {
+  font-size: 10px;
+  font-weight: 500;
+  color: #636e72;
+  margin-left: 4px;
 }
 
 .modern-product-quantity {

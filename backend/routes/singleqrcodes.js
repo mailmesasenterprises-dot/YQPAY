@@ -837,6 +837,303 @@ router.put('/:id/details/:detailId/seats/:seatId', [
 });
 
 /**
+ * POST /api/single-qrcodes/:id/details/:detailId/seats
+ * Add a new seat to an existing screen-type QR code
+ */
+router.post('/:id/details/:detailId/seats', [
+  authenticateToken,
+  param('id').isMongoId().withMessage('Valid single QR code ID is required'),
+  param('detailId').isMongoId().withMessage('Valid QR detail ID is required'),
+  body('seat').isString().trim().notEmpty().withMessage('Seat number is required'),
+  body('qrCodeUrl').optional().isString().trim().withMessage('QR code URL must be a string'),
+  body('isActive').optional().isBoolean().withMessage('isActive must be a boolean')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { id, detailId } = req.params;
+    const { seat, qrCodeUrl, isActive = true } = req.body;
+
+    console.log('➕ Add new seat request:', { id, detailId, seat, isActive });
+
+    // Find the SingleQRCode document
+    const singleQR = await SingleQRCode.findById(id);
+
+    if (!singleQR) {
+      return res.status(404).json({
+        success: false,
+        error: 'Single QR code document not found'
+      });
+    }
+
+    // Find the specific QR detail
+    const qrDetail = singleQR.qrDetails.id(detailId);
+
+    if (!qrDetail) {
+      return res.status(404).json({
+        success: false,
+        error: 'QR detail not found'
+      });
+    }
+
+    // Verify it's a screen type
+    if (qrDetail.qrType !== 'screen') {
+      return res.status(400).json({
+        success: false,
+        error: 'Can only add seats to screen-type QR codes'
+      });
+    }
+
+    // Check if seat already exists
+    const existingSeat = qrDetail.seats?.find(s => s.seat === seat);
+    if (existingSeat) {
+      return res.status(400).json({
+        success: false,
+        error: `Seat ${seat} already exists in this screen`
+      });
+    }
+
+    // Initialize seats array if it doesn't exist
+    if (!qrDetail.seats) {
+      qrDetail.seats = [];
+    }
+
+    // Generate QR code for the new seat if URL not provided
+    let finalQRCodeUrl = qrCodeUrl;
+    let qrCodeData = '';
+    let finalLogoUrl = null;
+    let finalLogoType = 'theater';
+    
+    if (!finalQRCodeUrl) {
+      try {
+        const { generateQRCodeImage, getQRSettings, fetchLogo } = require('../utils/qrCodeGenerator');
+        const { uploadFile } = require('../utils/gcsUploadUtil');
+        const Theater = require('../models/Theater');
+        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+        
+        // Create QR code data URL
+        qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(qrDetail.qrName)}&seat=${encodeURIComponent(seat)}&type=screen`;
+        
+        // Get theater details for color and logo
+        const theater = await Theater.findById(singleQR.theater);
+        const primaryColor = theater?.primaryColor || '#6B0E9B';
+        
+        // Check if there are existing seats with logos - use the same logo settings
+        finalLogoType = qrDetail.logoType || 'theater';
+        
+        // Look for existing seats with logo information
+        const existingSeatsWithLogo = qrDetail.seats?.filter(s => s.logoUrl || s.logoType) || [];
+        if (existingSeatsWithLogo.length > 0) {
+          // Use logo settings from the first existing seat
+          const referenceSeat = existingSeatsWithLogo[0];
+          finalLogoUrl = referenceSeat.logoUrl;
+          finalLogoType = referenceSeat.logoType || 'theater';
+          console.log('📋 Using logo from existing seat:', { 
+            seat: referenceSeat.seat, 
+            logoUrl: finalLogoUrl, 
+            logoType: finalLogoType 
+          });
+        } else {
+          // No existing seats with logo - get from qrDetail or settings
+          const settings = await getQRSettings(singleQR.theater, finalLogoType);
+          finalLogoUrl = qrDetail.logoUrl || settings.logoUrl;
+        }
+        
+        const finalPrimaryColor = primaryColor;
+        
+        console.log('🎨 QR Settings for new seat:', { 
+          logoUrl: finalLogoUrl, 
+          primaryColor: finalPrimaryColor,
+          logoType: finalLogoType 
+        });
+        
+        // Fetch logo if available
+        const logoBuffer = finalLogoUrl ? await fetchLogo(finalLogoUrl) : null;
+        if (logoBuffer) {
+          console.log('✅ Logo loaded for new seat:', logoBuffer.length, 'bytes');
+        } else {
+          console.warn('⚠️ No logo buffer - logo URL:', finalLogoUrl);
+        }
+        
+        console.log('🎨 Generating QR with options:', {
+          width: 500,
+          darkColor: finalPrimaryColor,
+          hasLogo: !!logoBuffer
+        });
+        
+        // Generate QR code image with logo and theater color
+        const imageBuffer = await generateQRCodeImage(qrCodeData, {
+          width: 500,
+          margin: 2,
+          darkColor: finalPrimaryColor, // Use theater's primary color
+          lightColor: '#FFFFFF',
+          logoBuffer: logoBuffer // Include logo
+        });
+        
+        console.log('✅ QR Image generated, size:', imageBuffer.length, 'bytes');
+        
+        // Upload to storage
+        const timestamp = Date.now();
+        const sanitizedSeat = seat.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const filename = `${sanitizedSeat}_${timestamp}.png`;
+        const folder = `qr-codes/screen/${singleQR.theater}/${qrDetail.seatClass}`;
+        
+        finalQRCodeUrl = await uploadFile(imageBuffer, filename, folder, 'image/png');
+        console.log('✅ Generated QR code for new seat with logo and color:', finalQRCodeUrl);
+        
+      } catch (qrError) {
+        console.error('❌ Failed to generate QR code:', qrError);
+        // Set qrCodeData even if generation fails
+        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+        qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(qrDetail.qrName)}&seat=${encodeURIComponent(seat)}&type=screen`;
+      }
+    } else {
+      // If QR URL is provided, generate the qrCodeData
+      const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+      qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(qrDetail.qrName)}&seat=${encodeURIComponent(seat)}&type=screen`;
+    }
+
+    // Add new seat to the array with required qrCodeData field
+    qrDetail.seats.push({
+      seat: seat,
+      qrCodeUrl: finalQRCodeUrl || '',
+      qrCodeData: qrCodeData, // Required field
+      logoUrl: finalLogoUrl || '', // Store logo URL used for this seat
+      logoType: finalLogoType || 'theater', // Store logo type used for this seat
+      isActive: isActive,
+      scanCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+
+    // Save the document
+    await singleQR.save();
+
+    console.log('✅ New seat added successfully');
+
+    // Get the newly added seat
+    const newSeat = qrDetail.seats[qrDetail.seats.length - 1];
+
+    res.json({
+      success: true,
+      message: `Seat ${seat} added successfully`,
+      data: {
+        seat: newSeat,
+        qrDetail: qrDetail
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Add seat error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add seat',
+      message: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
+ * DELETE /api/single-qrcodes/:id/details/:detailId/seats/:seatId
+ * Delete a specific seat from a screen-type QR code
+ */
+router.delete('/:id/details/:detailId/seats/:seatId', [
+  authenticateToken,
+  param('id').isMongoId().withMessage('Valid single QR code ID is required'),
+  param('detailId').isMongoId().withMessage('Valid QR detail ID is required'),
+  param('seatId').isMongoId().withMessage('Valid seat ID is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    const { id, detailId, seatId } = req.params;
+
+    console.log('🗑️ Delete seat request:', { id, detailId, seatId });
+
+    // Find the SingleQRCode document
+    const singleQR = await SingleQRCode.findById(id);
+
+    if (!singleQR) {
+      return res.status(404).json({
+        success: false,
+        error: 'Single QR code document not found'
+      });
+    }
+
+    // Find the specific QR detail
+    const qrDetail = singleQR.qrDetails.id(detailId);
+
+    if (!qrDetail) {
+      return res.status(404).json({
+        success: false,
+        error: 'QR detail not found'
+      });
+    }
+
+    // Verify it's a screen type with seats
+    if (qrDetail.qrType !== 'screen' || !qrDetail.seats) {
+      return res.status(400).json({
+        success: false,
+        error: 'This QR detail is not a screen type or has no seats'
+      });
+    }
+
+    // Find the seat index
+    const seatIndex = qrDetail.seats.findIndex(s => s._id.toString() === seatId);
+
+    if (seatIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Seat not found in QR detail'
+      });
+    }
+
+    // Get seat info before deletion for logging
+    const deletedSeat = qrDetail.seats[seatIndex];
+    console.log('🗑️ Deleting seat:', deletedSeat.seat);
+
+    // Remove the seat from the array
+    qrDetail.seats.splice(seatIndex, 1);
+
+    // Save the document
+    await singleQR.save();
+
+    console.log('✅ Seat deleted successfully');
+
+    res.json({
+      success: true,
+      message: `Seat ${deletedSeat.seat} deleted successfully`,
+      data: {
+        deletedSeat: deletedSeat.seat,
+        remainingSeats: qrDetail.seats.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Delete seat error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete seat',
+      message: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
  * DELETE /api/single-qrcodes/:id
  * Delete (soft delete) a single QR code document
  */
