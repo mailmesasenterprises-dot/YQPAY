@@ -144,4 +144,4 @@ pageAccessSchema.statics.hasAccess = async function(userRole, pageName) {
   return page && page.requiredRoles.includes(userRole);
 };
 
-module.exports = mongoose.model('PageAccess', pageAccessSchema);
+module.exports = mongoose.model('PageAccess', pageAccessSchema, 'pageaccesses_old');

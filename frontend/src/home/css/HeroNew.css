@@ -152,6 +152,7 @@
   color: #1e293b;
   margin-bottom: 24px;
   font-family: 'Poppins', sans-serif;
+  text-align: left;
 }
 
 .hero-highlight {
@@ -179,6 +180,7 @@
   margin-bottom: 32px;
   font-family: 'Poppins', sans-serif;
   font-weight: 400;
+  text-align: left;
 }
 
 /* Stats Section */
@@ -190,7 +192,7 @@
 }
 
 .stat-item {
-  text-align: center;
+  text-align: left;
 }
 
 .stat-number {

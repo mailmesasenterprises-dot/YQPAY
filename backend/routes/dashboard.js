@@ -3,7 +3,8 @@ const Theater = require('../models/Theater');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const Role = require('../models/Role');
-const PageAccess = require('../models/PageAccess');
+// const PageAccess = require('../models/PageAccess'); // DISABLED - OLD MODEL
+const PageAccessArray = require('../models/PageAccessArray'); // NEW MODEL
 const { authenticateToken, requireRole } = require('../middleware/auth');
 
 // Optional models - handle if they don't exist
@@ -116,7 +117,8 @@ router.get('/super-admin-stats', authenticateToken, requireRole(['super_admin'])
       
       // User management counts
       Role.countDocuments(),
-      PageAccess.countDocuments(),
+      // PageAccess.countDocuments(), // OLD - Global page access
+      PageAccessArray.countDocuments(), // NEW - Theater-based page access
       QRCode ? QRCode.countDocuments() : Promise.resolve(0),
       QRCodeName ? QRCodeName.countDocuments() : Promise.resolve(0),
       TheaterUser ? TheaterUser.countDocuments() : Promise.resolve(0),

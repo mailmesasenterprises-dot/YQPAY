@@ -1,6 +1,7 @@
 const Role = require('../models/Role');
 const RoleArray = require('../models/RoleArray'); // Use array-based structure
-const PageAccess = require('../models/PageAccess');
+// const PageAccess = require('../models/PageAccess'); // DISABLED - OLD MODEL
+const PageAccessArray = require('../models/PageAccessArray'); // NEW MODEL
 
 /**
  * Role Service - Handles role creation and management logic
@@ -13,29 +14,12 @@ const PageAccess = require('../models/PageAccess');
  */
 async function getDefaultTheaterAdminPermissions() {
   try {
-    // Fetch all active pages
-    const allPages = await PageAccess.find({ isActive: true }).lean();
+    // OLD: Fetch all active pages from global PageAccess collection
+    // const allPages = await PageAccess.find({ isActive: true }).lean();
     
-    // Pages that Theater Admin should NOT have access to (super_admin only)
-    const restrictedPages = [
-      'theaters',
-      'add-theater',
-      'user-management',
-      'role-management'
-    ];
-    
-    // Create permissions array with access to all pages except restricted ones
-    const permissions = allPages
-      .filter(page => !restrictedPages.includes(page.pageName))
-      .map(page => ({
-        page: page.page || page.pageName,
-        pageName: page.pageName,
-        hasAccess: true,
-        route: page.route
-      }));
-    
-    console.log(`✅ Generated ${permissions.length} default permissions for Theater Admin`);
-    return permissions;
+    // NEW: With array-based structure, pages are theater-specific
+    // For default permissions, we'll use a basic set instead of querying
+    return getBasicTheaterAdminPermissions();
     
   } catch (error) {
     console.error('❌ Error fetching default permissions:', error);

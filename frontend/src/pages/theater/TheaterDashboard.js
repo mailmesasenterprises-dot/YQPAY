@@ -2,10 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import TheaterLayout from '../../components/theater/TheaterLayout';
-import PageContainer from '../../components/PageContainer';
-import { FilterControls, FilterGroup, Button } from '../../components/GlobalDesignSystem';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import config from '../../config';
+import '../../styles/TheaterAdminDashboard.css';
 
 function TheaterDashboard() {
   const { theaterId } = useParams();
@@ -19,6 +18,18 @@ function TheaterDashboard() {
     totalCustomers: 0
   });
   const [recentOrders, setRecentOrders] = useState([]);
+  const [orderStatusCounts, setOrderStatusCounts] = useState({
+    overdue: 0,
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    cancelled: 0
+  });
+  const [revenue, setRevenue] = useState({
+    total: 0,
+    yearly: 0,
+    lastYear: 0
+  });
   const [theaterInfo, setTheaterInfo] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -100,10 +111,25 @@ function TheaterDashboard() {
       });
       setRecentOrders([
         { id: 1, customerName: 'John Doe', amount: 150, status: 'completed' },
-        { id: 2, customerName: 'Jane Smith', amount: 89, status: 'pending' }
+        { id: 2, customerName: 'Jane Smith', amount: 89, status: 'pending' },
+        { id: 3, customerName: 'Mike Wilson', amount: 245, status: 'processing' },
+        { id: 4, customerName: 'Sarah Brown', amount: 320, status: 'completed' },
+        { id: 5, customerName: 'Tom Davis', amount: 175, status: 'cancelled' }
       ]);
+      setOrderStatusCounts({
+        overdue: 0,
+        pending: 5,
+        inProgress: 3,
+        completed: 142,
+        cancelled: 6
+      });
+      setRevenue({
+        total: 245680,
+        yearly: 189450,
+        lastYear: 156320
+      });
       setTheaterInfo({
-        name: 'Demo Theater',
+        name: 'YQ PAY NOW',
         id: theaterIdToFetch
       });
     } finally {
@@ -114,107 +140,234 @@ function TheaterDashboard() {
   return (
     <ErrorBoundary>
       <TheaterLayout pageTitle="Theater Dashboard" currentPage="dashboard">
-        <PageContainer
-          title={theaterInfo.name ? `${theaterInfo.name} Dashboard` : "Theater Dashboard"}
-          subtitle={`Overview of your theater operations${theaterId ? ` (ID: ${theaterId})` : ''}`}
-        >
-          {error && (
-            <div style={{ 
-              backgroundColor: '#fee', 
-              color: '#c33', 
-              padding: '15px', 
-              borderRadius: '5px', 
-              marginBottom: '20px' 
-            }}>
-              {error}
-            </div>
-          )}
-
+        <div className="tadmin-wrapper">
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '50px' }}>
-              <div>Loading theater dashboard...</div>
+            <div className="tadmin-loading">
+              <div className="tadmin-spinner"></div>
+              <p>Loading your theater dashboard...</p>
+            </div>
+          ) : error ? (
+            <div className="tadmin-error">
+              <div className="tadmin-error-icon">⚠️</div>
+              <h3>Error Loading Dashboard</h3>
+              <p>{error}</p>
             </div>
           ) : (
             <>
-              {/* Stats Cards */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
-            gap: '20px', 
-            marginBottom: '30px' 
-          }}>
-            <div className="stats-card">
-              <div className="stats-icon">📊</div>
-              <div className="stats-content">
-                <h3>{stats.totalOrders}</h3>
-                <p>Total Orders</p>
+              {/* Hero Banner */}
+              <div className="tadmin-hero-banner">
+                <div className="tadmin-hero-content">
+                  <h1 className="tadmin-hero-title">
+                    {theaterInfo.name || 'YQ PAY NOW'} Dashboard
+                  </h1>
+                  <p className="tadmin-hero-subtitle">
+                    Overview of your theater operations {theaterId && `(ID: ${theaterId})`}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="stats-card">
-              <div className="stats-icon">💰</div>
-              <div className="stats-content">
-                <h3>₹{stats.todayRevenue}</h3>
-                <p>Today's Revenue</p>
-              </div>
-            </div>
-            <div className="stats-card">
-              <div className="stats-icon">🍿</div>
-              <div className="stats-content">
-                <h3>{stats.activeProducts}</h3>
-                <p>Active Products</p>
-              </div>
-            </div>
-            <div className="stats-card">
-              <div className="stats-icon">👥</div>
-              <div className="stats-content">
-                <h3>{stats.totalCustomers}</h3>
-                <p>Total Customers</p>
-              </div>
-            </div>
-          </div>
 
-          {/* Recent Orders */}
-          <div style={{ marginBottom: '30px' }}>
-            <FilterControls title="Recent Orders">
-              <Button variant="primary">View All Orders</Button>
-            </FilterControls>
-            
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '40px' }}>
-                Loading dashboard data...
+              {/* Stats Cards Row */}
+              <div className="tadmin-stats-row">
+                <div className="tadmin-stat-card">
+                  <div className="tadmin-stat-icon-wrapper">
+                    <div className="tadmin-stat-icon tadmin-icon-orders">
+                      📊
+                    </div>
+                    <div className="tadmin-stat-trend tadmin-trend-up">
+                      +12%
+                    </div>
+                  </div>
+                  <div className="tadmin-stat-content">
+                    <div className="tadmin-stat-value">{stats.totalOrders}</div>
+                    <div className="tadmin-stat-label">Total Orders</div>
+                  </div>
+                </div>
+
+                <div className="tadmin-stat-card">
+                  <div className="tadmin-stat-icon-wrapper">
+                    <div className="tadmin-stat-icon tadmin-icon-revenue">
+                      💰
+                    </div>
+                    <div className="tadmin-stat-trend tadmin-trend-up">
+                      +18%
+                    </div>
+                  </div>
+                  <div className="tadmin-stat-content">
+                    <div className="tadmin-stat-value">₹{stats.todayRevenue.toLocaleString()}</div>
+                    <div className="tadmin-stat-label">Today's Revenue</div>
+                  </div>
+                </div>
+
+                <div className="tadmin-stat-card">
+                  <div className="tadmin-stat-icon-wrapper">
+                    <div className="tadmin-stat-icon tadmin-icon-products">
+                      🍿
+                    </div>
+                    <div className="tadmin-stat-trend tadmin-trend-up">
+                      +5%
+                    </div>
+                  </div>
+                  <div className="tadmin-stat-content">
+                    <div className="tadmin-stat-value">{stats.activeProducts}</div>
+                    <div className="tadmin-stat-label">Active Products</div>
+                  </div>
+                </div>
+
+                <div className="tadmin-stat-card">
+                  <div className="tadmin-stat-icon-wrapper">
+                    <div className="tadmin-stat-icon tadmin-icon-customers">
+                      👥
+                    </div>
+                    <div className="tadmin-stat-trend tadmin-trend-up">
+                      +22%
+                    </div>
+                  </div>
+                  <div className="tadmin-stat-content">
+                    <div className="tadmin-stat-value">{stats.totalCustomers}</div>
+                    <div className="tadmin-stat-label">Total Customers</div>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '20px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Order ID</th>
-                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Customer</th>
-                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Amount</th>
-                      <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }}>#{order.id}</td>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }}>{order.customerName}</td>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }}>₹{order.amount}</td>
-                        <td style={{ padding: '12px', borderBottom: '1px solid #f3f4f6' }}>
-                          <span className={`status-badge ${order.status}`}>
-                            {order.status}
-                          </span>
-                        </td>
+
+              {/* Main Content Grid */}
+              <div className="tadmin-content-grid">
+                {/* Recent Orders Table */}
+                <div className="tadmin-orders-widget">
+                  <div className="tadmin-widget-header">
+                    <div className="tadmin-widget-title-wrapper">
+                      <div className="tadmin-widget-icon">📋</div>
+                      <h2 className="tadmin-widget-title">Recent Orders</h2>
+                    </div>
+                    <button 
+                      className="tadmin-view-all-btn"
+                      onClick={() => navigate(`/theater-order-history/${theaterId}`)}
+                    >
+                      View All Orders
+                    </button>
+                  </div>
+
+                  <table className="tadmin-orders-table">
+                    <thead>
+                      <tr>
+                        <th>ORDER ID</th>
+                        <th>CUSTOMER</th>
+                        <th>AMOUNT</th>
+                        <th>STATUS</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {recentOrders.map((order) => (
+                        <tr key={order.id}>
+                          <td className="tadmin-order-id">#{order.id}</td>
+                          <td className="tadmin-order-customer">{order.customerName}</td>
+                          <td className="tadmin-order-amount">₹{order.amount}</td>
+                          <td>
+                            <span className={`tadmin-status-badge tadmin-status-${order.status}`}>
+                              {order.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Quick Stats Sidebar */}
+                <div className="tadmin-quick-stats">
+                  {/* Order Status Overview */}
+                  <div className="tadmin-status-overview">
+                    <div className="tadmin-widget-header" style={{padding: 0, border: 'none', background: 'transparent', marginBottom: '16px'}}>
+                      <div className="tadmin-widget-title-wrapper">
+                        <div className="tadmin-widget-icon">📊</div>
+                        <h2 className="tadmin-widget-title">Orders Overview</h2>
+                      </div>
+                    </div>
+
+                    <div className="tadmin-status-list">
+                      <div className="tadmin-status-item">
+                        <div className="tadmin-status-info">
+                          <div className="tadmin-status-dot tadmin-dot-overdue"></div>
+                          <span className="tadmin-status-name">Overdue</span>
+                        </div>
+                        <div className="tadmin-status-value">
+                          <span className="tadmin-status-count">{orderStatusCounts.overdue}</span>
+                          <span className="tadmin-status-amount">₹0.00</span>
+                        </div>
+                      </div>
+
+                      <div className="tadmin-status-item">
+                        <div className="tadmin-status-info">
+                          <div className="tadmin-status-dot tadmin-dot-pending"></div>
+                          <span className="tadmin-status-name">Pending</span>
+                        </div>
+                        <div className="tadmin-status-value">
+                          <span className="tadmin-status-count">{orderStatusCounts.pending}</span>
+                          <span className="tadmin-status-amount">₹{(orderStatusCounts.pending * 150).toLocaleString()}.00</span>
+                        </div>
+                      </div>
+
+                      <div className="tadmin-status-item">
+                        <div className="tadmin-status-info">
+                          <div className="tadmin-status-dot tadmin-dot-progress"></div>
+                          <span className="tadmin-status-name">In Progress</span>
+                        </div>
+                        <div className="tadmin-status-value">
+                          <span className="tadmin-status-count">{orderStatusCounts.inProgress}</span>
+                          <span className="tadmin-status-amount">₹{(orderStatusCounts.inProgress * 200).toLocaleString()}.00</span>
+                        </div>
+                      </div>
+
+                      <div className="tadmin-status-item">
+                        <div className="tadmin-status-info">
+                          <div className="tadmin-status-dot tadmin-dot-completed"></div>
+                          <span className="tadmin-status-name">Completed</span>
+                        </div>
+                        <div className="tadmin-status-value">
+                          <span className="tadmin-status-count">{orderStatusCounts.completed}</span>
+                          <span className="tadmin-status-amount">₹{(orderStatusCounts.completed * 180).toLocaleString()}.00</span>
+                        </div>
+                      </div>
+
+                      <div className="tadmin-status-item">
+                        <div className="tadmin-status-info">
+                          <div className="tadmin-status-dot tadmin-dot-cancelled"></div>
+                          <span className="tadmin-status-name">Cancelled</span>
+                        </div>
+                        <div className="tadmin-status-value">
+                          <span className="tadmin-status-count">{orderStatusCounts.cancelled}</span>
+                          <span className="tadmin-status-amount">₹{(orderStatusCounts.cancelled * 90).toLocaleString()}.00</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total Revenue */}
+                  <div className="tadmin-stat-mini-card">
+                    <div className="tadmin-stat-mini-header">
+                      <div className="tadmin-stat-mini-icon tadmin-icon-total-revenue">
+                        💰
+                      </div>
+                      <span className="tadmin-stat-mini-title">Total Revenue</span>
+                    </div>
+                    <div className="tadmin-stat-mini-value">₹{revenue.total.toLocaleString()}.00</div>
+                  </div>
+
+                  {/* Yearly Revenue */}
+                  <div className="tadmin-stat-mini-card">
+                    <div className="tadmin-stat-mini-header">
+                      <div className="tadmin-stat-mini-icon tadmin-icon-yearly-revenue">
+                        📈
+                      </div>
+                      <span className="tadmin-stat-mini-title">Yearly Revenue</span>
+                    </div>
+                    <div className="tadmin-stat-mini-value">₹{revenue.yearly.toLocaleString()}.00</div>
+                    <div className="tadmin-stat-mini-sublabel">Last 12 months</div>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
             </>
           )}
-        </PageContainer>
+        </div>
       </TheaterLayout>
     </ErrorBoundary>
   );

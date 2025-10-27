@@ -11,7 +11,7 @@ console.log('🔧 PageAccessArray routes file loaded successfully!');
  * @desc    Get page access for a theater (array-based structure)
  * @access  Public
  */
-router.get('/', [optionalAuth], async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     console.log('📥 GET /api/page-access - Request received');
     console.log('Query params:', req.query);
@@ -25,24 +25,35 @@ router.get('/', [optionalAuth], async (req, res) => {
       });
     }
 
-    // Get pages for theater using static method
-    const result = await PageAccessArray.getByTheater(theaterId, {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      search,
-      isActive: isActive !== undefined ? isActive === 'true' : undefined,
-      category
-    });
+    // Find the page access document for this theater
+    const pageAccessDoc = await PageAccessArray.findOne({ theater: theaterId })
+      .populate('theater', 'name location contactInfo');
 
-    console.log(`✅ Found ${result.pages.length} pages for theater ${theaterId}`);
+    if (!pageAccessDoc) {
+      console.log(`⚠️ No page access document found for theater ${theaterId}`);
+      return res.json({
+        success: true,
+        data: {
+          pageAccessList: [],
+          theater: null,
+          metadata: {
+            totalPages: 0,
+            activePages: 0,
+            inactivePages: 0
+          }
+        }
+      });
+    }
 
+    console.log(`✅ Found page access document with ${pageAccessDoc.pageAccessList.length} pages for theater ${theaterId}`);
+
+    // Return the entire pageAccessList array (like role system)
     res.json({
       success: true,
       data: {
-        pages: result.pages,
-        theater: result.theater,
-        metadata: result.metadata,
-        pagination: result.pagination
+        pageAccessList: pageAccessDoc.pageAccessList,
+        theater: pageAccessDoc.theater,
+        metadata: pageAccessDoc.metadata
       }
     });
 
@@ -104,9 +115,11 @@ router.post('/', [
 
     console.log('🔍 Creating page access for theater:', theaterId);
     console.log('📄 Page data:', { page, pageName, route });
+    console.log('🗄️ PageAccessArray model collection:', PageAccessArray.collection.name);
 
     // Find or create page access document for theater
     let pageAccessDoc = await PageAccessArray.findOrCreateByTheater(theaterId);
+    console.log('📦 Document found/created. Collection:', pageAccessDoc.collection.name);
 
     // Add page to theater
     const newPage = await pageAccessDoc.addPage({

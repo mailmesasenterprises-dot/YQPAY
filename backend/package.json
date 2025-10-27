@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "start-original": "node app.js",
     "test": "jest"
   },
   "dependencies": {

@@ -41,8 +41,7 @@ const QRCodeNameManagement = React.lazy(() => import('./pages/QRCodeNameManageme
 const QRCodeNameList = React.lazy(() => import('./pages/QRCodeNameList'));
 const RoleAccessManagement = React.lazy(() => import('./pages/RoleAccessManagement'));
 const RoleAccessManagementList = React.lazy(() => import('./pages/RoleAccessManagementList'));
-const PageAccessManagement = React.lazy(() => import('./pages/PageAccessManagement')); // OLD global page
-const PageAccessManagementList = React.lazy(() => import('./pages/PageAccessManagementList')); // NEW theater list
+const PageAccessManagement = React.lazy(() => import('./pages/PageAccessManagement'));
 
 // Theater Admin Pages
 const TheaterDashboard = React.lazy(() => import('./pages/theater/TheaterDashboard'));
@@ -53,18 +52,17 @@ const TheaterCategories = React.lazy(() => import('./pages/theater/TheaterCatego
 const TheaterKioskTypes = React.lazy(() => import('./pages/theater/TheaterKioskTypes'));
 const TheaterProductTypes = React.lazy(() => import('./pages/theater/TheaterProductTypes'));
 const TheaterOrderHistory = React.lazy(() => import('./pages/theater/TheaterOrderHistory'));
+// const StaffOrderHistory = React.lazy(() => import('./pages/theater/StaffOrderHistory')); // ❌ File doesn't exist
 const TheaterProductList = React.lazy(() => import('./pages/theater/TheaterProductList'));
 const TheaterReports = React.lazy(() => import('./pages/theater/TheaterReports')); // ✅ NEW
 const TheaterRoles = React.lazy(() => import('./pages/theater/TheaterRoles')); // ✅ Theater Roles Management
+const TheaterRoleAccess = React.lazy(() => import('./pages/theater/TheaterRoleAccess')); // ✅ Theater Role Access Management
 const TheaterQRCodeNames = React.lazy(() => import('./pages/theater/TheaterQRCodeNames')); // ✅ Theater QR Code Names
 const TheaterGenerateQR = React.lazy(() => import('./pages/theater/TheaterGenerateQR')); // ✅ Theater Generate QR
 const TheaterQRManagement = React.lazy(() => import('./pages/theater/TheaterQRManagement')); // ✅ Theater QR Management
 const TheaterUserManagementPage = React.lazy(() => import('./pages/theater/TheaterUserManagement')); // ✅ Theater User Management
-const TheaterPageAccess = React.lazy(() => import('./pages/theater/TheaterPageAccess')); // ✅ Theater Page Access Management
-const TheaterRoleAccess = React.lazy(() => import('./pages/theater/TheaterRoleAccess')); // ✅ Theater Role Access Management
 
 const StockManagement = React.lazy(() => import('./pages/theater/StockManagement'));
-// const StockManagement = React.lazy(() => import('./pages/theater/StockManagement'));
 const TestStockManagement = React.lazy(() => import('./pages/theater/TestStockManagement'));
 const SimpleProductList = React.lazy(() => import('./pages/theater/SimpleProductList'));
 const TheaterOrderInterface = React.lazy(() => import('./pages/theater/TheaterOrderInterface'));
@@ -135,13 +133,10 @@ function App() {
                 <Route path="/roles" element={<RoleBasedRoute allowedRoles={['super_admin']}><RoleManagementList /></RoleBasedRoute>} />
                 <Route path="/roles/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><RoleCreate /></RoleBasedRoute>} />
                 <Route path="/qr-names" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRCodeNameList /></RoleBasedRoute>} />
+                <Route path="/qr-names/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRCodeNameManagement /></RoleBasedRoute>} />
                 <Route path="/role-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><RoleAccessManagementList /></RoleBasedRoute>} />
                 <Route path="/role-access/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><RoleAccessManagement /></RoleBasedRoute>} />
-                {/* Page Access Routes - NEW theater-based */}
-                <Route path="/page-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagementList /></RoleBasedRoute>} />
-                <Route path="/page-access/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><TheaterPageAccess /></RoleBasedRoute>} />
-                {/* OLD global page access (deprecated but kept for reference) */}
-                {/* <Route path="/page-access-old" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagement /></RoleBasedRoute>} /> */}
+                <Route path="/page-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagement /></RoleBasedRoute>} />
                 <Route path="/qr-generate" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRGenerate /></RoleBasedRoute>} />
 
                 <Route path="/qr-management" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRManagement /></RoleBasedRoute>} />
@@ -165,6 +160,7 @@ function App() {
                 <Route path="/theater-generate-qr/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterGenerateQR /></RoleBasedRoute>} /> {/* ✅ Theater Generate QR */}
                 <Route path="/theater-qr-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterQRManagement /></RoleBasedRoute>} /> {/* ✅ Theater QR Management */}
                 <Route path="/theater-user-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterUserManagementPage /></RoleBasedRoute>} /> {/* ✅ Theater User Management */}
+                {/* <Route path="/staff-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StaffOrderHistory /></RoleBasedRoute>} /> */} {/* ❌ Component doesn't exist */}
                 <Route path="/theater-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><TheaterProductList /></RoleBasedRoute>} />
                 <Route path="/theater-stock-management/:theaterId/:productId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StockManagement /></RoleBasedRoute>} />
                 <Route path="/test-stock-management/:theaterId/:productId" element={<TestStockManagement />} />

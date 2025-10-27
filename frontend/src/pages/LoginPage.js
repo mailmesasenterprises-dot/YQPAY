@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import config from '../config';
 import '../styles/AddTheater.css'; // Import for submit-btn styling
+import LoginHowItWorksSlider from '../components/LoginHowItWorksSlider';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -118,8 +119,28 @@ const LoginPage = () => {
         // Complete login with AuthContext
         login(userData, data.token, userType, theaterId, rolePermissions);
         
-        // Navigate to theater dashboard
-        navigate(`/theater-dashboard/${theaterId}`);
+        // ✅ ROLE-BASED NAVIGATION: Navigate to first accessible page based on permissions
+        if (rolePermissions && rolePermissions.length > 0 && rolePermissions[0].permissions) {
+          const accessiblePages = rolePermissions[0].permissions.filter(p => p.hasAccess === true);
+          
+          if (accessiblePages.length > 0) {
+            // Navigate to FIRST accessible page (not always theater-dashboard)
+            const firstPage = accessiblePages[0];
+            const firstRoute = firstPage.route.replace(':theaterId', theaterId);
+            console.log('🎯 Navigating to first accessible page:', firstRoute);
+            navigate(firstRoute);
+          } else {
+            // ❌ NO accessible pages - show error, don't navigate
+            console.error('❌ User has NO accessible pages - cannot login');
+            setErrors({ pin: 'Your account has no page access. Contact administrator.' });
+            return;
+          }
+        } else {
+          // ❌ NO permissions defined - show error, don't navigate
+          console.error('❌ No role permissions found - cannot login');
+          setErrors({ pin: 'No role permissions found. Contact administrator.' });
+          return;
+        }
       } else {
         setErrors({ pin: data.error || 'Invalid PIN. Please try again.' });
       }
@@ -205,14 +226,32 @@ const LoginPage = () => {
         // Use AuthContext login method with theater data and permissions
         login(userData, data.token, userType, theaterId, rolePermissions);
         
-        // Role-based redirect
-        if (userType === 'theater_user') {
-          // Theater users go to theater dashboard with theater ID
-          const userTheaterId = userData.theater?._id || theaterId;
-          navigate(`/theater-dashboard/${userTheaterId}`);
-        } else if (userType === 'theater-admin') {
-          // Theater admins go to theater dashboard with their assigned theater ID  
-          navigate(`/theater-dashboard/${theaterId}`);
+        // ✅ ROLE-BASED NAVIGATION: Navigate to first accessible page based on permissions
+        if (userType === 'theater_user' || userType === 'theater_admin') {
+          // For theater users, navigate to their first accessible page
+          if (rolePermissions && rolePermissions.length > 0 && rolePermissions[0].permissions) {
+            const accessiblePages = rolePermissions[0].permissions.filter(p => p.hasAccess === true);
+            
+            if (accessiblePages.length > 0) {
+              // Navigate to FIRST accessible page (not always theater-dashboard)
+              const firstPage = accessiblePages[0];
+              const firstRoute = firstPage.route.replace(':theaterId', theaterId);
+              console.log('🎯 Navigating to first accessible page:', firstRoute);
+              navigate(firstRoute);
+            } else {
+              // ❌ NO accessible pages - show error, don't navigate
+              console.error('❌ User has NO accessible pages - cannot login');
+              setErrors({ password: 'Your account has no page access. Contact administrator.' });
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // ❌ NO permissions defined - show error, don't navigate
+            console.error('❌ No role permissions found - cannot login');
+            setErrors({ password: 'No role permissions found. Contact administrator.' });
+            setIsLoading(false);
+            return;
+          }
         } else {
           // Super admin users go to admin dashboard
           navigate('/dashboard');
@@ -240,20 +279,11 @@ const LoginPage = () => {
 
   return (
     <div className="login-page">
-      {/* Left Side - Video/Branding Section */}
+      {/* Left Side - How It Works Images Slider */}
       <div className="login-left-section">
         <div className="login-left-overlay"></div>
         <div className="login-left-content">
-          <video 
-            className="login-main-video" 
-            autoPlay 
-            loop 
-            muted 
-            playsInline
-          >
-            <source src={require('../home/images/Home-1.mp4')} type="video/mp4" />
-            Your browser does not support the video tag.
-          </video>
+          <LoginHowItWorksSlider />
         </div>
       </div>
 

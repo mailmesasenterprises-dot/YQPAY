@@ -181,15 +181,14 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
     { id: 'settings', icon: 'settings', label: 'Settings', path: effectiveTheaterId ? `/theater-settings/${effectiveTheaterId}` : '/theater-settings' }
   ];
 
-  // Filter navigation items based on role permissions (including temporary override)
+  // Filter navigation items based on role permissions
   let navigationItems;
   
-  // 🔧 TEMPORARY: Show all pages for testing (bypass permission check)
-  // TODO: Remove this once permissions are properly set in database
-  const SHOW_ALL_PAGES_FOR_TESTING = true;
+  // ✅ ROLE-BASED FILTERING ENABLED
+  // Super admin sees all pages, theater users see only permitted pages
   
-  if (SHOW_ALL_PAGES_FOR_TESTING) {
-    console.log('⚠️ TESTING MODE: Showing all navigation pages (bypass permissions)');
+  if (userType === 'super_admin') {
+    console.log('✅ Super Admin detected - showing all pages');
     navigationItems = allNavigationItems;
   } else if (!effectiveRolePermissions || effectiveRolePermissions.length === 0) {
     console.log('⚠️ WARNING: No role permissions available - showing fallback Dashboard only');

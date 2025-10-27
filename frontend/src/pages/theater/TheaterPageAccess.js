@@ -55,6 +55,12 @@ const TheaterPageAccess = () => {
 
   usePerformanceMonitoring('TheaterPageAccess');
 
+  // Debug: Log toggle states whenever they change
+  useEffect(() => {
+    console.log('🔄 pageToggleStates changed:', pageToggleStates);
+    console.log('🔄 Number of active toggles:', Object.keys(pageToggleStates).filter(key => pageToggleStates[key]).length);
+  }, [pageToggleStates]);
+
   // Load theater data
   const loadTheaterData = useCallback(async () => {
     try {
@@ -76,15 +82,17 @@ const TheaterPageAccess = () => {
   }, [theaterId]);
 
   // Load existing page access for this theater
-  const loadPageAccess = useCallback(async () => {
+  const loadPageAccess = useCallback(async (skipLoadingState = false) => {
     try {
-      setLoading(true);
+      if (!skipLoadingState) {
+        setLoading(true);
+      }
       const token = localStorage.getItem('authToken') || localStorage.getItem('token');
       
       console.log('🔍 Loading page access for theater:', theaterId);
       
       // Use the new array-based API endpoint
-      const response = await fetch(`${config.api.baseUrl}/page-access-array?theaterId=${theaterId}`, {
+      const response = await fetch(`${config.api.baseUrl}/page-access?theaterId=${theaterId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -96,18 +104,24 @@ const TheaterPageAccess = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('📄 Page access data:', data);
+        console.log('📄 Data structure check - data.success:', data.success, ', data.data:', !!data.data, ', isArray:', Array.isArray(data.data?.pageAccessList));
         
         if (data.success && data.data && Array.isArray(data.data.pageAccessList)) {
           const existingPages = data.data.pageAccessList;
           console.log('📄 Existing pages count:', existingPages.length);
+          console.log('📄 Pages:', existingPages.map(p => ({ page: p.page, pageName: p.pageName, isActive: p.isActive })));
           
           // Build toggle states from existing pages
           const toggleStates = {};
           existingPages.forEach(p => {
-            toggleStates[p.page] = true; // If it exists in the array, it's active
+            // If page exists in database, it should be ON (true)
+            toggleStates[p.page] = true;
+            console.log(`📄 Setting toggle for ${p.page}: true`);
           });
           
+          console.log('📄 About to set toggle states:', toggleStates);
           setPageToggleStates(toggleStates);
+          console.log('📄 Toggle states set successfully');
           
           // Update summary
           setSummary({
@@ -117,6 +131,8 @@ const TheaterPageAccess = () => {
           });
         } else {
           // No pages yet - all toggles OFF
+          console.log('📄 No pages found in response, setting all toggles to OFF');
+          console.log('📄 Response data structure:', JSON.stringify(data, null, 2));
           setPageToggleStates({});
           setSummary({
             activePages: 0,
@@ -124,6 +140,8 @@ const TheaterPageAccess = () => {
             totalPages: theaterAdminPages.length
           });
         }
+      } else {
+        console.log('📄 Response not OK:', response.status);
       }
     } catch (error) {
       console.error('❌ Error loading page access:', error);
@@ -134,7 +152,9 @@ const TheaterPageAccess = () => {
         totalPages: theaterAdminPages.length
       });
     } finally {
-      setLoading(false);
+      if (!skipLoadingState) {
+        setLoading(false);
+      }
     }
   }, [theaterId, theaterAdminPages.length]);
 
@@ -162,7 +182,7 @@ const TheaterPageAccess = () => {
       
       if (isEnabled) {
         // POST to add page to theater's array
-        const response = await fetch(`${config.api.baseUrl}/page-access-array`, {
+        const response = await fetch(`${config.api.baseUrl}/page-access`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -179,17 +199,33 @@ const TheaterPageAccess = () => {
         });
         
         if (response.ok) {
-          console.log('✅ Page enabled successfully');
+          const responseData = await response.json();
+          console.log('✅ Page enabled successfully, response:', responseData);
           showSuccess(`Page "${page.pageName}" activated successfully`);
           
-          // Update local state
-          setPageToggleStates(prev => ({
-            ...prev,
+          // Immediately update local state - CRITICAL: Do this synchronously
+          const updatedStates = {
+            ...pageToggleStates,
             [page.page]: true
+          };
+          console.log('📄 Setting toggle states after POST:', updatedStates);
+          console.log('📄 Previous states:', pageToggleStates);
+          console.log('📄 Page key:', page.page);
+          setPageToggleStates(updatedStates);
+          
+          // Update summary
+          setSummary(prev => ({
+            activePages: prev.activePages + 1,
+            inactivePages: prev.inactivePages - 1,
+            totalPages: prev.totalPages
           }));
           
-          // Reload to get updated metadata
-          await loadPageAccess();
+          // Don't reload immediately - let the user see the change
+          // Reload after a longer delay to sync with backend
+          setTimeout(() => {
+            console.log('🔄 Reloading page access after POST...');
+            loadPageAccess(true); // Skip loading state to prevent UI flash
+          }, 1500);
         } else {
           const errorData = await response.json();
           console.error('❌ Failed to enable page:', errorData);
@@ -197,8 +233,8 @@ const TheaterPageAccess = () => {
         }
       } else {
         // DELETE to remove page from theater's array
-        // First we need to get the pageAccessList document to find the page's _id
-        const getResponse = await fetch(`${config.api.baseUrl}/page-access-array?theaterId=${theaterId}`, {
+        // First we need to get the pages document to find the page's _id
+        const getResponse = await fetch(`${config.api.baseUrl}/page-access?theaterId=${theaterId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -212,7 +248,7 @@ const TheaterPageAccess = () => {
             
             if (pageToRemove && pageToRemove._id) {
               // DELETE the page from the array
-              const deleteResponse = await fetch(`${config.api.baseUrl}/page-access-array/${pageToRemove._id}?theaterId=${theaterId}`, {
+              const deleteResponse = await fetch(`${config.api.baseUrl}/page-access/${pageToRemove._id}`, {
                 method: 'DELETE',
                 headers: {
                   'Authorization': `Bearer ${token}`,
@@ -224,15 +260,24 @@ const TheaterPageAccess = () => {
                 console.log('✅ Page disabled successfully');
                 showSuccess(`Page "${page.pageName}" deactivated successfully`);
                 
-                // Update local state
-                setPageToggleStates(prev => {
-                  const newStates = { ...prev };
-                  delete newStates[page.page];
-                  return newStates;
-                });
+                // Immediately update local state
+                const updatedStates = { ...pageToggleStates };
+                delete updatedStates[page.page];
+                console.log('📄 Setting toggle states after DELETE:', updatedStates);
+                setPageToggleStates(updatedStates);
                 
-                // Reload to get updated metadata
-                await loadPageAccess();
+                // Update summary
+                setSummary(prev => ({
+                  activePages: prev.activePages - 1,
+                  inactivePages: prev.inactivePages + 1,
+                  totalPages: prev.totalPages
+                }));
+                
+                // Reload to get updated metadata (but state should already be correct)
+                setTimeout(() => {
+                  console.log('🔄 Reloading page access after DELETE...');
+                  loadPageAccess(true); // Skip loading state to prevent UI flash
+                }, 1500);
               } else {
                 const errorData = await deleteResponse.json();
                 console.error('❌ Failed to disable page:', errorData);
@@ -399,14 +444,49 @@ const TheaterPageAccess = () => {
                       </code>
                     </td>
                     <td className="status-cell">
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={pageToggleStates[page.page] || false}
-                          onChange={(e) => handlePageToggleChange(page, e.target.checked)}
-                        />
-                        <span className="toggle-slider"></span>
-                      </label>
+                      <div className="toggle-wrapper">
+                        <label className="switch" style={{
+                          position: 'relative',
+                          display: 'inline-block',
+                          width: '50px',
+                          height: '24px'
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={pageToggleStates[page.page] || false}
+                            onChange={(e) => handlePageToggleChange(page, e.target.checked)}
+                            style={{
+                              opacity: 0,
+                              width: 0,
+                              height: 0
+                            }}
+                          />
+                          <span className="slider" style={{
+                            position: 'absolute',
+                            cursor: 'pointer',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: pageToggleStates[page.page] ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+                            transition: '.4s',
+                            borderRadius: '24px'
+                          }}>
+                            <span style={{
+                              position: 'absolute',
+                              content: '""',
+                              height: '18px',
+                              width: '18px',
+                              left: pageToggleStates[page.page] ? '26px' : '3px',
+                              bottom: '3px',
+                              backgroundColor: 'white',
+                              transition: '.4s',
+                              borderRadius: '50%',
+                              display: 'block'
+                            }}></span>
+                          </span>
+                        </label>
+                      </div>
                     </td>
                   </tr>
                 ))

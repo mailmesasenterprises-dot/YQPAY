@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import config from '../config';
 import '../styles/Sidebar.css';
 
@@ -150,6 +151,7 @@ const getIcon = (iconName) => {
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 'dashboard', userRole = 'super_admin' }) => {
   const navigate = useNavigate();
+  const { userType, rolePermissions, theaterId } = useAuth();
   
   const navigationItems = [
     { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', path: '/dashboard', tooltip: 'Main Dashboard - Overview & Analytics' },
@@ -164,6 +166,48 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
     { id: 'qr-list', icon: 'qr-list', label: 'QR Management', path: '/qr-management', tooltip: 'QR Management - View & Manage All QR Codes' },
     { id: 'settings', icon: 'settings', label: 'Settings', path: '/settings', tooltip: 'System Settings - Configure Application Settings' }
   ];
+
+  // ✅ FILTER MENU BASED ON ROLE PERMISSIONS
+  const filteredNavigationItems = useMemo(() => {
+    // Super admin sees everything
+    if (userType === 'super_admin') {
+      return navigationItems;
+    }
+
+    // Theater users see only pages they have permission for
+    if (userType === 'theater_user' || userType === 'theater_admin') {
+      if (!rolePermissions || rolePermissions.length === 0) {
+        console.warn('⚠️ No role permissions found for user');
+        return [];
+      }
+
+      const allowedPages = rolePermissions[0]?.permissions
+        ?.filter(p => p.hasAccess === true)
+        .map(p => p.route) || [];
+
+      console.log('🔐 Filtering menu items based on permissions:', allowedPages);
+
+      return navigationItems.filter(item => {
+        // Replace :theaterId in route for comparison
+        const itemRoute = item.path.replace(':theaterId', theaterId);
+        
+        // Check if this menu item's path matches any allowed page route
+        const isAllowed = allowedPages.some(allowedRoute => {
+          const normalizedAllowed = allowedRoute.replace(':theaterId', theaterId);
+          return itemRoute === normalizedAllowed || itemRoute.startsWith(normalizedAllowed);
+        });
+
+        if (isAllowed) {
+          console.log('✅ Menu item allowed:', item.label, item.path);
+        }
+
+        return isAllowed;
+      });
+    }
+
+    // Default: show nothing
+    return [];
+  }, [userType, rolePermissions, theaterId, navigationItems]);
 
   const handleNavigation = (item) => {
     // Don't automatically close sidebar on navigation - let user control it manually
@@ -193,7 +237,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
         </div>
         
         <nav className="sidebar-nav">
-          {navigationItems.map((item) => (
+          {filteredNavigationItems.map((item) => (
             <button
               key={item.id}
               className={`nav-item ${currentPage === item.id ? 'active' : ''}`}

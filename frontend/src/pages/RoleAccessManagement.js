@@ -59,10 +59,16 @@ const RoleAccessManagement = () => {
     });
   }, [rolePermissions]);
 
-  // Load active pages from pageaccesses collection database
+  // Load active pages from pageaccesses collection database for specific theater
   const loadActivePages = useCallback(async () => {
+    if (!theaterId) {
+      console.warn('⚠️ No theaterId provided, cannot load pages');
+      setActivePages([]);
+      return [];
+    }
+    
     try {
-      const response = await fetch(`${config.api.baseUrl}/page-access?limit=100&isActive=true`, {
+      const response = await fetch(`${config.api.baseUrl}/page-access?theaterId=${theaterId}`, {
         headers: {
           'Content-Type': 'application/json',
           // Add auth token if it exists
@@ -73,20 +79,23 @@ const RoleAccessManagement = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 Page access response:', data);
-        // ✅ FIX: Backend returns data.data directly as an array, not data.data.pageAccess
-        if (data.success && data.data && Array.isArray(data.data)) {
-          const pages = data.data.map(pageAccess => ({
-            page: pageAccess.page,
-            pageName: pageAccess.pageName,
-            description: pageAccess.description || `Access to ${pageAccess.pageName}`,
-            route: pageAccess.route
-          }));
-          console.log('✅ Active pages loaded:', pages.length);
+        console.log('🔍 Page access response for theater:', theaterId, data);
+        
+        // ✅ NEW: Backend returns data.data.pageAccessList (array-based structure per theater)
+        if (data.success && data.data && data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
+          const pages = data.data.pageAccessList
+            .filter(pageAccess => pageAccess.isActive !== false) // Only show active pages
+            .map(pageAccess => ({
+              page: pageAccess.page,
+              pageName: pageAccess.pageName,
+              description: pageAccess.description || `Access to ${pageAccess.pageName}`,
+              route: pageAccess.route
+            }));
+          console.log(`✅ Active pages loaded for theater ${theaterId}:`, pages.length);
           setActivePages(pages);
           return pages;
         } else {
-          console.warn('⚠️ No page access data found:', data);
+          console.warn('⚠️ No page access data found for this theater:', data);
           setActivePages([]);
           return [];
         }
@@ -98,7 +107,7 @@ const RoleAccessManagement = () => {
       setActivePages([]);
       return [];
     }
-  }, []);
+  }, [theaterId]);
 
   // Fetch theater details for theater-specific context
   const fetchTheater = useCallback(async () => {

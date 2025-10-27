@@ -168,9 +168,12 @@ pageAccessArraySchema.pre('save', function(next) {
  * Static method: Find or create by theater ID
  */
 pageAccessArraySchema.statics.findOrCreateByTheater = async function(theaterId) {
+  console.log('🔍 findOrCreateByTheater - Model collection name:', this.collection.name);
+  
   let pageAccessDoc = await this.findOne({ theater: theaterId });
   
   if (!pageAccessDoc) {
+    console.log('📝 Creating new PageAccessArray document for theater:', theaterId);
     pageAccessDoc = new this({
       theater: theaterId,
       pageAccessList: [],
@@ -181,7 +184,11 @@ pageAccessArraySchema.statics.findOrCreateByTheater = async function(theaterId) 
         lastUpdated: new Date()
       }
     });
+    console.log('💾 Saving to collection:', pageAccessDoc.collection.name);
     await pageAccessDoc.save();
+    console.log('✅ Document saved successfully');
+  } else {
+    console.log('✅ Found existing document in collection:', pageAccessDoc.collection.name);
   }
   
   return pageAccessDoc;
@@ -363,6 +370,7 @@ pageAccessArraySchema.methods.findPageByIdentifier = function(pageIdentifier) {
   return this.pageAccessList.find(p => p.page === pageIdentifier);
 };
 
-const PageAccessArray = mongoose.model('PageAccessArray', pageAccessArraySchema);
+// IMPORTANT: Force collection name to be 'pageaccesses' (not 'pageaccessarrays')
+const PageAccessArray = mongoose.model('PageAccessArray', pageAccessArraySchema, 'pageaccesses');
 
 module.exports = PageAccessArray;

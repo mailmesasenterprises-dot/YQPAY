@@ -145,12 +145,14 @@ const orderRoutes = require('./routes/orders');
 const settingsRoutes = require('./routes/settings');
 const uploadRoutes = require('./routes/upload');
 const stockRoutes = require('./routes/stock');
-const pageAccessRoutes = require('./routes/pageAccess');
+// const pageAccessRoutes = require('./routes/pageAccess'); // OLD - DISABLED
+const pageAccessArrayRoutes = require('./routes/pageAccessArray'); // NEW - Array-based structure
 const qrCodeRoutes = require('./routes/qrcodes');
 const qrCodeNameRoutes = require('./routes/qrcodenamesArray'); // Use array-based structure
 const singleQRCodeRoutes = require('./routes/singleqrcodes');
 const syncRoutes = require('./routes/sync');
 const rolesRoutes = require('./routes/rolesArray'); // Use array-based structure
+const reportsRoutes = require('./routes/reports'); // Reports route
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -175,12 +177,14 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/theater-stock', stockRoutes);
-app.use('/api/page-access', pageAccessRoutes);
+app.use('/api/page-access', pageAccessArrayRoutes); // NEW - Array-based structure
+// app.use('/api/page-access-old', pageAccessRoutes); // OLD - Disabled
 app.use('/api/qrcodes', qrCodeRoutes);
 app.use('/api/qrcodenames', qrCodeNameRoutes);
 app.use('/api/single-qrcodes', singleQRCodeRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/roles', rolesRoutes);
+app.use('/api/reports', reportsRoutes); // Reports route
 app.use('/api/theater-users', require('./routes/theaterUsersArray'));
 app.use('/api/theater-dashboard', require('./routes/theater-dashboard'));
 
