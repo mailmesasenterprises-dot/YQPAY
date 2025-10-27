@@ -8,11 +8,17 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  height: 100%;
   width: 100%;
   background: linear-gradient(145deg, #2D1B52 0%, #1A0B2E 50%, #0F051A 100%);
   font-family: 'Cinzel', 'Playfair Display', 'Georgia', serif;
   /* Remove fixed positioning - it causes issues with browser chrome */
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
   overflow-x: hidden;
   /* iOS Safe Area Support - Extend background into safe areas */
   padding-top: env(safe-area-inset-top);
@@ -429,13 +435,16 @@
 .customer-landing.error {
   justify-content: center;
   align-items: center;
-  min-height: 50vh;
+  min-height: 100vh;
+  height: 100%;
 }
 
 .error-section {
   text-align: center;
   padding: 40px 30px;
-  color: #64748b;
+  color: #C4B5FD;
+  position: relative;
+  z-index: 2;
 }
 
 .error-icon {
@@ -446,20 +455,23 @@
 .error-section h2 {
   font-size: 24px;
   font-weight: 600;
-  color: #1e293b;
+  color: #DDD6FE;
   margin: 0 0 16px 0;
+  text-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
 }
 
 .error-section p {
   font-size: 16px;
   line-height: 1.5;
   margin: 0 0 12px 0;
+  color: #C4B5FD;
 }
 
 .error-hint {
   font-size: 14px;
   opacity: 0.8;
   font-style: italic;
+  color: #A78BFA;
 }
 
 /* Animations */

@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import config from '../../config/index';
 import '../../styles/customer/CustomerOrderHistory.css';
+import '../../styles/customer/CustomerPhoneEntry.css';
+import '../../styles/customer/CustomerOTPVerification.css';
 
 const CustomerOrderHistory = () => {
   const navigate = useNavigate();
@@ -9,28 +11,46 @@ const CustomerOrderHistory = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Login state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLoginForm, setShowLoginForm] = useState(false);
+  const [loginStep, setLoginStep] = useState('phone'); // 'phone' or 'otp'
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '']);
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(30);
+  const [canResend, setCanResend] = useState(false);
+  const otpInputRefs = useRef([]);
 
-  const { theaterId, theaterName, phoneNumber } = location.state || {};
+  // Extract theater info from URL params
+  const urlParams = new URLSearchParams(location.search);
+  const theaterId = urlParams.get('theaterid') || urlParams.get('theaterId');
+  const theaterName = urlParams.get('theaterName');
 
   useEffect(() => {
-    // Get phone number from state or localStorage
-    const phone = phoneNumber || localStorage.getItem('customerPhone');
+    // Check if user is logged in
+    const savedPhone = localStorage.getItem('customerPhone');
     
     if (!theaterId) {
       console.error('Missing theater ID');
-      navigate('/customer/home');
+      setError('Theater information is missing');
+      setLoading(false);
       return;
     }
     
-    if (!phone) {
-      console.error('Missing phone number');
-      // Redirect to home if no phone number
-      navigate('/customer/home');
-      return;
+    if (savedPhone) {
+      // User is logged in
+      setIsLoggedIn(true);
+      setPhoneNumber(savedPhone);
+      fetchOrderHistory(savedPhone);
+    } else {
+      // User is not logged in - show login form
+      setShowLoginForm(true);
+      setLoading(false);
     }
-    
-    fetchOrderHistory(phone);
-  }, [theaterId, phoneNumber, navigate]);
+  }, [theaterId]);
 
   const fetchOrderHistory = async (phone) => {
     try {
@@ -70,8 +90,217 @@ const CustomerOrderHistory = () => {
     }
   };
 
+  // Handle phone number input
+  const handlePhoneChange = (e) => {
+    const value = e.target.value.replace(/\D/g, ''); // Only allow digits
+    if (value.length <= 10) {
+      setPhoneNumber(value);
+      setLoginError('');
+    }
+  };
+
+  const validatePhoneNumber = (phone) => {
+    const phoneRegex = /^[0-9]\d{9}$/; // 10-digit number format
+    return phoneRegex.test(phone);
+  };
+
+  // Handle phone submit (send OTP)
+  const handlePhoneSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!phoneNumber) {
+      setLoginError('Please enter your phone number');
+      return;
+    }
+
+    const isValid = validatePhoneNumber(phoneNumber);
+    if (!isValid) {
+      setLoginError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError('');
+
+    try {
+      // Simulate sending OTP (in real app, call backend API)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      console.log('✅ OTP sent to:', '+91' + phoneNumber);
+      
+      // Move to OTP step
+      setLoginStep('otp');
+      setResendTimer(30);
+      setCanResend(false);
+      
+      // Start countdown timer
+      const timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      // Auto-focus first OTP input
+      setTimeout(() => {
+        if (otpInputRefs.current[0]) {
+          otpInputRefs.current[0].focus();
+        }
+      }, 100);
+      
+    } catch (err) {
+      console.error('❌ Error sending OTP:', err);
+      setLoginError('Failed to send OTP. Please try again.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // Handle OTP input
+  const handleOtpChange = (index, value) => {
+    if (value.length > 1) return; // Prevent multiple characters
+    if (!/^\d*$/.test(value)) return; // Only allow digits
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    setLoginError('');
+
+    // Auto-focus next input
+    if (value && index < 3) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-verify if all 4 digits entered
+    if (value && newOtp.every(digit => digit !== '')) {
+      setTimeout(() => handleOtpVerify(newOtp), 500);
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      // Focus previous input on backspace if current is empty
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    const newOtp = [...otp];
+    
+    for (let i = 0; i < pastedData.length; i++) {
+      newOtp[i] = pastedData[i];
+    }
+    
+    setOtp(newOtp);
+    
+    // Focus last filled input or next empty input
+    const lastIndex = Math.min(pastedData.length - 1, 3);
+    otpInputRefs.current[lastIndex]?.focus();
+
+    // Auto-verify if 4 digits pasted
+    if (pastedData.length === 4) {
+      setTimeout(() => handleOtpVerify(newOtp), 500);
+    }
+  };
+
+  // Handle OTP verification
+  const handleOtpVerify = async (otpToVerify = otp) => {
+    const otpString = otpToVerify.join('');
+    
+    if (otpString.length !== 4) {
+      setLoginError('Please enter complete 4-digit OTP');
+      return;
+    }
+
+    setLoginLoading(true);
+    setLoginError('');
+
+    try {
+      // Simulate OTP verification (in real app, verify with backend)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // For demo, accept any 4-digit OTP
+      const fullPhone = '+91' + phoneNumber;
+      
+      // Save phone number to localStorage
+      localStorage.setItem('customerPhone', fullPhone);
+      
+      // Mark as logged in
+      setIsLoggedIn(true);
+      setShowLoginForm(false);
+      
+      // Fetch order history
+      fetchOrderHistory(fullPhone);
+      
+    } catch (err) {
+      setLoginError('Invalid OTP. Please try again.');
+      setOtp(['', '', '', '']);
+      otpInputRefs.current[0]?.focus();
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // Handle resend OTP
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+
+    setLoginLoading(true);
+    setLoginError('');
+    
+    try {
+      // Simulate API call to resend OTP
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Reset timer
+      setResendTimer(30);
+      setCanResend(false);
+      
+      // Clear OTP inputs
+      setOtp(['', '', '', '']);
+      otpInputRefs.current[0]?.focus();
+
+      // Start new countdown
+      const timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (err) {
+      setLoginError('Failed to resend OTP. Please try again.');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // Handle back to phone step
+  const handleBackToPhone = () => {
+    setLoginStep('phone');
+    setOtp(['', '', '', '']);
+    setLoginError('');
+  };
+
   const handleBack = () => {
-    navigate(-1);
+    // Redirect to customer home (menu) page with theater ID
+    if (theaterId) {
+      const params = new URLSearchParams();
+      params.set('theaterid', theaterId);
+      navigate(`/customer/home?${params.toString()}`);
+    } else {
+      navigate(-1);
+    }
   };
 
   const formatPrice = (amount) => {
@@ -133,6 +362,161 @@ const CustomerOrderHistory = () => {
           <h3 className="loading-title">Loading your orders...</h3>
           <p className="loading-subtitle">Food you 🧡, on time.</p>
         </div>
+      </div>
+    );
+  }
+
+  // Show login form if not logged in
+  if (showLoginForm) {
+    return (
+      <div className="phone-entry-page">
+        {loginStep === 'phone' ? (
+          // Phone Number Entry
+          <>
+            <div className="phone-entry-header">
+              <button 
+                className="back-button"
+                onClick={handleBack}
+                type="button"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <h1 className="phone-entry-title">Phone Verification</h1>
+            </div>
+
+            <div className="phone-entry-content">
+              <div className="phone-entry-card">
+                <h2>Enter Your Mobile Number</h2>
+                <p>We'll send you a 4-digit verification code to view your order history</p>
+
+                <div className="phone-input-container">
+                  <div className="country-code-display">
+                    <span>🇮🇳</span>
+                    <span>+91</span>
+                  </div>
+                  
+                  <div className="phone-input-wrapper">
+                    <input
+                      id="phone-input"
+                      type="tel"
+                      value={phoneNumber}
+                      onChange={handlePhoneChange}
+                      placeholder="Enter 10-digit number"
+                      className="phone-input"
+                      maxLength="10"
+                      autoComplete="tel"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {loginError && (
+                  <div className="error-message">
+                    {loginError}
+                  </div>
+                )}
+
+                <button 
+                  className="continue-button"
+                  onClick={handlePhoneSubmit}
+                  disabled={loginLoading || phoneNumber.length !== 10}
+                >
+                  {loginLoading ? 'Sending OTP...' : 'Continue'}
+                </button>
+
+                <p className="security-text">
+                  Your phone number is safe and secure with us
+                </p>
+              </div>
+            </div>
+          </>
+        ) : (
+          // OTP Verification
+          <>
+            <div className="otp-header">
+              <button 
+                className="back-button"
+                onClick={handleBackToPhone}
+                type="button"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <h1 className="otp-title">Verify OTP</h1>
+            </div>
+
+            <div className="otp-content">
+              <div className="otp-card">
+                <h2>Enter Verification Code</h2>
+                <p>
+                  We've sent a 4-digit code to
+                  <br />
+                  <span className="phone-number-display">+91 {phoneNumber}</span>
+                </p>
+
+                <div className="otp-input-container">
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => (otpInputRefs.current[index] = el)}
+                      type="tel"
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      onPaste={handleOtpPaste}
+                      maxLength="1"
+                      className="otp-input"
+                    />
+                  ))}
+                </div>
+
+                {loginError && (
+                  <div className="error-message">
+                    {loginError}
+                  </div>
+                )}
+
+                <button 
+                  className="verify-button"
+                  onClick={() => handleOtpVerify()}
+                  disabled={loginLoading || otp.some(digit => digit === '')}
+                >
+                  {loginLoading ? 'Verifying...' : 'Verify & Continue'}
+                </button>
+
+                <div className="resend-section">
+                  {canResend ? (
+                    <button 
+                      className="resend-link"
+                      onClick={handleResendOtp}
+                      disabled={loginLoading}
+                    >
+                      Resend OTP
+                    </button>
+                  ) : (
+                    <p className="resend-timer">
+                      Resend OTP in <span className="timer-highlight">{resendTimer}s</span>
+                    </p>
+                  )}
+                </div>
+
+                <p className="change-number">
+                  Wrong number?{' '}
+                  <button 
+                    className="change-number-link"
+                    onClick={handleBackToPhone}
+                    disabled={loginLoading}
+                  >
+                    Change
+                  </button>
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }

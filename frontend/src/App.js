@@ -35,6 +35,7 @@ const CustomerPhoneEntry = React.lazy(() => import('./pages/customer/CustomerPho
 const CustomerOTPVerification = React.lazy(() => import('./pages/customer/CustomerOTPVerification'));
 const CustomerPayment = React.lazy(() => import('./pages/customer/CustomerPayment'));
 const CustomerOrderSuccess = React.lazy(() => import('./pages/customer/CustomerOrderSuccess'));
+const QRServiceUnavailable = React.lazy(() => import('./pages/customer/QRServiceUnavailable'));
 const RoleCreate = React.lazy(() => import('./pages/RoleCreate'));
 const RoleManagementList = React.lazy(() => import('./pages/RoleManagementList'));
 const QRCodeNameManagement = React.lazy(() => import('./pages/QRCodeNameManagement'));
@@ -119,6 +120,7 @@ function App() {
                 <Route path="/customer/payment" element={<CustomerPayment />} />
                 <Route path="/customer/order-success" element={<CustomerOrderSuccess />} />
                 <Route path="/customer/:theaterId/:qrName/:seat/order-confirmation" element={<CustomerOrderHistory />} />
+                <Route path="/qr-unavailable" element={<QRServiceUnavailable />} />
                 
                 {/* QR Code Redirect Route - Redirects scanned QR codes to customer landing */}
                 <Route path="/menu/:theaterId" element={<CustomerLanding />} />

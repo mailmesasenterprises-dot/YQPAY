@@ -24,9 +24,11 @@ export const usePageAccess = () => {
 
       // Theater users need to check permissions
       if (!theaterId || !rolePermissions || rolePermissions.length === 0) {
-        console.warn('⚠️ No theater or role permissions found');
+        console.error('❌ SECURITY: No theater or role permissions found - BLOCKING ACCESS');
+        setAllowedPages([]); // ✅ Explicitly set to empty (NO pages allowed)
+        setFirstAccessiblePage(null); // ✅ No accessible page
         setIsLoading(false);
-        return;
+        return; // User will be blocked by ProtectedRoute
       }
 
       try {
@@ -68,6 +70,12 @@ export const usePageAccess = () => {
     // Super admin has access to everything
     if (userType === 'super_admin') {
       return true;
+    }
+
+    // ✅ SECURITY: If no pages are allowed, DENY access to everything
+    if (!allowedPages || allowedPages.length === 0) {
+      console.error('🚫 SECURITY: No allowed pages - BLOCKING access to:', location.pathname);
+      return false;
     }
 
     // Get current path without parameters

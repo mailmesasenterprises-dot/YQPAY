@@ -102,7 +102,59 @@ const CustomerLanding = () => {
     setScreenName(screen);
     setSeatId(seat);
     setQrName(qr);
+
+    // Verify QR code if qrName is present
+    if (qr && id) {
+      verifyQRCode(qr, id);
+    }
   }, [location.search, params.theaterId]);
+
+  // Verify QR code status
+  const verifyQRCode = async (qrName, theaterId) => {
+    try {
+      console.log('🔍 Verifying QR Code:', qrName, 'for theater:', theaterId);
+      
+      const apiUrl = `${config.api.baseUrl}/single-qrcodes/verify-qr/${qrName}?theaterId=${theaterId}`;
+      console.log('📡 Verification API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📡 Verification Response Status:', response.status, response.statusText);
+      
+      const data = await response.json();
+      console.log('📦 Verification Response Data:', data);
+      
+      if (!response.ok || !data.success || !data.isActive) {
+        // QR code is deactivated or not found
+        console.log('❌ QR Code is deactivated or not found:', {
+          responseOk: response.ok,
+          dataSuccess: data.success,
+          dataIsActive: data.isActive
+        });
+        
+        // Redirect to error page
+        navigate(`/qr-unavailable?theaterid=${theaterId}`);
+        return;
+      }
+      
+      console.log('✅ QR Code verified successfully:', data);
+      
+    } catch (error) {
+      console.error('❌ Error verifying QR code:', error);
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      // If verification fails (network error), redirect to error page
+      navigate(`/qr-unavailable?theaterid=${theaterId}`);
+    }
+  };
 
   // Load theater data
   const loadTheaterData = useCallback(async (id) => {
@@ -198,10 +250,19 @@ const CustomerLanding = () => {
   };
 
   const handleOrderHistory = () => {
-    let url = `/customer/history?theaterid=${theaterId}`;
-    if (screenName) url += `&screen=${encodeURIComponent(screenName)}`;
-    if (seatId) url += `&seat=${encodeURIComponent(seatId)}`;
-    navigate(url);
+    const params = new URLSearchParams();
+    params.set('theaterid', theaterId);
+    if (theater?.name) {
+      params.set('theaterName', theater.name);
+    }
+    if (screenName) {
+      params.set('screen', encodeURIComponent(screenName));
+    }
+    if (seatId) {
+      params.set('seat', encodeURIComponent(seatId));
+    }
+    
+    navigate(`/customer/order-history?${params.toString()}`);
   };
 
   // Loading state

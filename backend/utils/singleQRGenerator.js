@@ -60,6 +60,65 @@ async function fetchLogo(logoUrl) {
  * @param {Buffer} logoBuffer - Logo image buffer
  * @returns {Promise<Buffer>} - QR code with logo overlay
  */
+/**
+ * Add text above and below QR code image
+ * @param {Buffer} qrBuffer - QR code image buffer
+ * @param {string} topText - Text to display above QR (application name)
+ * @param {string} bottomText - Text to display below QR (QR code name/seat)
+ * @returns {Promise<Buffer>} - QR code with text
+ */
+async function addTextToQR(qrBuffer, topText, bottomText) {
+  try {
+    // Load QR code image
+    const qrImage = await loadImage(qrBuffer);
+    
+    // Calculate canvas size (QR code + space for text)
+    const padding = 20;
+    const topTextHeight = 60;
+    const bottomTextHeight = 50;
+    const canvasWidth = qrImage.width + (padding * 2);
+    const canvasHeight = qrImage.height + topTextHeight + bottomTextHeight + (padding * 2);
+    
+    // Create canvas
+    const canvas = createCanvas(canvasWidth, canvasHeight);
+    const ctx = canvas.getContext('2d');
+    
+    // Fill white background
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Draw top text (Application Name)
+    if (topText) {
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 28px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(topText.toUpperCase(), canvasWidth / 2, topTextHeight / 2 + padding);
+    }
+    
+    // Draw QR code in center
+    ctx.drawImage(qrImage, padding, topTextHeight + padding);
+    
+    // Draw bottom text (QR Code Name/Seat)
+    if (bottomText) {
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 24px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const bottomY = topTextHeight + padding + qrImage.height + (bottomTextHeight / 2);
+      ctx.fillText(bottomText, canvasWidth / 2, bottomY);
+    }
+    
+    // Return canvas as buffer
+    return canvas.toBuffer('image/png');
+    
+  } catch (error) {
+    console.error('❌ Add text to QR error:', error);
+    // Return original QR code if text addition fails
+    return qrBuffer;
+  }
+}
+
 async function overlayLogoOnQR(qrBuffer, logoBuffer) {
   try {
     // Load QR code image
@@ -144,6 +203,27 @@ async function getSuperAdminPrimaryColor() {
 }
 
 /**
+ * Get application name from settings
+ * @returns {Promise<string>} Application name
+ */
+async function getApplicationName() {
+  try {
+    const db = mongoose.connection.db;
+    const settingsDoc = await db.collection('settings').findOne({ type: 'general' });
+    
+    if (settingsDoc && settingsDoc.generalConfig && settingsDoc.generalConfig.applicationName) {
+      return settingsDoc.generalConfig.applicationName;
+    }
+    
+    // Fallback to default
+    return 'SCAN THIS QR';
+  } catch (error) {
+    console.error('⚠️  Error fetching application name, using default:', error.message);
+    return 'SCAN THIS QR';
+  }
+}
+
+/**
  * Generate a single or screen QR code and upload to Google Cloud Storage
  * @param {Object} params - Generation parameters
  * @param {string} params.theaterId - Theater ID
@@ -220,6 +300,12 @@ async function generateSingleQRCode({
         qrCodeBuffer = await overlayLogoOnQR(qrCodeBuffer, logoBuffer);
       }
     }
+
+    // Get application name and add text to QR code
+    const applicationName = await getApplicationName();
+    const bottomText = seat ? `${qrName} | ${seat}` : qrName;
+    console.log(`📝 Adding text to QR: Top="${applicationName}", Bottom="${bottomText}"`);
+    qrCodeBuffer = await addTextToQR(qrCodeBuffer, applicationName, bottomText);
 
     // Upload to Google Cloud Storage
     const gcsPath = await uploadToGCS(qrCodeBuffer, {

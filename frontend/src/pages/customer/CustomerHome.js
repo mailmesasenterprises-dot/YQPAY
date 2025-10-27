@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import OptimizedImage from '../../components/common/OptimizedImage';
@@ -39,6 +39,11 @@ const CustomerHome = () => {
   
   const [isVegOnly, setIsVegOnly] = useState(false);
   const [selectedPriceRange, setSelectedPriceRange] = useState('all');
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [scannedQRData, setScannedQRData] = useState(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const scanIntervalRef = useRef(null);
 
   // Initialize state from localStorage if URL params are missing
   useEffect(() => {
@@ -365,46 +370,155 @@ const CustomerHome = () => {
     setSearchQuery(e.target.value);
   };
 
-  const handleVoiceSearch = () => {
-    // Check if browser supports speech recognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Handle QR Scanner
+  const handleQRScan = async () => {
+    setShowQRScanner(true);
     
-    if (!SpeechRecognition) {
-      alert('Voice search is not supported in your browser. Please use Chrome, Edge, or Safari.');
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-IN'; // English India
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-      console.log('Voice recognition started. Speak now...');
-    };
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      console.log('Voice input:', transcript);
-      setSearchQuery(transcript);
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Voice recognition error:', event.error);
-      if (event.error === 'no-speech') {
-        alert('No speech detected. Please try again.');
-      } else if (event.error === 'not-allowed') {
-        alert('Microphone access denied. Please allow microphone access in your browser settings.');
-      } else {
-        alert('Voice recognition error. Please try again.');
+    // Wait for modal to render, then start camera
+    setTimeout(async () => {
+      try {
+        const video = document.getElementById('qr-video');
+        if (video) {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' } // Use back camera on mobile
+          });
+          video.srcObject = stream;
+          video.play();
+          
+          // Start scanning with BarcodeDetector if available
+          if ('BarcodeDetector' in window) {
+            const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            startBarcodeScanning(video, barcodeDetector);
+          } else {
+            console.log('BarcodeDetector not supported, using manual input');
+          }
+        }
+      } catch (error) {
+        console.error('Camera access error:', error);
+        alert('❌ Unable to access camera. Please allow camera access or enter QR code data manually.');
+        handleCloseQRScanner();
       }
-    };
+    }, 100);
+  };
 
-    recognition.onend = () => {
-      console.log('Voice recognition ended.');
-    };
+  const startBarcodeScanning = (video, detector) => {
+    scanIntervalRef.current = setInterval(async () => {
+      try {
+        const barcodes = await detector.detect(video);
+        if (barcodes.length > 0) {
+          const qrCode = barcodes[0].rawValue;
+          handleQRScanSuccess(qrCode);
+          clearInterval(scanIntervalRef.current);
+        }
+      } catch (error) {
+        // Silently handle detection errors
+      }
+    }, 500); // Scan every 500ms
+  };
 
-    recognition.start();
+  const handleQRScanSuccess = async (decodedText) => {
+    console.log('🎯 QR Code scanned:', decodedText);
+    
+    // Stop the camera
+    stopCamera();
+    
+    try {
+      // Parse QR code URL to extract screen and seat info
+      const url = new URL(decodedText);
+      const params = new URLSearchParams(url.search);
+      
+      const scannedScreen = params.get('screen') || params.get('SCREEN');
+      const scannedSeat = params.get('seat') || params.get('SEAT');
+      const scannedQrName = params.get('qrName') || params.get('qrname') || params.get('QRNAME');
+      
+      if (scannedQrName) {
+        // Verify QR code status with backend
+        console.log('🔍 Verifying QR code:', scannedQrName);
+        
+        try {
+          const verifyResponse = await fetch(
+            `http://localhost:5000/api/single-qrcodes/verify-qr/${scannedQrName}?theaterId=${theaterId}`,
+            {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+
+          const verifyData = await verifyResponse.json();
+          
+          if (!verifyResponse.ok || !verifyData.success || !verifyData.isActive) {
+            // QR code is deactivated or not found
+            console.log('❌ QR Code is deactivated or not found');
+            setShowQRScanner(false);
+            
+            // Redirect to error page
+            navigate(`/qr-unavailable?theaterid=${theaterId}`);
+            return;
+          }
+          
+          console.log('✅ QR Code verified successfully:', verifyData);
+          
+        } catch (verifyError) {
+          console.error('❌ Error verifying QR code:', verifyError);
+          // If verification fails (network error), redirect to error page
+          setShowQRScanner(false);
+          navigate(`/qr-unavailable?theaterid=${theaterId}`);
+          return;
+        }
+      }
+      
+      if (scannedScreen || scannedSeat || scannedQrName) {
+        // Update the state with scanned info
+        if (scannedScreen) {
+          setScreenName(scannedScreen);
+          localStorage.setItem('customerScreenName', scannedScreen);
+        }
+        if (scannedSeat) {
+          setSeat(scannedSeat);
+          localStorage.setItem('customerSeat', scannedSeat);
+        }
+        if (scannedQrName) {
+          setQrName(scannedQrName);
+          localStorage.setItem('customerQrName', scannedQrName);
+        }
+        
+        setScannedQRData({ screen: scannedScreen, seat: scannedSeat, qrName: scannedQrName });
+        setShowQRScanner(false);
+        
+        // Show success message
+        alert(`✅ QR Code Scanned Successfully!\nScreen: ${scannedScreen || 'N/A'}\nSeat: ${scannedSeat || 'N/A'}`);
+      } else {
+        alert('❌ Invalid QR Code. No screen or seat information found.');
+        setShowQRScanner(false);
+      }
+    } catch (error) {
+      console.error('Error parsing QR code:', error);
+      alert('❌ Invalid QR Code format.');
+      setShowQRScanner(false);
+    }
+  };
+
+  const stopCamera = () => {
+    const video = document.getElementById('qr-video');
+    if (video && video.srcObject) {
+      const tracks = video.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      video.srcObject = null;
+    }
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+    }
+  };
+
+  const handleQRScanError = (error) => {
+    console.error('QR Scan Error:', error);
+  };
+
+  const handleCloseQRScanner = () => {
+    stopCamera();
+    setShowQRScanner(false);
   };
 
   const handleCategoryChange = (categoryId) => {
@@ -485,27 +599,21 @@ const CustomerHome = () => {
   // Handle order history navigation
   const handleOrderHistory = () => {
     setShowProfileDropdown(false);
-    // Get phone number from localStorage
-    const savedPhone = localStorage.getItem('customerPhone');
     
     console.log('📱 Navigating to order history with:', {
       theaterId,
-      theaterName: theater?.name,
-      phoneNumber: savedPhone
+      theaterName: theater?.name
     });
     
-    if (!savedPhone) {
-      alert('Please place an order first to view history');
-      return;
+    // Navigate to order history page with theater info in URL params
+    // The order history page will handle login if needed
+    const params = new URLSearchParams();
+    params.set('theaterid', theaterId);
+    if (theater?.name) {
+      params.set('theaterName', theater.name);
     }
     
-    navigate('/customer/order-history', {
-      state: {
-        theaterId,
-        theaterName: theater?.name,
-        phoneNumber: savedPhone
-      }
-    });
+    navigate(`/customer/order-history?${params.toString()}`);
   };
 
   // Handle logout
@@ -516,8 +624,26 @@ const CustomerHome = () => {
     localStorage.removeItem('cart');
     localStorage.removeItem('yqpay_cart');
     localStorage.removeItem('checkoutData');
-    // Redirect to customer landing page
-    navigate('/customer');
+    
+    // Redirect to customer landing page with theater ID preserved
+    if (theaterId) {
+      let landingUrl = `/menu/${theaterId}`;
+      const params = new URLSearchParams();
+      
+      // Preserve screen and seat info if available
+      if (screenName) params.set('screen', screenName);
+      if (seat) params.set('seat', seat);
+      if (qrName) params.set('qrName', qrName);
+      
+      if (params.toString()) {
+        landingUrl += `?${params.toString()}`;
+      }
+      
+      navigate(landingUrl);
+    } else {
+      // Fallback to generic customer page
+      navigate('/customer');
+    }
   };
 
   // Close dropdown when clicking outside
@@ -608,15 +734,19 @@ const CustomerHome = () => {
                     </svg>
                     <span>Order History</span>
                   </button>
-                  <button 
-                    className="dropdown-item"
-                    onClick={handleLogout}
-                  >
-                    <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
-                    </svg>
-                    <span>Logout</span>
-                  </button>
+                  
+                  {/* Only show logout if user is logged in */}
+                  {localStorage.getItem('customerPhone') && (
+                    <button 
+                      className="dropdown-item"
+                      onClick={handleLogout}
+                    >
+                      <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                      </svg>
+                      <span>Logout</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -632,10 +762,9 @@ const CustomerHome = () => {
             onChange={handleSearchChange}
             aria-label="Search products"
           />
-          <button className="mic-btn" aria-label="Voice search" onClick={handleVoiceSearch}>
-            <svg className="mic-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-              <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+          <button className="qr-scan-btn" aria-label="Scan QR Code" onClick={handleQRScan}>
+            <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13-2h-2v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/>
             </svg>
           </button>
         </div>
@@ -987,6 +1116,41 @@ const CustomerHome = () => {
         isOpen={isCollectionModalOpen}
         onClose={() => setIsCollectionModalOpen(false)}
       />
+
+      {/* QR Scanner Modal */}
+      {showQRScanner && (
+        <div className="qr-scanner-modal">
+          <div className="qr-scanner-overlay" onClick={handleCloseQRScanner}></div>
+          <div className="qr-scanner-container">
+            <div className="qr-scanner-header">
+              <h2>Scan QR Code</h2>
+              <button className="qr-close-btn" onClick={handleCloseQRScanner}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div className="qr-scanner-content">
+              <div className="qr-scanner-instructions">
+                <p>📱 Point your camera at a QR code</p>
+                <p>The screen and seat info will be updated automatically</p>
+              </div>
+              <div className="qr-scanner-video-container">
+                <video 
+                  id="qr-video" 
+                  className="qr-scanner-video"
+                  autoPlay 
+                  playsInline
+                ></video>
+                <div className="qr-scanner-frame"></div>
+              </div>
+              <button className="qr-cancel-btn" onClick={handleCloseQRScanner}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

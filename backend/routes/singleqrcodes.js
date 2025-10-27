@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const SingleQRCode = require('../models/SingleQRCode');
 const Theater = require('../models/Theater');
 const { authenticateToken } = require('../middleware/auth');
@@ -913,17 +914,11 @@ router.post('/:id/details/:detailId/seats', [
     
     if (!finalQRCodeUrl) {
       try {
-        const { generateQRCodeImage, getQRSettings, fetchLogo } = require('../utils/qrCodeGenerator');
-        const { uploadFile } = require('../utils/gcsUploadUtil');
+        const { generateSingleQRCode } = require('../utils/singleQRGenerator');
         const Theater = require('../models/Theater');
-        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
         
-        // Create QR code data URL
-        qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(qrDetail.qrName)}&seat=${encodeURIComponent(seat)}&type=screen`;
-        
-        // Get theater details for color and logo
+        // Get theater details
         const theater = await Theater.findById(singleQR.theater);
-        const primaryColor = theater?.primaryColor || '#6B0E9B';
         
         // Check if there are existing seats with logos - use the same logo settings
         finalLogoType = qrDetail.logoType || 'theater';
@@ -942,51 +937,37 @@ router.post('/:id/details/:detailId/seats', [
           });
         } else {
           // No existing seats with logo - get from qrDetail or settings
+          const { getQRSettings } = require('../utils/qrCodeGenerator');
           const settings = await getQRSettings(singleQR.theater, finalLogoType);
           finalLogoUrl = qrDetail.logoUrl || settings.logoUrl;
         }
         
-        const finalPrimaryColor = primaryColor;
-        
-        console.log('🎨 QR Settings for new seat:', { 
-          logoUrl: finalLogoUrl, 
-          primaryColor: finalPrimaryColor,
-          logoType: finalLogoType 
+        console.log('🎨 Generating QR for new seat:', { 
+          theaterId: singleQR.theater,
+          theaterName: theater?.name,
+          qrName: qrDetail.qrName,
+          seatClass: qrDetail.seatClass,
+          seat: seat,
+          logoUrl: finalLogoUrl,
+          logoType: finalLogoType
         });
         
-        // Fetch logo if available
-        const logoBuffer = finalLogoUrl ? await fetchLogo(finalLogoUrl) : null;
-        if (logoBuffer) {
-          console.log('✅ Logo loaded for new seat:', logoBuffer.length, 'bytes');
-        } else {
-          console.warn('⚠️ No logo buffer - logo URL:', finalLogoUrl);
-        }
-        
-        console.log('🎨 Generating QR with options:', {
-          width: 500,
-          darkColor: finalPrimaryColor,
-          hasLogo: !!logoBuffer
+        // Generate QR code with text embedding using singleQRGenerator
+        const result = await generateSingleQRCode({
+          theaterId: singleQR.theater,
+          theaterName: theater?.name || 'theater',
+          qrName: qrDetail.qrName,
+          seatClass: qrDetail.seatClass,
+          seat: seat,
+          logoUrl: finalLogoUrl,
+          logoType: finalLogoType,
+          userId: req.user?.id || 'system'
         });
         
-        // Generate QR code image with logo and theater color
-        const imageBuffer = await generateQRCodeImage(qrCodeData, {
-          width: 500,
-          margin: 2,
-          darkColor: finalPrimaryColor, // Use theater's primary color
-          lightColor: '#FFFFFF',
-          logoBuffer: logoBuffer // Include logo
-        });
+        finalQRCodeUrl = result.qrCodeUrl;
+        qrCodeData = result.qrCodeData;
         
-        console.log('✅ QR Image generated, size:', imageBuffer.length, 'bytes');
-        
-        // Upload to storage
-        const timestamp = Date.now();
-        const sanitizedSeat = seat.replace(/[^a-zA-Z0-9-_]/g, '_');
-        const filename = `${sanitizedSeat}_${timestamp}.png`;
-        const folder = `qr-codes/screen/${singleQR.theater}/${qrDetail.seatClass}`;
-        
-        finalQRCodeUrl = await uploadFile(imageBuffer, filename, folder, 'image/png');
-        console.log('✅ Generated QR code for new seat with logo and color:', finalQRCodeUrl);
+        console.log('✅ Generated QR code for new seat with text embedding:', finalQRCodeUrl);
         
       } catch (qrError) {
         console.error('❌ Failed to generate QR code:', qrError);
@@ -1387,6 +1368,104 @@ router.get('/stats/summary', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch statistics',
+      message: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
+ * GET /api/singleqrcodes/verify-qr/:qrName
+ * Verify if a QR code is active by qrName
+ * Public endpoint for customer QR scanning
+ */
+router.get('/verify-qr/:qrName', async (req, res) => {
+  try {
+    const { qrName } = req.params;
+    const { theaterId } = req.query;
+
+    console.log('🔍 Verifying QR Code:', { qrName, theaterId });
+
+    if (!qrName) {
+      return res.status(400).json({
+        success: false,
+        error: 'QR name is required'
+      });
+    }
+
+    // Build query - Find document with matching qrName
+    const query = {
+      'qrDetails.qrName': qrName
+    };
+
+    if (theaterId) {
+      query.theater = theaterId;
+    }
+
+    // Find the QR code document (without isActive filter to check manually)
+    const qrCodeDoc = await SingleQRCode.findOne(query)
+      .populate('theater', 'name fullAddress phone')
+      .lean();
+
+    if (!qrCodeDoc) {
+      console.log('❌ QR Code not found');
+      return res.status(404).json({
+        success: false,
+        error: 'QR code not found',
+        isActive: false,
+        message: 'Oops! This service is not available right now.'
+      });
+    }
+
+    // Find the specific QR detail and check isActive
+    const qrDetail = qrCodeDoc.qrDetails.find(detail => detail.qrName === qrName);
+
+    if (!qrDetail) {
+      console.log('❌ QR Detail not found in qrDetails array');
+      return res.status(404).json({
+        success: false,
+        error: 'QR code not found',
+        isActive: false,
+        message: 'Oops! This service is not available right now.'
+      });
+    }
+
+    // Check if the QR detail is active
+    if (!qrDetail.isActive) {
+      console.log('❌ QR Detail is deactivated:', {
+        qrName: qrDetail.qrName,
+        isActive: qrDetail.isActive
+      });
+      return res.status(403).json({
+        success: false,
+        error: 'QR code is deactivated',
+        isActive: false,
+        message: 'Oops! This service is not available right now.'
+      });
+    }
+
+    console.log('✅ QR Code verified successfully:', {
+      qrName: qrDetail.qrName,
+      isActive: qrDetail.isActive,
+      qrType: qrDetail.qrType
+    });
+
+    res.json({
+      success: true,
+      isActive: true,
+      data: {
+        qrName: qrDetail.qrName,
+        seatClass: qrDetail.seatClass,
+        qrType: qrDetail.qrType,
+        theater: qrCodeDoc.theater,
+        message: 'QR code is active and valid'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Verify QR error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify QR code',
       message: error.message || 'Internal server error'
     });
   }

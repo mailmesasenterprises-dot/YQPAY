@@ -7,6 +7,7 @@ import VerticalPageHeader from '../components/VerticalPageHeader';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { ActionButton, ActionButtons } from '../components/ActionButton';
 import { useModal } from '../contexts/ModalContext';
+import JSZip from 'jszip';
 import '../styles/TheaterUserDetails.css';
 import '../styles/TheaterList.css'; // Import TheaterList styles for table
 import '../styles/QRManagementPage.css'; // Import global modal styles
@@ -154,7 +155,7 @@ const QRCard = React.memo(({ qrCode, onView, onDownload, onToggleStatus, onDelet
 QRCard.displayName = 'QRCard';
 
 // CRUD Modal Component
-const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, onDelete, onModeChange, actionLoading, displayImageUrl, onSeatEdit, onToggleStatus }) => {
+const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, onDelete, onModeChange, actionLoading, displayImageUrl, onSeatEdit, onToggleStatus, qrNames = [], existingQRNames = [] }) => {
   const [formData, setFormData] = useState({
     name: '',
     qrType: 'single',
@@ -170,7 +171,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
       console.log('ðŸ” CrudModal - QR Code data received:', qrCode);
       console.log('ðŸ–¼ï¸ QR Image URL:', qrCode.qrImageUrl);
       console.log('ðŸ” QR Code Full Object Keys:', Object.keys(qrCode));
-      console.log('ðŸ” QR Image URL Details:', {
+      console.log(' QR Image URL Details:', {
         exists: !!qrCode.qrImageUrl,
         type: typeof qrCode.qrImageUrl,
         length: qrCode.qrImageUrl?.length || 0,
@@ -240,16 +241,37 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
               <label>QR Code Name *</label>
-              <input
-                type="text"
+              <select
                 name="name"
                 className="form-control"
                 value={formData.name || ''}
-                onChange={handleInputChange}
+                onChange={(e) => {
+                  // Find the selected QR name to get its seatClass
+                  const selectedQRName = qrNames.find(qr => qr.qrName === e.target.value);
+                  
+                  // Update both name and seatClass
+                  setFormData(prev => ({
+                    ...prev,
+                    name: e.target.value,
+                    screenName: selectedQRName?.seatClass || prev.screenName,
+                    seatClass: selectedQRName?.seatClass || prev.seatClass
+                  }));
+                }}
                 disabled={isReadOnly}
                 required
-                placeholder="Enter QR code name"
-              />
+              >
+                <option value="">Select QR Code Name</option>
+                {qrNames
+                  .filter(qr => {
+                    // Show only unused QR names OR the current QR name being edited
+                    return !existingQRNames.includes(qr.qrName) || qr.qrName === qrCode?.name;
+                  })
+                  .map((qr, index) => (
+                  <option key={index} value={qr.qrName}>
+                    {qr.qrName}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="form-group">
@@ -277,8 +299,13 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                     className="form-control"
                     value={formData.screenName || formData.seatClass || ''}
                     onChange={handleInputChange}
-                    disabled={isReadOnly}
-                    placeholder="Enter screen name"
+                    disabled={true}
+                    readOnly
+                    placeholder="Auto-filled from QR Code Name"
+                    style={{
+                      backgroundColor: '#f3f4f6',
+                      cursor: 'not-allowed'
+                    }}
                   />
                 </div>
 
@@ -448,6 +475,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                             e.target.nextElementSibling.style.display = 'block';
                           }}
                         />
+
                         <div style={{ display: 'none', color: '#ef4444', fontSize: '12px', marginTop: '8px' }}>
                           QR code image not available
                         </div>
@@ -644,166 +672,223 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                       {mode === 'view' && formData.seats.filter(s => s.qrCodeUrl).length > 0 && (
                         <button
                           type="button"
-                          onClick={() => {
-                          const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
-                          console.log(`📥 Downloading ${seatsWithQR.length} QR codes...`);
-                          
-                          // Download each seat QR with delay to prevent browser blocking
-                          seatsWithQR.forEach((seat, index) => {
-                            setTimeout(() => {
+                          onClick={async () => {
+                            const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
+                            console.log(`📥 Creating ZIP with ${seatsWithQR.length} QR codes...`);
+                            
+                            try {
+                              const zip = new JSZip();
+                              const folder = zip.folder(`${formData.seatClass || formData.name}_QR_Codes`);
+                              
+                              // Fetch all QR code images
+                              const fetchPromises = seatsWithQR.map(async (seat) => {
+                                try {
+                                  const response = await fetch(seat.qrCodeUrl);
+                                  const blob = await response.blob();
+                                  const filename = `${seat.seat}_QR.png`;
+                                  folder.file(filename, blob);
+                                  console.log(`✅ Added ${filename} to ZIP`);
+                                } catch (error) {
+                                  console.error(`❌ Failed to fetch ${seat.seat}:`, error);
+                                }
+                              });
+                              
+                              await Promise.all(fetchPromises);
+                              
+                              // Generate ZIP file
+                              console.log('📦 Generating ZIP file...');
+                              const zipBlob = await zip.generateAsync({ type: 'blob' });
+                              
+                              // Download ZIP
                               const link = document.createElement('a');
-                              link.href = seat.qrCodeUrl;
-                              link.download = `${formData.seatClass || formData.name}_${seat.seat}_QR.png`;
-                              link.target = '_blank';
+                              link.href = URL.createObjectURL(zipBlob);
+                              link.download = `${formData.seatClass || formData.name}_QR_Codes.zip`;
                               document.body.appendChild(link);
                               link.click();
                               document.body.removeChild(link);
+                              URL.revokeObjectURL(link.href);
                               
-                              // Show completion message after last download
-                              if (index === seatsWithQR.length - 1) {
-                                setTimeout(() => {
-                                  alert(`✅ Downloaded ${seatsWithQR.length} QR codes successfully!`);
-                                }, 500);
-                              }
-                            }, index * 300); // 300ms delay between downloads
-                          });
-                        }}
-                        style={{
-                          backgroundColor: 'white',
-                          color: '#8b5cf6',
-                          border: 'none',
-                          padding: '8px 16px',
-                          borderRadius: '6px',
-                          fontSize: '13px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#f3f4f6';
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'white';
-                          e.currentTarget.style.transform = 'scale(1)';
-                        }}
-                      >
-                        <span>⬇️</span>
-                        <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
-                      </button>
-                    )}
+                              console.log('✅ ZIP downloaded successfully!');
+                              alert(`✅ Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
+                            } catch (error) {
+                              console.error('❌ Failed to create ZIP:', error);
+                              alert('❌ Failed to create ZIP file. Please try again.');
+                            }
+                          }}
+                          style={{
+                            backgroundColor: 'white',
+                            color: '#8b5cf6',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'white';
+                            e.currentTarget.style.transform = 'scale(1)';
+                          }}
+                        >
+                          <span>⬇️</span>
+                          <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Seat Grid */}
+                  {/* Seat Grid - Grouped by Row Letter */}
                   <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'auto repeat(20, 1fr)',
-                    gap: '8px',
-                    alignItems: 'center'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
                   }}>
-                    {/* Row Label */}
-                    <div style={{
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      textAlign: 'center'
-                    }}>
-                      A
-                    </div>
+                    {(() => {
+                      // Group seats by their letter prefix
+                      const seatsByRow = {};
+                      formData.seats.forEach(seat => {
+                        const rowLetter = seat.seat.match(/^[A-Za-z]+/)?.[0] || 'Other';
+                        if (!seatsByRow[rowLetter]) {
+                          seatsByRow[rowLetter] = [];
+                        }
+                        seatsByRow[rowLetter].push(seat);
+                      });
 
-                    {/* Seat Buttons */}
-                    {formData.seats.map((seat, index) => (
-                      <div
-                        key={seat._id || index}
-                        style={{
-                          backgroundColor: seat.isActive ? '#8b5cf6' : '#d1d5db',
-                          color: 'white',
-                          padding: '10px 6px',
-                          borderRadius: '6px',
-                          textAlign: 'center',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          position: 'relative',
-                          border: '2px solid transparent',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                        }}
-                        title={mode === 'view' ? `Left-click: Edit | Right-click: Download ${seat.seat}` : `Editing ${seat.seat}`}
-                        onClick={() => {
-                          // In view mode: Trigger seat edit callback
-                          if (mode === 'view' && onSeatEdit) {
-                            const seatData = {
-                              ...formData,
-                              isSeatRow: true,
-                              seatNumber: seat.seat,
-                              qrImageUrl: seat.qrCodeUrl,
-                              isActive: seat.isActive,
-                              scanCount: seat.scanCount || 0,
-                              seatId: seat._id,
-                              parentQRDetailId: formData._id,
-                              parentDocId: formData.parentDocId || formData._id,
-                              _id: `${formData._id}_${seat._id}`,
-                              parentQRName: formData.name,
-                              seatClass: formData.seatClass,
-                              seats: formData.seats
-                            };
-                            
-                            console.log('🪑 Opening seat edit for:', seat.seat);
-                            onSeatEdit(seatData);
-                          }
-                        }}
-                        onContextMenu={(e) => {
-                          e.preventDefault(); // Prevent default context menu
-                          if (seat.qrCodeUrl && mode === 'view') {
-                            // Download QR code for this seat
-                            console.log('📥 Downloading QR for seat:', seat.seat);
-                            
-                            const link = document.createElement('a');
-                            link.href = seat.qrCodeUrl;
-                            link.download = `${formData.seatClass || formData.name}_${seat.seat}_QR.png`;
-                            link.target = '_blank';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            
-                            // Visual feedback
-                            e.currentTarget.style.transform = 'scale(0.95)';
-                            setTimeout(() => {
-                              e.currentTarget.style.transform = 'scale(1)';
-                            }, 150);
-                          }
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                          e.currentTarget.style.borderColor = '#6366f1';
-                          e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.3)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.borderColor = 'transparent';
-                          e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                        }}
-                      >
-                        {index + 1}
-                        {seat.qrCodeUrl && (
+                      // Sort rows alphabetically
+                      const sortedRows = Object.keys(seatsByRow).sort();
+
+                      return sortedRows.map(rowLetter => (
+                        <div key={rowLetter} style={{
+                          display: 'flex',
+                          gap: '8px',
+                          alignItems: 'center'
+                        }}>
+                          {/* Row Label */}
                           <div style={{
-                            position: 'absolute',
-                            top: '-4px',
-                            right: '-4px',
-                            width: '12px',
-                            height: '12px',
-                            backgroundColor: '#10b981',
-                            borderRadius: '50%',
-                            border: '2px solid white'
-                          }} title="QR code available" />
-                        )}
-                      </div>
-                    ))}
+                            minWidth: '30px',
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            textAlign: 'center'
+                          }}>
+                            {rowLetter}
+                          </div>
+
+                          {/* Seat Buttons in this row */}
+                          <div style={{
+                            display: 'flex',
+                            gap: '8px',
+                            flexWrap: 'wrap',
+                            flex: 1
+                          }}>
+                            {seatsByRow[rowLetter]
+                              .sort((a, b) => {
+                                // Sort by number part: A1, A2, A3, etc.
+                                const numA = parseInt(a.seat.match(/\d+/)?.[0] || '0');
+                                const numB = parseInt(b.seat.match(/\d+/)?.[0] || '0');
+                                return numA - numB;
+                              })
+                              .map((seat, index) => (
+                                <div
+                                  key={seat._id || index}
+                                  style={{
+                                    backgroundColor: seat.isActive ? '#8b5cf6' : '#d1d5db',
+                                    color: 'white',
+                                    padding: '10px 16px',
+                                    borderRadius: '6px',
+                                    textAlign: 'center',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    position: 'relative',
+                                    border: '2px solid transparent',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    minWidth: '50px'
+                                  }}
+                                  title={mode === 'view' ? `Left-click: Edit | Right-click: Download ${seat.seat}` : `Editing ${seat.seat}`}
+                                  onClick={() => {
+                                    // In view mode: Trigger seat edit callback
+                                    if (mode === 'view' && onSeatEdit) {
+                                      const seatData = {
+                                        ...formData,
+                                        isSeatRow: true,
+                                        seatNumber: seat.seat,
+                                        qrImageUrl: seat.qrCodeUrl,
+                                        isActive: seat.isActive,
+                                        scanCount: seat.scanCount || 0,
+                                        seatId: seat._id,
+                                        parentQRDetailId: formData._id,
+                                        parentDocId: formData.parentDocId || formData._id,
+                                        _id: `${formData._id}_${seat._id}`,
+                                        parentQRName: formData.name,
+                                        seatClass: formData.seatClass,
+                                        seats: formData.seats
+                                      };
+                                      
+                                      console.log('🪑 Opening seat edit for:', seat.seat);
+                                      onSeatEdit(seatData);
+                                    }
+                                  }}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault(); // Prevent default context menu
+                                    if (seat.qrCodeUrl && mode === 'view') {
+                                      // Download QR code for this seat
+                                      console.log('📥 Downloading QR for seat:', seat.seat);
+                                      
+                                      const link = document.createElement('a');
+                                      link.href = seat.qrCodeUrl;
+                                      link.download = `${formData.seatClass || formData.name}_${seat.seat}_QR.png`;
+                                      link.target = '_blank';
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                      
+                                      // Visual feedback
+                                      e.currentTarget.style.transform = 'scale(0.95)';
+                                      setTimeout(() => {
+                                        e.currentTarget.style.transform = 'scale(1)';
+                                      }, 150);
+                                    }
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1.05)';
+                                    e.currentTarget.style.borderColor = '#6366f1';
+                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.3)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                    e.currentTarget.style.borderColor = 'transparent';
+                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                                  }}
+                                >
+                                  {seat.seat}
+                                  {seat.qrCodeUrl && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      top: '-4px',
+                                      right: '-4px',
+                                      width: '12px',
+                                      height: '12px',
+                                      backgroundColor: '#10b981',
+                                      borderRadius: '50%',
+                                      border: '2px solid white'
+                                    }} title="QR code available" />
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
 
                   {/* Legend */}
@@ -888,7 +973,24 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
               <button 
                 type="button" 
                 className="cancel-btn" 
-                onClick={onClose}
+                onClick={() => {
+                  // Navigate back to parent screen QR view
+                  if (formData.parentQRDetailId) {
+                    const parentQR = {
+                      _id: formData.parentQRDetailId,
+                      parentDocId: formData.parentDocId || formData._id,
+                      name: formData.parentQRName || formData.seatClass,
+                      qrType: 'screen',
+                      seatClass: formData.seatClass,
+                      seats: formData.seats,
+                      qrImageUrl: formData.qrImageUrl,
+                      isActive: formData.isActive
+                    };
+                    onModeChange('view', parentQR);
+                  } else {
+                    onClose();
+                  }
+                }}
                 style={{ marginRight: 'auto' }}
               >
                 Back
@@ -927,7 +1029,10 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
               <button 
                 type="button" 
                 className="cancel-btn" 
-                onClick={onClose}
+                onClick={() => {
+                  // Switch back to view mode instead of closing
+                  onModeChange('view');
+                }}
                 style={{ marginRight: 'auto' }}
               >
                 Back
@@ -1554,14 +1659,67 @@ const TheaterQRDetail = () => {
   };
 
   const downloadQRCode = async (qrCode) => {
-    console.log('📥 Download button clicked!', { qrCode: qrCode.name, id: qrCode._id });
+    console.log('📥 Download button clicked!', { qrCode: qrCode.name, id: qrCode._id, qrType: qrCode.qrType });
     try {
       if (!qrCode._id) {
         console.error('❌ No QR code ID available');
-        // Removed error modal - errors logged to console only
         return;
       }
       
+      // Check if this is a screen QR with seats
+      if (qrCode.qrType === 'screen' && qrCode.seats && qrCode.seats.length > 0) {
+        const seatsWithQR = qrCode.seats.filter(s => s.qrCodeUrl);
+        
+        if (seatsWithQR.length === 0) {
+          showError('No QR codes available to download');
+          return;
+        }
+        
+        console.log(`📥 Creating ZIP with ${seatsWithQR.length} seat QR codes...`);
+        
+        try {
+          const zip = new JSZip();
+          const folderName = `${qrCode.seatClass || qrCode.name}_QR_Codes`;
+          const folder = zip.folder(folderName);
+          
+          // Fetch all seat QR code images
+          const fetchPromises = seatsWithQR.map(async (seat) => {
+            try {
+              const response = await fetch(seat.qrCodeUrl);
+              const blob = await response.blob();
+              const filename = `${seat.seat}_QR.png`;
+              folder.file(filename, blob);
+              console.log(`✅ Added ${filename} to ZIP`);
+            } catch (error) {
+              console.error(`❌ Failed to fetch ${seat.seat}:`, error);
+            }
+          });
+          
+          await Promise.all(fetchPromises);
+          
+          // Generate ZIP file
+          console.log('📦 Generating ZIP file...');
+          const zipBlob = await zip.generateAsync({ type: 'blob' });
+          
+          // Download ZIP
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(zipBlob);
+          link.download = `${folderName}.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+          
+          console.log('✅ ZIP downloaded successfully!');
+          showSuccess(`Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
+        } catch (error) {
+          console.error('❌ Failed to create ZIP:', error);
+          showError('Failed to create ZIP file. Please try again.');
+        }
+        return;
+      }
+      
+      // Single QR code download (original logic)
       console.log('🔗 QR Code ID:', qrCode._id);
       
       // Create clean filename
@@ -1654,18 +1812,6 @@ const TheaterQRDetail = () => {
   };
 
   const deleteSeat = async (seatId, seatName) => {
-    const confirmed = await new Promise((resolve) => {
-      alert({
-        title: 'Delete Seat',
-        message: `Are you sure you want to delete ${seatName}? This action cannot be undone.`,
-        type: 'warning',
-        onConfirm: () => resolve(true),
-        onCancel: () => resolve(false)
-      });
-    });
-    
-    if (!confirmed) return;
-    
     // Get the parent document ID and detail ID from the current crud modal data
     const parentDocId = crudModal.qrCode?.parentDocId;
     const parentQRDetailId = crudModal.qrCode?.parentQRDetailId;
@@ -1674,6 +1820,11 @@ const TheaterQRDetail = () => {
       showError('Missing required information to delete seat');
       return;
     }
+
+    // Use browser confirm dialog
+    const confirmed = window.confirm(`Are you sure you want to delete ${seatName}? This action cannot be undone.`);
+    
+    if (!confirmed) return;
     
     try {
       setActionLoading(prev => ({ ...prev, [seatId]: true }));
@@ -1830,11 +1981,13 @@ const TheaterQRDetail = () => {
           {/* Global Vertical Header Component */}
           <VerticalPageHeader
             title={theater?.name || 'Loading Theater...'}
-            showBackButton={false}
+            showBackButton={true}
+            backButtonPath="/qr-management"
+            backButtonText="Back to QR Management"
             actionButton={
               <button 
                 className="header-btn"
-                onClick={() => console.log('Generate QR Codes clicked')}
+                onClick={() => navigate(`/qr-generate?theaterId=${theaterId}`)}
               >
                 <span className="btn-icon">
                   <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
@@ -1888,19 +2041,18 @@ const TheaterQRDetail = () => {
                 </div>
                 
                 {/* QR Grid */}
-                <div className="table-container">
-                  <div className="table-wrapper">
-                    <table className="theater-table">
-                      <thead>
-                        <tr>
-                          <th className="sno-col">S NO</th>
-                          <th className="name-col">QR CODE NAME</th>
-                          <th className="access-status-col">ACCESS STATUS</th>
-                          <th className="status-col">STATUS</th>
-                          <th className="actions-col">ACTION</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                <div className="theater-table-container">
+                  <table className="theater-table">
+                    <thead>
+                      <tr>
+                        <th className="sno-col">S NO</th>
+                        <th className="name-col">QR CODE NAME</th>
+                        <th className="access-status-col">ACCESS STATUS</th>
+                        <th className="status-col">STATUS</th>
+                        <th className="actions-col">ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                         {currentQRs.length === 0 ? (
                           <tr>
                             <td colSpan="5" className="no-data">
@@ -2016,7 +2168,6 @@ const TheaterQRDetail = () => {
                         )}
                       </tbody>
                     </table>
-                  </div>
                 </div>
               </div>
             </div>
@@ -2032,10 +2183,20 @@ const TheaterQRDetail = () => {
               onClose={closeCrudModal}
               onSave={handleCrudSave}
               onDelete={crudModal.qrCode?.isSeatRow ? deleteSeat : deleteQRCode}
-              onModeChange={(mode) => setCrudModal(prev => ({ ...prev, mode }))}
+              onModeChange={(mode, newQrCode) => {
+                if (newQrCode) {
+                  // Update both mode and QR code data (for navigating back to parent)
+                  setCrudModal(prev => ({ ...prev, mode, qrCode: newQrCode }));
+                } else {
+                  // Just update the mode
+                  setCrudModal(prev => ({ ...prev, mode }));
+                }
+              }}
               actionLoading={actionLoading}
               displayImageUrl={displayImageUrl}
               onToggleStatus={toggleQRStatus}
+              qrNames={qrNames}
+              existingQRNames={Object.keys(qrCodesByName)}
               onSeatEdit={(seatData) => {
                 // Close current modal and open seat edit modal
                 closeCrudModal();
@@ -2099,6 +2260,189 @@ const TheaterQRDetail = () => {
               width: 95% !important;
               max-width: none !important;
             }
+          }
+
+          /* ============================================
+             COMPREHENSIVE TABLE RESPONSIVE DESIGN
+             ============================================ */
+          
+          /* Table base styling */
+          .theater-user-settings-content .theater-table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            background: white;
+            table-layout: auto !important;
+            border: 1px solid #d1d5db;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          }
+
+          /* Table header styling */
+          .theater-user-settings-content .theater-table thead {
+            background: linear-gradient(135deg, #6B0E9B 0%, #8B2FB8 100%);
+            box-shadow: 0 2px 4px rgba(107, 14, 155, 0.1);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+          }
+
+          .theater-user-settings-content .theater-table thead tr {
+            border-bottom: 2px solid #5A0C82;
+          }
+
+          .theater-user-settings-content .theater-table th {
+            padding: 18px 16px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border: none;
+            position: relative;
+            white-space: nowrap;
+            color: white !important;
+          }
+
+          .theater-user-settings-content .theater-table th::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 25%;
+            height: 50%;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.2);
+          }
+
+          .theater-user-settings-content .theater-table th:last-child::after {
+            display: none;
+          }
+
+          /* Table body styling */
+          .theater-user-settings-content .theater-table tbody tr {
+            border-bottom: 1px solid #e5e7eb;
+            background: #ffffff;
+            transition: all 0.2s ease;
+          }
+
+          .theater-user-settings-content .theater-table tbody tr:nth-child(even) {
+            background: #f9fafb;
+          }
+
+          .theater-user-settings-content .theater-table tbody tr:hover {
+            background: #f0f9ff !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transform: translateY(-1px);
+          }
+
+          .theater-user-settings-content .theater-table td {
+            padding: 16px 12px;
+            vertical-align: middle;
+            border-right: 1px solid #f3f4f6;
+          }
+
+          .theater-user-settings-content .theater-table td:last-child {
+            border-right: none;
+          }
+
+          /* Column Widths */
+          .theater-user-settings-content .theater-table .sno-col { 
+            width: 80px; 
+            min-width: 70px;
+            text-align: center;
+          }
+          
+          .theater-user-settings-content .theater-table .name-col { 
+            width: 200px; 
+            min-width: 180px;
+          }
+          
+          .theater-user-settings-content .theater-table .access-status-col { 
+            width: 150px; 
+            min-width: 130px;
+            text-align: center;
+          }
+          
+          .theater-user-settings-content .theater-table .status-col { 
+            width: 130px; 
+            min-width: 120px;
+            text-align: center;
+          }
+          
+          .theater-user-settings-content .theater-table .actions-col { 
+            width: 180px; 
+            min-width: 160px;
+            text-align: center;
+          }
+
+          /* S.No cell styling */
+          .theater-user-settings-content .theater-table .sno-cell {
+            text-align: center;
+          }
+
+          .theater-user-settings-content .theater-table .sno-number {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            line-height: 32px;
+            background: #f3f4f6;
+            border-radius: 50%;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #6b7280;
+          }
+
+          /* Name cell styling */
+          .theater-user-settings-content .theater-table .name-cell {
+            font-weight: 600;
+            color: #111827;
+            text-align: left;
+            padding-left: 20px;
+          }
+
+          /* Access Status cell styling */
+          .theater-user-settings-content .theater-table .access-status-cell {
+            text-align: center;
+          }
+
+          /* Status cell styling */
+          .theater-user-settings-content .theater-table .status-cell {
+            text-align: center;
+          }
+
+          /* Actions cell styling */
+          .theater-user-settings-content .theater-table .actions-cell {
+            text-align: center;
+          }
+
+          /* Enhanced action buttons styling */
+          .theater-user-settings-content .action-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: nowrap;
+          }
+
+          /* Status badge styling */
+          .theater-user-settings-content .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          .theater-user-settings-content .status-badge.active {
+            background: #d1fae5;
+            color: #065f46;
+          }
+
+          .theater-user-settings-content .status-badge.inactive {
+            background: #fee2e2;
+            color: #991b1b;
           }
         `
       }} />
