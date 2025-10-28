@@ -681,13 +681,23 @@ const TheaterOrderHistory = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan="8" className="no-data">
-                    <div className="empty-state">
-                      <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '48px', height: '48px', opacity: 0.3}}>
+                  <td colSpan="9" className="no-data" style={{ padding: '0', border: 'none' }}>
+                    <div className="empty-state" style={{ 
+                      margin: '20px auto',
+                      maxWidth: '600px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '400px',
+                      padding: '60px 40px',
+                      textAlign: 'center'
+                    }}>
+                      <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '64px', height: '64px', opacity: 0.3, marginBottom: '24px', color: '#8B5CF6'}}>
                         <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
                       </svg>
-                      <p>No orders found</p>
-                      <p style={{fontSize: '14px', color: '#666'}}>
+                      <h3 style={{ fontSize: '24px', marginBottom: '12px', color: '#1f2937' }}>No orders found</h3>
+                      <p style={{fontSize: '16px', color: '#6b7280', margin: '0'}}>
                         Orders will appear here once customers start placing them
                       </p>
                     </div>

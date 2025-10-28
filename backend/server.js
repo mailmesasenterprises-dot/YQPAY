@@ -175,6 +175,7 @@ app.use('/api/theater-kiosk-types', require('./routes/theater-kiosk-types'));
 app.use('/api/theater-product-types', productRoutes.productTypes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/sms', require('./routes/sms-test')); // SMS testing routes
 app.use('/api/upload', uploadRoutes);
 app.use('/api/theater-stock', stockRoutes);
 app.use('/api/page-access', pageAccessArrayRoutes); // NEW - Array-based structure

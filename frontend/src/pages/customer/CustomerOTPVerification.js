@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import config from '../../config';
 import '../../styles/customer/CustomerOTPVerification.css';
 
 const CustomerOTPVerification = () => {
@@ -101,22 +102,49 @@ const CustomerOTPVerification = () => {
     setError('');
 
     try {
-      // Simulate API call to verify OTP
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      console.log('🔍 Verifying OTP:', otpString);
+      console.log('📞 Phone:', phoneNumber);
       
-      // Save phone number to localStorage for order history
-      localStorage.setItem('customerPhone', phoneNumber);
+      // Call actual API to verify OTP - Use dynamic API URL
+      const apiUrl = `${config.api.baseUrl}/sms/verify-otp`;
+      console.log('🌐 API URL:', apiUrl);
       
-      // For demo, accept any 4-digit OTP
-      // In real app, verify with backend
-      navigate('/customer/payment', { 
-        state: { 
-          phoneNumber,
-          verified: true 
-        }
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber,
+          otp: otpString,
+          purpose: 'order_verification'
+        })
       });
+
+      const result = await response.json();
+      console.log('📥 Verification Response:', result);
+
+      if (result.success) {
+        console.log('✅ OTP verified successfully!');
+        
+        // Save phone number to localStorage for order history
+        localStorage.setItem('customerPhone', phoneNumber);
+        
+        // Navigate to payment page
+        navigate('/customer/payment', { 
+          state: { 
+            phoneNumber,
+            verified: true 
+          }
+        });
+      } else {
+        setError(result.error || 'Invalid OTP. Please try again.');
+        setOtp(['', '', '', '']);
+        inputRefs.current[0]?.focus();
+      }
     } catch (err) {
-      setError('Invalid OTP. Please try again.');
+      console.error('❌ Verification Error:', err);
+      setError('Failed to verify OTP. Please try again.');
       setOtp(['', '', '', '']);
       inputRefs.current[0]?.focus();
     } finally {
@@ -131,19 +159,39 @@ const CustomerOTPVerification = () => {
     setError('');
     
     try {
-      // Simulate API call to resend OTP
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('🔄 Resending OTP to:', phoneNumber);
       
-      // Reset timer
-      setResendTimer(30);
-      setCanResend(false);
+      // Call API to resend OTP - Use dynamic API URL
+      const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
+      console.log('🌐 API URL:', apiUrl);
       
-      // Clear OTP inputs
-      setOtp(['', '', '', '']);
-      inputRefs.current[0]?.focus();
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber,
+          purpose: 'order_verification'
+        })
+      });
 
-      // Start new countdown
-      const timer = setInterval(() => {
+      const result = await response.json();
+      console.log('📥 Resend Response:', result);
+
+      if (result.success) {
+        console.log('✅ OTP resent successfully!');
+        
+        // Reset timer
+        setResendTimer(30);
+        setCanResend(false);
+        
+        // Clear OTP inputs
+        setOtp(['', '', '', '']);
+        inputRefs.current[0]?.focus();
+
+        // Start new countdown
+        const timer = setInterval(() => {
         setResendTimer((prev) => {
           if (prev <= 1) {
             setCanResend(true);
@@ -153,8 +201,13 @@ const CustomerOTPVerification = () => {
           return prev - 1;
         });
       }, 1000);
+      } else {
+        console.error('❌ Failed to resend OTP:', result.message);
+        setError(result.message || 'Failed to resend OTP. Please try again.');
+      }
 
     } catch (err) {
+      console.error('❌ Resend OTP Error:', err);
       setError('Failed to resend OTP. Please try again.');
     } finally {
       setLoading(false);

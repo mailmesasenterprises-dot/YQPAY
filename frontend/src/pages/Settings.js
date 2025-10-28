@@ -129,11 +129,15 @@ const Settings = React.memo(() => {
     msg91ApiKey: '',
     msg91SenderId: '',
     msg91Route: '4',
+    msg91TemplateId: '',
+    msg91TemplateVariable: 'OTP',
     // General Settings
     otpLength: 6,
     otpExpiry: 300, // 5 minutes in seconds
     maxRetries: 3,
-    enabled: false
+    enabled: false,
+    // Test Phone Number
+    testPhoneNumber: ''
   });
   const [connectionStatus, setConnectionStatus] = useState({
     firebase: 'disconnected',
@@ -359,13 +363,27 @@ const Settings = React.memo(() => {
         }
 
         // Load SMS config
+        console.log('🔍 Loading SMS configuration...');
         const smsResponse = await apiGet('/settings/sms');
+        console.log('📡 SMS Response Status:', smsResponse.status, smsResponse.ok);
         if (smsResponse.ok) {
           const smsData = await smsResponse.json();
-          const config = smsData.data?.config || {};
+          console.log('📦 SMS Raw Response:', smsData);
+          const config = smsData.data || {};
+          console.log('📋 SMS Config to merge:', config);
           if (config && Object.keys(config).length > 0) {
-            setSmsConfig(prevConfig => ({ ...prevConfig, ...config }));
+            console.log('✅ Merging SMS config into state...');
+            setSmsConfig(prevConfig => {
+              const merged = { ...prevConfig, ...config };
+              console.log('🔄 Previous SMS Config:', prevConfig);
+              console.log('🆕 Merged SMS Config:', merged);
+              return merged;
+            });
+          } else {
+            console.log('⚠️ No SMS config data to merge');
           }
+        } else {
+          console.log('❌ SMS config request failed:', smsResponse.status);
         }
 
         // Load General settings
@@ -428,10 +446,15 @@ const Settings = React.memo(() => {
   }, []);
 
   const handleSMSChange = useCallback((field, value) => {
-    setSmsConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    console.log(`📝 SMS Change - Field: ${field}, Value:`, value);
+    setSmsConfig(prev => {
+      const updated = {
+        ...prev,
+        [field]: value
+      };
+      console.log('🔄 Updated SMS Config:', updated);
+      return updated;
+    });
   }, []);
 
   // Memoized tab change handler
@@ -439,30 +462,59 @@ const Settings = React.memo(() => {
     setActiveTab(tabId);
   }, []);
 
-  // Test SMS connection
+  // Test SMS connection by sending actual OTP
   const testSMSConnection = async () => {
+    console.log('🧪 Testing SMS Connection by sending OTP...');
+    
+    if (!smsConfig.testPhoneNumber) {
+      showError('Please enter a test phone number first');
+      return;
+    }
+    
+    if (smsConfig.testPhoneNumber.length !== 10) {
+      showError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+    
+    const fullPhoneNumber = '+91' + smsConfig.testPhoneNumber;
+    console.log('📤 Sending test OTP to:', fullPhoneNumber);
     setLoading(true);
+    
     try {
-      const response = await apiPost('/settings/test-sms', smsConfig);
+      // Generate OTP based on configured length
+      const otpLength = smsConfig.otpLength || 6;
+      const min = Math.pow(10, otpLength - 1);
+      const max = Math.pow(10, otpLength) - 1;
+      const testOTP = Math.floor(min + Math.random() * (max - min + 1)).toString();
+      
+      console.log('🔢 Generated OTP:', testOTP, `(${otpLength} digits)`);
+      
+      const response = await apiPost('/sms/send-test-otp', {
+        phoneNumber: fullPhoneNumber,
+        otp: testOTP
+      });
+      
+      console.log('📡 Test SMS Response Status:', response.status);
       const result = await response.json();
+      console.log('📦 Test SMS Result:', result);
       
       setConnectionStatus(prev => ({
         ...prev,
         sms: result.success ? 'connected' : 'error'
       }));
       
-      const message = result.message || (result.success ? 'SMS connection successful!' : 'SMS connection failed!');
       if (result.success) {
-        showSuccess(message);
+        showSuccess(`✅ OTP sent successfully to ${fullPhoneNumber}! Check your phone for ${otpLength}-digit OTP: ${testOTP}`);
       } else {
-        showError(message);
+        showError(result.message || 'Failed to send OTP');
       }
     } catch (error) {
+      console.error('❌ Test SMS Error:', error);
       setConnectionStatus(prev => ({
         ...prev,
         sms: 'error'
       }));
-      showError('Error testing SMS connection');
+      showError('Error sending test OTP. Please check your configuration.');
     } finally {
       setLoading(false);
     }
@@ -1193,7 +1245,7 @@ const Settings = React.memo(() => {
                       <input
                         id="msg91-apiKey"
                         type="password"
-                        value={smsConfig.msg91ApiKey}
+                        value={smsConfig.msg91ApiKey || ''}
                         onChange={(e) => handleSMSChange('msg91ApiKey', e.target.value)}
                         placeholder="Your MSG91 API Key"
                         className="form-control"
@@ -1204,7 +1256,7 @@ const Settings = React.memo(() => {
                       <input
                         id="msg91-senderId"
                         type="text"
-                        value={smsConfig.msg91SenderId}
+                        value={smsConfig.msg91SenderId || ''}
                         onChange={(e) => handleSMSChange('msg91SenderId', e.target.value)}
                         placeholder="MSGIND"
                         maxLength="6"
@@ -1213,16 +1265,28 @@ const Settings = React.memo(() => {
                       <small className="help-text">6 characters max (approved sender ID)</small>
                     </div>
                     <div className="form-group">
-                      <label htmlFor="msg91-route" data-required="true">Route</label>
-                      <select
-                        id="msg91-route"
-                        value={smsConfig.msg91Route}
-                        onChange={(e) => handleSMSChange('msg91Route', e.target.value)}
+                      <label htmlFor="msg91-templateId" data-required="true">Template ID</label>
+                      <input
+                        id="msg91-templateId"
+                        type="text"
+                        value={smsConfig.msg91TemplateId || ''}
+                        onChange={(e) => handleSMSChange('msg91TemplateId', e.target.value)}
+                        placeholder="67f60904d6fc053aa622bdc2"
                         className="form-control"
-                      >
-                        <option value="1">Promotional</option>
-                        <option value="4">Transactional</option>
-                      </select>
+                      />
+                      <small className="help-text">MSG91 approved template ID for OTP messages</small>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="msg91-templateVariable" data-required="true">Template Variable</label>
+                      <input
+                        id="msg91-templateVariable"
+                        type="text"
+                        value={smsConfig.msg91TemplateVariable || ''}
+                        onChange={(e) => handleSMSChange('msg91TemplateVariable', e.target.value)}
+                        placeholder="OTP"
+                        className="form-control"
+                      />
+                      <small className="help-text">Variable name used in your MSG91 template</small>
                     </div>
                   </div>
                 </div>
@@ -1287,13 +1351,46 @@ const Settings = React.memo(() => {
                 </div>
               </div>
 
+              {/* Test Phone Number */}
+              <div className="test-phone-section">
+                <h3>Test Configuration</h3>
+                <div className="form-group">
+                  <label htmlFor="test-phone">Test Phone Number</label>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <input
+                      type="text"
+                      value="+91"
+                      disabled
+                      style={{ width: '60px', backgroundColor: '#f0f0f0' }}
+                      className="form-control"
+                    />
+                    <input
+                      id="test-phone"
+                      type="tel"
+                      value={smsConfig.testPhoneNumber || ''}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, ''); // Only digits
+                        if (value.length <= 10) {
+                          handleSMSChange('testPhoneNumber', value);
+                        }
+                      }}
+                      placeholder="9876543210"
+                      className="form-control"
+                      maxLength="10"
+                      style={{ flex: 1 }}
+                    />
+                  </div>
+                  <small className="help-text">Enter 10-digit mobile number (automatically adds +91)</small>
+                </div>
+              </div>
+
               {/* Action Buttons */}
               <div className="form-actions">
                 <button 
                   type="button"
                   className="settings-button secondary" 
                   onClick={testSMSConnection}
-                  disabled={loading || !smsConfig.enabled}
+                  disabled={loading || !smsConfig.testPhoneNumber || smsConfig.testPhoneNumber.length !== 10}
                 >
                   {loading ? 'Testing...' : 'Test Connection'}
                 </button>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import config from '../../config';
 import '../../styles/customer/CustomerPhoneEntry.css';
 
 const CustomerPhoneEntry = () => {
@@ -58,17 +59,43 @@ const CustomerPhoneEntry = () => {
     setError('');
 
     try {
-      console.log('✅ Navigating to OTP page with:', countryCode + phoneNumber);
-      // Simulate API call to send OTP
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const fullPhoneNumber = countryCode + phoneNumber;
+      console.log('📤 Sending OTP to:', fullPhoneNumber);
       
-      // Navigate to OTP verification page with phone number
-      navigate('/customer/otp-verification', { 
-        state: { phoneNumber: countryCode + phoneNumber }
+      // Call actual API to send OTP - Use dynamic API URL
+      const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
+      console.log('🌐 API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber: fullPhoneNumber,
+          purpose: 'order_verification'
+        })
       });
+
+      const result = await response.json();
+      console.log('📥 API Response:', result);
+
+      if (result.success) {
+        console.log('✅ OTP sent successfully!');
+        // Navigate to OTP verification page with phone number
+        navigate('/customer/otp-verification', { 
+          state: { 
+            phoneNumber: fullPhoneNumber,
+            otpLength: result.data?.otpLength || 4,
+            expiresIn: result.data?.expiresIn || 300
+          }
+        });
+      } else {
+        setError(result.error || 'Failed to send OTP. Please try again.');
+      }
     } catch (err) {
       console.error('❌ Error:', err);
-      setError('Failed to send OTP. Please try again.');
+      setError('Failed to send OTP. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

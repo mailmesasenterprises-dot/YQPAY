@@ -131,13 +131,6 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
           </div>
         )}
 
-        {/* Size/Quantity Badge - Bottom Left */}
-        {(product.quantity || product.sizeLabel) && (
-          <div className="modern-size-badge">
-            {(product.quantity || product.sizeLabel || '').toString().toLowerCase()}
-          </div>
-        )}
-
         {/* Quantity Badge */}
         {quantityInCart > 0 && !isOutOfStock && (
           <div className="modern-quantity-badge">
@@ -292,9 +285,22 @@ const OnlinePOSInterface = () => {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [newOrderIds, setNewOrderIds] = useState([]); // Track new orders for flashing
   const isMountedRef = useRef(true);
+  const isInitialLoadRef = useRef(true); // Track if this is the first load
   
   // Performance monitoring
   usePerformanceMonitoring('TheaterOrderInterface');
+
+  // MOUNT EFFECT - Clear flash animation state on component mount
+  useEffect(() => {
+    console.log('🔄 Component mounted - Resetting flash state');
+    setNewOrderIds([]); // Clear any flash animations
+    isInitialLoadRef.current = true; // Reset initial load flag
+    
+    return () => {
+      console.log('🔄 Component unmounting - Cleaning up');
+      setNewOrderIds([]); // Clear on unmount too
+    };
+  }, []); // Empty dependency - run only on mount/unmount
 
   // CLEANUP FUNCTION - Clear any persistent state/CSS issues
   useEffect(() => {
@@ -843,8 +849,28 @@ const OnlinePOSInterface = () => {
           
           // Check for new orders
           setOnlineOrders(prevOrders => {
+            console.log('🔍 Checking orders:', {
+              isInitialLoad: isInitialLoadRef.current,
+              prevOrdersCount: prevOrders.length,
+              newOrdersCount: data.orders.length,
+              currentNewOrderIds: newOrderIds.length
+            });
+            
+            // On initial load, don't trigger animations regardless of order count
+            if (isInitialLoadRef.current) {
+              console.log('📥 Initial load - skipping animation and beep');
+              isInitialLoadRef.current = false;
+              return data.orders;
+            }
+            
+            // For subsequent loads, check for genuinely new orders
             const prevOrderIds = prevOrders.map(order => order._id);
             const newOrders = data.orders.filter(order => !prevOrderIds.includes(order._id));
+            
+            console.log('🔍 New orders check:', {
+              prevOrderIds: prevOrderIds.length,
+              newOrdersFound: newOrders.length
+            });
             
             if (newOrders.length > 0) {
               console.log(`🔔 ${newOrders.length} new order(s) received!`);
@@ -856,10 +882,12 @@ const OnlinePOSInterface = () => {
               
               // Mark new orders for flashing
               const newIds = newOrders.map(order => order._id);
+              console.log('✨ Setting flash for order IDs:', newIds);
               setNewOrderIds(newIds);
               
               // Remove flashing after 5 seconds
               setTimeout(() => {
+                console.log('⏰ Clearing flash animation after 5s');
                 setNewOrderIds([]);
               }, 5000);
             }
@@ -879,13 +907,20 @@ const OnlinePOSInterface = () => {
   useEffect(() => {
     if (!theaterId) return;
 
+    // Reset initial load flag when theater changes
+    isInitialLoadRef.current = true;
+
     fetchOnlineOrders(); // Initial fetch
 
     const interval = setInterval(() => {
       fetchOnlineOrders();
     }, 10000); // Poll every 10 seconds
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // Reset flag on cleanup
+      isInitialLoadRef.current = true;
+    };
   }, [theaterId, fetchOnlineOrders]);
 
   // Calculate order totals with dynamic GST and discount handling
@@ -970,48 +1005,42 @@ const OnlinePOSInterface = () => {
     return filtered;
   }, [products, selectedCategory, searchTerm, categories, categoryMapping]);
 
-  // Navigate to View Cart page with order data
+  // Navigate to view-cart page with order data
   const processOrder = useCallback(() => {
-    alert('🚀 PROCESS ORDER BUTTON CLICKED! Testing navigation...');
-    
-
-
     if (!currentOrder.length) {
       alert('Please add items to order');
       return;
     }
 
-    // Prepare cart data to pass to ViewCart page
+    // Prepare cart data with current order
     const cartData = {
       items: currentOrder,
-      customerName: 'POS', // Default customer name
+      customerName: customerName.trim() || 'POS Customer',
       notes: orderNotes.trim(),
       images: orderImages,
       subtotal: orderTotals.subtotal,
       tax: orderTotals.tax,
       total: orderTotals.total,
       totalDiscount: orderTotals.totalDiscount,
-      theaterId
+      theaterId,
+      source: 'online-pos'
     };
-
-
+    
     try {
-      // Store cart data in sessionStorage for navigation
+      // Store in sessionStorage for ViewCart page
       sessionStorage.setItem('cartData', JSON.stringify(cartData));
       
-      // Try React Router navigation first
-      if (navigate && typeof navigate === 'function') {
-        navigate(`/view-cart/${theaterId}`, { 
-          state: { ...cartData, source: 'online-pos' }
-        });
-      } else {
-        // Fallback to window.location
-        window.location.href = `/view-cart/${theaterId}?source=online-pos`;
-      }
+      console.log('📦 Navigating to view-cart with data:', cartData);
+      
+      // Navigate to view cart page
+      navigate(`/view-cart/${theaterId}`, {
+        state: cartData
+      });
     } catch (error) {
-      alert('Navigation failed: ' + error.message);
-      // Final fallback
-      window.location.href = `/view-cart/${theaterId}?source=online-pos`;
+      console.error('❌ Navigation error:', error);
+      // Fallback to window.location
+      sessionStorage.setItem('cartData', JSON.stringify(cartData));
+      window.location.href = `/view-cart/${theaterId}`;
     }
   }, [currentOrder, customerName, orderNotes, orderImages, orderTotals, theaterId, navigate]);
 
@@ -1127,19 +1156,29 @@ const OnlinePOSInterface = () => {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {onlineOrders.map((order, index) => (
-                    <div 
-                      key={order._id || index} 
-                      className={newOrderIds.includes(order._id) ? 'new-order-flash' : ''}
-                      style={{
-                        border: '2px solid #e5e7eb',
-                        borderRadius: '8px',
-                        padding: '16px',
-                        backgroundColor: '#fafafa',
-                        fontSize: '13px'
-                      }}>
-                      {/* 1. Order Number */}
-                      <div style={{
+                  {onlineOrders.map((order, index) => {
+                    const shouldFlash = newOrderIds.includes(order._id);
+                    if (index === 0) {
+                      console.log('🎨 Rendering first order:', {
+                        orderId: order._id,
+                        shouldFlash,
+                        newOrderIds: newOrderIds
+                      });
+                    }
+                    
+                    return (
+                      <div 
+                        key={order._id || index} 
+                        className={shouldFlash ? 'new-order-flash' : ''}
+                        style={{
+                          border: '2px solid #e5e7eb',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          backgroundColor: '#fafafa',
+                          fontSize: '13px'
+                        }}>
+                        {/* 1. Order Number with Total Amount in Same Line */}
+                        <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -1153,6 +1192,13 @@ const OnlinePOSInterface = () => {
                           color: '#1f2937'
                         }}>
                            {order.orderNumber || `Order #${index + 1}`}
+                        </span>
+                        <span style={{
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          color: '#6B0E9B'
+                        }}>
+                          ₹{order.pricing?.total?.toFixed(2) || order.total?.toFixed(2) || '0.00'}
                         </span>
                       </div>
 
@@ -1168,27 +1214,9 @@ const OnlinePOSInterface = () => {
                            {order.qrName || order.screenName || order.tableNumber || 'N/A'} |  {order.seat || order.seatNumber || order.customerInfo?.seat || 'N/A'}
                         </span>
                       </div>
-
-                      {/* 4. Total Amount */}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginTop: '12px',
-                        paddingTop: '8px',
-                        borderTop: '1px solid #e5e7eb'
-                      }}>
-                        <span style={{ color: '#1f2937', fontWeight: 'bold' }}>Total:</span>
-                        <span style={{
-                          fontSize: '16px',
-                          fontWeight: 'bold',
-                          color: '#6B0E9B'
-                        }}>
-                          ₹{order.pricing?.total?.toFixed(2) || order.total?.toFixed(2) || '0.00'}
-                        </span>
-                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1330,28 +1358,7 @@ const OnlinePOSInterface = () => {
                   <div className="pos-actions">
                     <button 
                       className="pos-process-btn"
-                      onClick={() => {
-                  
-                        
-                        // Prepare cart data with current order
-                        const cartData = {
-                          items: currentOrder,
-                          customerName: 'POS', // Default customer name
-                          notes: orderNotes.trim(),
-                          images: orderImages,
-                          subtotal: orderTotals.subtotal,
-                          tax: orderTotals.tax,
-                          total: orderTotals.total,
-                          totalDiscount: orderTotals.totalDiscount,
-                          theaterId
-                        };
-                        
-                        // Store in sessionStorage for ViewCart page
-                        sessionStorage.setItem('cartData', JSON.stringify(cartData));
-                        
-                        // Navigate to view cart
-                        window.location.href = `/view-cart/${theaterId}`;
-                      }}
+                      onClick={processOrder}
                       disabled={currentOrder.length === 0}
                       style={{
                         backgroundColor: currentOrder.length === 0 ? '#9ca3af' : '#6B0E9B',

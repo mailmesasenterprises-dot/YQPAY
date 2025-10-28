@@ -26,8 +26,8 @@
   box-shadow: none;
   overflow: hidden;
   display: flex;
-  min-height: 600px;
-  height: 100%;
+  min-height: calc(100vh - 180px);
+  height: calc(100vh - 180px);
 }
 
 .theater-user-settings-tabs {
@@ -38,7 +38,7 @@
   width: 280px;
   min-width: 280px;
   height: 100%;
-  min-height: 100%;
+  overflow-y: auto;
 }
 
 .theater-user-settings-tab {
@@ -127,7 +127,7 @@
   padding: 32px;
   background: transparent;
   height: 100%;
-  min-height: 100%;
+  overflow-y: auto;
 }
 
 .theater-user-settings-section {

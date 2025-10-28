@@ -71,6 +71,7 @@ const TheaterOrderInterface = React.lazy(() => import('./pages/theater/TheaterOr
 const OnlinePOSInterface = React.lazy(() => import('./pages/theater/OnlinePOSInterface'));
 const ViewCart = React.lazy(() => import('./pages/theater/ViewCart'));
 const ProfessionalPOSInterface = React.lazy(() => import('./pages/theater/ProfessionalPOSInterface'));
+const OnlineOrderHistory = React.lazy(() => import('./pages/theater/OnlineOrderHistory'));
 const AddProduct = React.lazy(() => import('./pages/theater/AddProduct'));
 const TestAddProductDropdowns = React.lazy(() => import('./components/TestAddProductDropdowns'));
 const AuthDebugPage = React.lazy(() => import('./pages/AuthDebugPage'));
@@ -166,12 +167,13 @@ function App() {
                 <Route path="/theater-user-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterUserManagement']}><TheaterUserManagementPage /></RoleBasedRoute>} />
                 {/* <Route path="/staff-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StaffOrderHistory /></RoleBasedRoute>} /> */} {/* ❌ Component doesn't exist */}
                 <Route path="/theater-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterProductList']}><TheaterProductList /></RoleBasedRoute>} />
-                <Route path="/theater-stock-management/:theaterId/:productId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['StockManagement']}><StockManagement /></RoleBasedRoute>} />
+                <Route path="/theater-stock-management/:theaterId/:productId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} ><StockManagement /></RoleBasedRoute>} />
                 <Route path="/test-stock-management/:theaterId/:productId" element={<TestStockManagement />} />
                 <Route path="/simple-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['SimpleProductList']}><SimpleProductList /></RoleBasedRoute>} />
                 <Route path="/theater-order/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterOrderInterface']}><TheaterOrderInterface /></RoleBasedRoute>} />
                 <Route path="/online-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['OnlinePOSInterface']}><OnlinePOSInterface /></RoleBasedRoute>} />
-                <Route path="/view-cart/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['ViewCart']}><ViewCart /></RoleBasedRoute>} />
+                <Route path="/online-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><OnlineOrderHistory /></RoleBasedRoute>} />
+                <Route path="/view-cart/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><ViewCart /></RoleBasedRoute>} />
                 <Route path="/theater-order-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['ProfessionalPOSInterface']}><ProfessionalPOSInterface /></RoleBasedRoute>} />
                 <Route path="/theater-add-product/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><AddProduct /></RoleBasedRoute>} />
                 <Route path="/test-add-product-dropdowns/:theaterId" element={<TestAddProductDropdowns />} />

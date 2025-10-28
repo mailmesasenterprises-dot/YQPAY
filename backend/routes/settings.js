@@ -274,26 +274,57 @@ router.get('/mongodb', [authenticateToken], async (req, res) => {
  */
 router.get('/sms', [authenticateToken], async (req, res) => {
   try {
-    let theaterId = req.user.theaterId;
-    
-    if (req.user.role === 'super_admin' && req.query.theaterId) {
-      theaterId = req.query.theaterId;
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    // Get SMS configuration from database
+    const settingsDoc = await db.collection('settings').findOne({ type: 'sms' });
+
+    console.log('🔍 GET /sms - EXTREME DEBUG');
+    console.log('1️⃣ settingsDoc exists:', !!settingsDoc);
+    console.log('2️⃣ smsConfig exists:', !!settingsDoc?.smsConfig);
+    console.log('3️⃣ msg91SenderId RAW:', settingsDoc?.smsConfig?.msg91SenderId);
+    console.log('4️⃣ msg91SenderId type:', typeof settingsDoc?.smsConfig?.msg91SenderId);
+    console.log('5️⃣ msg91SenderId length:', settingsDoc?.smsConfig?.msg91SenderId?.length);
+    console.log('6️⃣ msg91SenderId JSON:', JSON.stringify(settingsDoc?.smsConfig?.msg91SenderId));
+    console.log('7️⃣ Full smsConfig:', JSON.stringify(settingsDoc?.smsConfig));
+
+    if (settingsDoc && settingsDoc.smsConfig) {
+      const smsConfig = settingsDoc.smsConfig;
+      console.log('8️⃣ BEFORE sending - msg91SenderId:', smsConfig.msg91SenderId);
+      
+      const responseData = {
+        success: true,
+        data: smsConfig
+      };
+      
+      console.log('9️⃣ RESPONSE data.msg91SenderId:', responseData.data.msg91SenderId);
+      console.log('� RESPONSE JSON:', JSON.stringify(responseData));
+      
+      res.json(responseData);
+    } else {
+      // Return default configuration
+      res.json({
+        success: true,
+        data: {
+          provider: 'msg91',
+          msg91ApiKey: '',
+          msg91SenderId: '',
+          msg91TemplateId: '',
+          msg91TemplateVariable: 'OTP',
+          otpLength: 6,
+          otpExpiry: 300,
+          maxRetries: 3,
+          enabled: false
+        }
+      });
     }
-
-    const settings = theaterId 
-      ? await Settings.getCategory(theaterId, 'sms')
-      : {};
-
-    res.json({
-      success: true,
-      data: { config: settings }
-    });
-
   } catch (error) {
-    console.error('Get SMS settings error:', error);
+    console.error('❌ Error loading SMS configuration:', error);
     res.status(500).json({
-      error: 'Failed to fetch SMS settings',
-      message: 'Internal server error'
+      success: false,
+      message: 'Failed to load SMS configuration',
+      error: error.message
     });
   }
 });
@@ -373,5 +404,84 @@ router.get('/image/logo', async (req, res) => {
     res.status(500).send('Error loading logo');
   }
 });
+
+/**
+ * POST /api/settings/sms
+ * Save SMS configuration
+ */
+router.post('/sms', [authenticateToken], async (req, res) => {
+  try {
+    const {
+      provider,
+      msg91ApiKey,
+      msg91SenderId,
+      msg91TemplateId,
+      msg91TemplateVariable,
+      otpLength,
+      otpExpiry,
+      maxRetries,
+      enabled
+    } = req.body;
+
+    console.log('🔄 Saving SMS configuration...', req.body);
+
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    // Get existing configuration to merge
+    const existingDoc = await db.collection('settings').findOne({ type: 'sms' });
+    const existingSmsConfig = existingDoc?.smsConfig || {};
+
+    // Merge with existing configuration, only updating provided fields
+    const smsConfig = {
+      ...existingSmsConfig, // Keep all existing fields
+      provider: provider || existingSmsConfig.provider || 'msg91',
+      // Update only the fields that were sent
+      ...(msg91ApiKey !== undefined && { msg91ApiKey }),
+      ...(msg91SenderId !== undefined && { msg91SenderId }),
+      ...(msg91TemplateId !== undefined && { msg91TemplateId }),
+      ...(msg91TemplateVariable !== undefined && { msg91TemplateVariable }),
+      ...(otpLength !== undefined && { otpLength }),
+      ...(otpExpiry !== undefined && { otpExpiry }),
+      ...(maxRetries !== undefined && { maxRetries }),
+      ...(enabled !== undefined && { enabled })
+    };
+
+    console.log('💾 Merged SMS config:', smsConfig);
+
+    // Update or create the SMS settings document using direct MongoDB
+    const result = await db.collection('settings').findOneAndUpdate(
+      { type: 'sms' },
+      {
+        $set: {
+          'smsConfig': smsConfig,
+          lastUpdated: new Date()
+        }
+      },
+      {
+        upsert: true,
+        returnDocument: 'after'
+      }
+    );
+
+    console.log('✅ SMS configuration saved successfully');
+
+    res.json({
+      success: true,
+      message: 'SMS configuration saved successfully',
+      data: smsConfig
+    });
+
+  } catch (error) {
+    console.error('❌ Error saving SMS configuration:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save SMS configuration',
+      error: error.message
+    });
+  }
+});
+
+module.exports = router;
 
 module.exports = router;
