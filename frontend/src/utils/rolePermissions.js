@@ -57,6 +57,7 @@ export const filterNavigationByPermissions = (navigationItems = [], rolePermissi
       'categories': 'TheaterCategories',
       'kiosk-types': 'TheaterKioskTypes',
       'product-types': 'TheaterProductTypes',
+      'messages': 'TheaterMessages', // ✅ Messages (Chat with Super Admin)
       'reports': 'TheaterReports', // ✅ NEW
       'theater-roles': 'TheaterRoles', // ✅ Theater Roles Management
       'theater-role-access': 'TheaterRoleAccess', // ✅ Theater Role Access Management

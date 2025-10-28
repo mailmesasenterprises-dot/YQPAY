@@ -60,7 +60,9 @@ export const extractPagesFromAppJS = () => {
   { page: 'TheaterQRCodeNames', pageName: 'Theater QR Code Names', route: '/theater-qr-code-names/:theaterId', description: 'Manage QR code names and seat classes for theater', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterGenerateQR', pageName: 'Theater Generate QR', route: '/theater-generate-qr/:theaterId', description: 'Generate single or screen QR codes for theater', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterQRManagement', pageName: 'Theater QR Management', route: '/theater-qr-management/:theaterId', description: 'View and manage all generated QR codes for theater', roles: ['theater_user', 'theater-admin', 'admin'] },
-  { page: 'TheaterUserManagement', pageName: 'Theater User Management', route: '/theater-user-management/:theaterId', description: 'Manage theater users and their roles', roles: ['theater_user', 'theater-admin', 'admin'] }
+  { page: 'TheaterUserManagement', pageName: 'Theater User Management', route: '/theater-user-management/:theaterId', description: 'Manage theater users and their roles', roles: ['theater_user', 'theater-admin', 'admin'] },
+  { page: 'TheaterMessages', pageName: 'Messages', route: '/theater-messages/:theaterId', description: 'Chat with Super Admin', roles: ['theater_user', 'theater-admin', 'admin'] },
+  { page: 'TheaterReports', pageName: 'Theater Reports', route: '/theater-reports/:theaterId', description: 'View theater reports and analytics', roles: ['theater_user', 'theater-admin', 'admin'] }
   ];
 
   // Filter out pages that should not be in page access management

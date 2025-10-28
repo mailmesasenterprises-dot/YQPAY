@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import config from '../config';
 
 // Header-specific icons
@@ -46,7 +47,13 @@ const getIcon = (iconName) => {
 
 const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarCollapsed, pageTitle = 'Dashboard', userProfile = null }) => {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { user: authUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const notificationRef = useRef(null);
+  const profileRef = useRef(null);
   
   const defaultUserProfile = {
     firstName: 'Admin',
@@ -60,6 +67,154 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
   // Use authenticated user data if available, otherwise use provided userProfile or default
   const user = authUser || userProfile || defaultUserProfile;
   const userInitials = `${user.name?.charAt(0) || user.firstName?.charAt(0) || 'A'}${user.name?.charAt(1) || user.lastName?.charAt(0) || 'U'}`;
+
+  // Fetch unread messages for notifications
+  useEffect(() => {
+    let controller = null;
+    let reader = null;
+    
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const response = await fetch(`${config.apiUrl}/chat/theaters`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const theaters = await response.json();
+          // Handle both array response and {success, data} response
+          const theaterList = Array.isArray(theaters) ? theaters : (theaters.data || []);
+          const unreadTheaters = theaterList.filter(t => t.unreadCount > 0);
+          setNotifications(unreadTheaters);
+          const totalUnread = unreadTheaters.reduce((sum, t) => sum + t.unreadCount, 0);
+          setUnreadCount(totalUnread);
+        }
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+      }
+    };
+
+    // Initial fetch
+    fetchNotifications();
+
+    // Setup Server-Sent Events for real-time notifications using fetch API
+    const setupSSE = async () => {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      try {
+        controller = new AbortController();
+        const response = await fetch(`${config.apiUrl}/notifications/stream`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          throw new Error(`SSE connection failed: ${response.status}`);
+        }
+
+        reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        console.log('✅ Real-time notification stream connected');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                console.log('📨 Real-time notification received:', data);
+                
+                if (data.type === 'new_message') {
+                  // Instantly refresh notifications
+                  fetchNotifications();
+                  
+                  // Show browser notification if permission granted
+                  if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification('New Message from ' + data.theaterName, {
+                      body: data.message,
+                      icon: '/logo192.png',
+                      badge: '/logo192.png',
+                      tag: 'message-' + data.theaterId,
+                      requireInteraction: false
+                    });
+                  }
+                }
+              } catch (e) {
+                console.error('Error parsing SSE message:', e);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('❌ SSE connection error:', error);
+          // Retry connection after 5 seconds
+          setTimeout(setupSSE, 5000);
+        }
+      }
+    };
+
+    // Request notification permission on first load
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        console.log('🔔 Notification permission:', permission);
+      });
+    }
+
+    setupSSE();
+
+    // Fallback polling every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+
+    return () => {
+      if (controller) {
+        controller.abort();
+      }
+      if (reader) {
+        reader.cancel();
+      }
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotificationDropdown(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setShowProfileDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleNotificationClick = (theater) => {
+    setShowNotificationDropdown(false);
+    navigate('/messages', { state: { selectedTheaterId: theater._id } });
+  };
+
+  const toggleNotificationDropdown = () => {
+    setShowNotificationDropdown(!showNotificationDropdown);
+  };
 
   const handleLogout = () => {
     logout();
@@ -95,9 +250,70 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
       
         
         <div className="header-icons">
-          <button className="icon-btn">{getIcon('email')}</button>
+          <div className="notification-container" ref={notificationRef}>
+            <button 
+              className="icon-btn notification-btn" 
+              onClick={toggleNotificationDropdown}
+              title="Messages"
+            >
+              {getIcon('email')}
+              {unreadCount > 0 && (
+                <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              )}
+            </button>
+            {showNotificationDropdown && (
+              <div className="notification-dropdown">
+                <div className="notification-header">
+                  <h3>Messages</h3>
+                  {unreadCount > 0 && (
+                    <span className="unread-count">{unreadCount} unread</span>
+                  )}
+                </div>
+                <div className="notification-list">
+                  {notifications.length === 0 ? (
+                    <div className="no-notifications">
+                      <span>📭</span>
+                      <p>No new messages</p>
+                    </div>
+                  ) : (
+                    notifications.map((theater) => (
+                      <div 
+                        key={theater._id} 
+                        className="notification-item"
+                        onClick={() => handleNotificationClick(theater)}
+                      >
+                        <div className="notification-avatar">
+                          {theater.theaterName?.charAt(0) || 'T'}
+                        </div>
+                        <div className="notification-content">
+                          <div className="notification-title">{theater.theaterName}</div>
+                          <div className="notification-message">
+                            {theater.unreadCount} new message{theater.unreadCount > 1 ? 's' : ''}
+                          </div>
+                        </div>
+                        {theater.unreadCount > 0 && (
+                          <span className="notification-dot"></span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="notification-footer">
+                  <button 
+                    className="view-all-btn"
+                    onClick={() => {
+                      setShowNotificationDropdown(false);
+                      navigate('/messages');
+                    }}
+                  >
+                    View All Messages
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <button className="icon-btn">{getIcon('settings')}</button>
-          <div className="user-profile-container">
+          <div className="user-profile-container" ref={profileRef}>
             <div 
               className="user-avatar clickable" 
               onClick={toggleProfileDropdown}

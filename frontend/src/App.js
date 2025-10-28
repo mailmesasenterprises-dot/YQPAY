@@ -44,10 +44,12 @@ const RoleAccessManagement = React.lazy(() => import('./pages/RoleAccessManageme
 const RoleAccessManagementList = React.lazy(() => import('./pages/RoleAccessManagementList'));
 const PageAccessManagement = React.lazy(() => import('./pages/PageAccessManagement'));
 const PageAccessManagementList = React.lazy(() => import('./pages/PageAccessManagementList'));
+const Messages = React.lazy(() => import('./pages/Messages'));
 
 // Theater Admin Pages
 const TheaterDashboard = React.lazy(() => import('./pages/theater/TheaterDashboard'));
 const TheaterSettings = React.lazy(() => import('./pages/theater/TheaterSettings'));
+const TheaterMessages = React.lazy(() => import('./pages/theater/TheaterMessages'));
 const TheaterAdminList = React.lazy(() => import('./pages/TheaterAdminList'));
 const TheaterAdminManagement = React.lazy(() => import('./pages/TheaterAdminManagement'));
 const TheaterCategories = React.lazy(() => import('./pages/theater/TheaterCategories'));
@@ -142,6 +144,7 @@ function App() {
                 <Route path="/role-access/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><RoleAccessManagement /></RoleBasedRoute>} />
                 <Route path="/page-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagementList /></RoleBasedRoute>} />
                 <Route path="/page-access/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagement /></RoleBasedRoute>} />
+                <Route path="/messages" element={<RoleBasedRoute allowedRoles={['super_admin']}><Messages /></RoleBasedRoute>} />
                 <Route path="/qr-generate" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRGenerate /></RoleBasedRoute>} />
 
                 <Route path="/qr-management" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRManagement /></RoleBasedRoute>} />
@@ -154,6 +157,7 @@ function App() {
                 {/* Theater User Routes - WITH PROPER ROLE-BASED PAGE ACCESS CONTROL */}
                 <Route path="/theater-dashboard/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterDashboardWithId']}><TheaterDashboard /></RoleBasedRoute>} />
                 <Route path="/theater-settings/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterSettingsWithId']}><TheaterSettings /></RoleBasedRoute>} />
+                <Route path="/theater-messages/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterMessages']}><TheaterMessages /></RoleBasedRoute>} />
                 <Route path="/theater-categories/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterCategories']}><TheaterCategories /></RoleBasedRoute>} />
                 <Route path="/theater-kiosk-types/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterKioskTypes']}><TheaterKioskTypes /></RoleBasedRoute>} />
                 <Route path="/theater-product-types/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterProductTypes']}><TheaterProductTypes /></RoleBasedRoute>} />

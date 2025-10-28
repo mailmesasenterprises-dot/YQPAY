@@ -161,6 +161,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
     { id: 'roles', icon: 'roles', label: 'Create Role ', path: '/roles', tooltip: 'Role Management - Create & Edit User Roles' },
     { id: 'role-access', icon: 'role-access', label: 'Role Access', path: '/role-access', tooltip: 'Role Permissions - Configure Role Access Rights' },
     { id: 'theater-users', icon: 'theater-users', label: 'Theater Users', path: '/theater-users', tooltip: 'User Management - Manage Theater Staff & Admins' },
+    { id: 'messages', icon: 'messages', label: 'Messages', path: '/messages', tooltip: 'Theater Messages - Chat with Theater Users' },
     { id: 'qr-generate', icon: 'qr-generate', label: 'Generate QR', path: '/qr-generate', tooltip: 'QR Generator - Create New QR Codes' },
     { id: 'qr-names', icon: 'qr-names', label: 'QR Code Names', path: '/qr-names', tooltip: 'QR Code Names - Manage QR Names & Seat Classes' },
     { id: 'qr-list', icon: 'qr-list', label: 'QR Management', path: '/qr-management', tooltip: 'QR Management - View & Manage All QR Codes' },

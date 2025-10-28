@@ -172,6 +172,7 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
     { id: 'online-pos', icon: 'orderinterface', label: 'Online POS', path: effectiveTheaterId ? `/online-pos/${effectiveTheaterId}` : '/online-pos' },
     { id: 'order-history', icon: 'orderhistory', label: 'Order History', path: effectiveTheaterId ? `/theater-order-history/${effectiveTheaterId}` : '/theater-order-history' },
     { id: 'online-order-history', icon: 'orderhistory', label: 'Online Orders', path: effectiveTheaterId ? `/online-order-history/${effectiveTheaterId}` : '/online-order-history' },
+    { id: 'messages', icon: 'messages', label: 'Messages', path: effectiveTheaterId ? `/theater-messages/${effectiveTheaterId}` : '/theater-messages' },
     { id: 'reports', icon: 'reports', label: 'Reports', path: effectiveTheaterId ? `/theater-reports/${effectiveTheaterId}` : '/theater-reports' }, // ✅ NEW
     { id: 'theater-roles', icon: 'users', label: 'Role Management', path: effectiveTheaterId ? `/theater-roles/${effectiveTheaterId}` : '/theater-roles' }, // ✅ Theater Roles
     { id: 'theater-role-access', icon: 'lock', label: 'Role Access', path: effectiveTheaterId ? `/theater-role-access/${effectiveTheaterId}` : '/theater-role-access' }, // ✅ Theater Role Access
