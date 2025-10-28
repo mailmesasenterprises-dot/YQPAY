@@ -30,6 +30,7 @@ const CustomerLanding = React.lazy(() => import('./pages/customer/CustomerLandin
 const CustomerHome = React.lazy(() => import('./pages/customer/CustomerHome'));
 const CustomerCart = React.lazy(() => import('./pages/customer/CustomerCart'));
 const CustomerOrderHistory = React.lazy(() => import('./pages/customer/CustomerOrderHistory'));
+const CustomerOrderDetails = React.lazy(() => import('./pages/customer/CustomerOrderDetails'));
 const CustomerHelpSupport = React.lazy(() => import('./pages/customer/CustomerHelpSupport'));
 const CustomerCheckout = React.lazy(() => import('./pages/customer/CustomerCheckout'));
 const CustomerPhoneEntry = React.lazy(() => import('./pages/customer/CustomerPhoneEntry'));
@@ -118,6 +119,7 @@ function App() {
                 <Route path="/customer/order" element={<CustomerHome />} />
                 <Route path="/customer/history" element={<CustomerOrderHistory />} />
                 <Route path="/customer/order-history" element={<CustomerOrderHistory />} />
+                <Route path="/customer/order-details/:orderId" element={<CustomerOrderDetails />} />
                 <Route path="/customer/help-support" element={<CustomerHelpSupport />} />
                 <Route path="/customer/checkout" element={<CustomerCheckout />} />
                 <Route path="/customer/phone-entry" element={<CustomerPhoneEntry />} />

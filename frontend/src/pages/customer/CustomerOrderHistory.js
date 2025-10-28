@@ -648,7 +648,15 @@ const CustomerOrderHistory = () => {
                   </div>
                 </div>
 
-                <div className="order-number">
+                <div 
+                  className="order-number clickable"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    params.set('phone', phoneNumber);
+                    params.set('theaterid', theaterId);
+                    navigate(`/customer/order-details/${order._id}?${params.toString()}`);
+                  }}
+                >
                   #{order.orderNumber}
                 </div>
 
