@@ -432,6 +432,11 @@ const TheaterGenerateQR = () => {
           });
           setShowSeatMap(false);
           setAllAvailableSeats([]);
+          
+          // Redirect to QR Management page after successful generation
+          setTimeout(() => {
+            navigate(`/theater-qr-management/${theaterId}`);
+          }, 1500); // Wait 1.5 seconds to show success message
         }, 1000);
       } else {
         throw new Error(data.message || 'Failed to generate QR codes');

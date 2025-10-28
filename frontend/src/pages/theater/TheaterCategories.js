@@ -678,7 +678,7 @@ const TheaterCategories = () => {
         {/* Create Modal */}
         {showCreateModal && (
           <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Create New Category</h2>
                 <button 
@@ -766,7 +766,7 @@ const TheaterCategories = () => {
         {/* Edit Modal */}
         {showEditModal && (
           <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Edit Category</h2>
                 <button 
@@ -854,7 +854,7 @@ const TheaterCategories = () => {
         {/* View Modal */}
         {showViewModal && (
           <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Category Details</h2>
                 <button 
@@ -1001,5 +1001,44 @@ const TheaterCategories = () => {
     </ErrorBoundary>
   );
 };
+
+// ✅ Global Modal Width Styling
+const style = document.createElement('style');
+style.textContent = `
+  /* ============================================
+     MODAL WIDTH STYLING - GLOBAL STANDARD
+     ============================================ */
+  
+  /* Modal width for CRUD operations */
+  .theater-edit-modal-content {
+    max-width: 900px !important;
+    width: 85% !important;
+  }
+
+  /* Tablet responsive modal */
+  @media (max-width: 1024px) {
+    .theater-edit-modal-content {
+      width: 90% !important;
+    }
+  }
+
+  /* Mobile responsive modal */
+  @media (max-width: 768px) {
+    .theater-edit-modal-content {
+      width: 95% !important;
+      max-width: none !important;
+    }
+  }
+
+  /* Very Small Mobile modal */
+  @media (max-width: 480px) {
+    .theater-edit-modal-content {
+      width: 98% !important;
+    }
+  }
+`;
+if (typeof document !== 'undefined') {
+  document.head.appendChild(style);
+}
 
 export default TheaterCategories;

@@ -1559,7 +1559,7 @@ const TheaterProductList = () => {
         {/* View Product Modal */}
         {viewModal.show && (
           <div className="modal-overlay" onClick={() => setViewModal({ show: false, product: null })}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Product Details</h2>
                 <button 
@@ -1839,7 +1839,7 @@ const TheaterProductList = () => {
         {/* Edit Product Modal */}
         {editModal.show && (
           <div className="modal-overlay" onClick={closeEditModal}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Edit Product</h2>
                 <button className="close-btn" onClick={closeEditModal}>
@@ -2173,5 +2173,44 @@ const TheaterProductList = () => {
     </ErrorBoundary>
   );
 };
+
+// ✅ Global Modal Width Styling
+const style = document.createElement('style');
+style.textContent = `
+  /* ============================================
+     MODAL WIDTH STYLING - GLOBAL STANDARD
+     ============================================ */
+  
+  /* Modal width for CRUD operations */
+  .theater-edit-modal-content {
+    max-width: 900px !important;
+    width: 85% !important;
+  }
+
+  /* Tablet responsive modal */
+  @media (max-width: 1024px) {
+    .theater-edit-modal-content {
+      width: 90% !important;
+    }
+  }
+
+  /* Mobile responsive modal */
+  @media (max-width: 768px) {
+    .theater-edit-modal-content {
+      width: 95% !important;
+      max-width: none !important;
+    }
+  }
+
+  /* Very Small Mobile modal */
+  @media (max-width: 480px) {
+    .theater-edit-modal-content {
+      width: 98% !important;
+    }
+  }
+`;
+if (typeof document !== 'undefined') {
+  document.head.appendChild(style);
+}
 
 export default TheaterProductList;

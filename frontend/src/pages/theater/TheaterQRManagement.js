@@ -866,7 +866,7 @@ const TheaterQRManagement = () => {
   const navigate = useNavigate();
   const { theaterId } = useParams();
   const { user, theaterId: userTheaterId, userType } = useAuth();
-  const { showError, showSuccess, confirm } = useModal();
+  const { showError, showSuccess } = useModal();
   
   // PERFORMANCE MONITORING
   usePerformanceMonitoring('TheaterQRManagement');
@@ -1310,7 +1310,7 @@ const TheaterQRManagement = () => {
       
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
-      const response = await fetch(`${config.api.baseUrl}/singleqrcodes/${qrCodeId}`, {
+      const response = await fetch(`${config.api.baseUrl}/single-qrcodes/${qrCodeId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -1342,47 +1342,115 @@ const TheaterQRManagement = () => {
   }, [loadQRCodes, showError, showSuccess]);
 
   // Delete QR code
-  const deleteQRCode = useCallback(async (qrCodeId, qrCodeName) => {
-    const confirmed = await confirm(
-      `Are you sure you want to delete the QR code "${qrCodeName}"? This action cannot be undone.`,
-      'Delete QR Code'
-    );
+  const deleteQRCode = useCallback((qrCodeId, qrCodeName) => {
+    console.log('🎯 Delete button clicked for:', qrCodeId, qrCodeName);
+    // Find the full QR code object to get parentDocId
+    let qrToDelete = null;
+    const allQRs = qrCodes || [];
+    qrToDelete = allQRs.find(q => q._id === qrCodeId);
     
-    if (!confirmed) return;
+    if (qrToDelete) {
+      setDeleteModal({ show: true, qrCode: qrToDelete });
+    } else {
+      // Fallback if QR not found in list
+      setDeleteModal({ show: true, qrCode: { _id: qrCodeId, name: qrCodeName } });
+    }
+  }, [qrCodes]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteModal.qrCode) return;
     
+    const qrCodeId = deleteModal.qrCode._id;
+    const parentDocId = deleteModal.qrCode.parentDocId;
+    
+    console.log('🗑️ Attempting to delete QR code:', { qrCodeId, parentDocId, name: deleteModal.qrCode.name });
+    
+    // Check if we have parentDocId (nested structure)
+    if (!parentDocId) {
+      console.log('⚠️ No parentDocId found, using direct delete endpoint');
+      // Fallback to direct delete if no parentDocId
+      try {
+        setActionLoading(prev => ({ ...prev, [qrCodeId]: true }));
+        
+        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+        
+        const response = await fetch(`${config.api.baseUrl}/single-qrcodes/${qrCodeId}?permanent=true`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        console.log('� Response status:', response.status);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('❌ Error response:', errorData);
+          throw new Error(errorData.message || errorData.error || 'Failed to delete QR code');
+        }
+        
+        const data = await response.json();
+        console.log('✅ Delete response:', data);
+        
+        if (data.success) {
+          setDeleteModal({ show: false, qrCode: null });
+          showSuccess('QR code deleted successfully');
+          await loadQRCodes();
+        } else {
+          throw new Error(data.message || 'Failed to delete QR code');
+        }
+      } catch (error) {
+        console.error('❌ Error deleting QR code:', error);
+        showError(error.message || 'Failed to delete QR code');
+      } finally {
+        setActionLoading(prev => ({ ...prev, [qrCodeId]: false }));
+      }
+      return;
+    }
+    
+    // Use nested delete endpoint (matching TheaterQRDetail)
     try {
       setActionLoading(prev => ({ ...prev, [qrCodeId]: true }));
       
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
-      const response = await fetch(`${config.api.baseUrl}/singleqrcodes/${qrCodeId}`, {
+      console.log('�📤 Sending DELETE request to:', `${config.api.baseUrl}/single-qrcodes/${parentDocId}/details/${qrCodeId}?permanent=true`);
+      
+      const response = await fetch(`${config.api.baseUrl}/single-qrcodes/${parentDocId}/details/${qrCodeId}?permanent=true`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ theaterId })
+        }
       });
       
+      console.log('📥 Response status:', response.status, response.statusText);
+      
       if (!response.ok) {
-        throw new Error('Failed to delete QR code');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Error response:', errorData);
+        throw new Error(errorData.message || errorData.error || 'Failed to delete QR code');
       }
       
       const data = await response.json();
+      console.log('✅ Delete response:', data);
       
       if (data.success) {
+        setDeleteModal({ show: false, qrCode: null });
         showSuccess('QR code deleted successfully');
-        loadQRCodes();
+        console.log('🔄 Reloading QR codes...');
+        await loadQRCodes();
       } else {
         throw new Error(data.message || 'Failed to delete QR code');
       }
     } catch (error) {
-      console.error('Error deleting QR code:', error);
+      console.error('❌ Error deleting QR code:', error);
       showError(error.message || 'Failed to delete QR code');
     } finally {
       setActionLoading(prev => ({ ...prev, [qrCodeId]: false }));
     }
-  }, [theaterId, loadQRCodes, showError, showSuccess, confirm]);
+  }, [deleteModal.qrCode, loadQRCodes, showError, showSuccess]);
 
   return (
     <ErrorBoundary>
@@ -1637,6 +1705,35 @@ const TheaterQRManagement = () => {
             qrNames={qrNames}
             existingQRNames={Object.keys(qrCodesByName)}
           />
+        )}
+
+        {/* Delete Modal - Following Global Design System */}
+        {deleteModal.show && (
+          <div className="modal-overlay">
+            <div className="delete-modal">
+              <div className="modal-header">
+                <h3>Delete Confirmation</h3>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete the QR code <strong>{deleteModal.qrCode?.name}</strong>?</p>
+                <p className="warning-text">This action cannot be undone.</p>
+              </div>
+              <div className="modal-actions">
+                <button 
+                  onClick={() => setDeleteModal({ show: false, qrCode: null })}
+                  className="cancel-btn"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleConfirmDelete}
+                  className="confirm-delete-btn"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </TheaterLayout>
 

@@ -84,10 +84,16 @@ const TheaterRoleAccess = () => {
 
   // Load active pages from database
   const loadActivePages = useCallback(async () => {
+    if (!theaterId) {
+      console.warn('⚠️ No theaterId provided, cannot load pages');
+      setActivePages([]);
+      return [];
+    }
+    
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
-      const response = await fetch(`${config.api.baseUrl}/page-access?limit=100&isActive=true`, {
+      const response = await fetch(`${config.api.baseUrl}/page-access?theaterId=${theaterId}`, {
         headers: {
           'Content-Type': 'application/json',
           ...(token && { 'Authorization': `Bearer ${token}` })
@@ -98,13 +104,16 @@ const TheaterRoleAccess = () => {
         const data = await response.json();
         console.log('🔍 Page access response:', data);
         
-        if (data.success && data.data && Array.isArray(data.data)) {
-          const pages = data.data.map(pageAccess => ({
-            page: pageAccess.page,
-            pageName: pageAccess.pageName,
-            description: pageAccess.description || `Access to ${pageAccess.pageName}`,
-            route: pageAccess.route
-          }));
+        // Backend returns data.data.pageAccessList (array-based structure per theater)
+        if (data.success && data.data && data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
+          const pages = data.data.pageAccessList
+            .filter(pageAccess => pageAccess.isActive !== false) // Only show active pages
+            .map(pageAccess => ({
+              page: pageAccess.page,
+              pageName: pageAccess.pageName,
+              description: pageAccess.description || `Access to ${pageAccess.pageName}`,
+              route: pageAccess.route
+            }));
           console.log('✅ Active pages loaded:', pages.length);
           setActivePages(pages);
           return pages;
@@ -121,7 +130,7 @@ const TheaterRoleAccess = () => {
       setActivePages([]);
       return [];
     }
-  }, []);
+  }, [theaterId]);
 
   // Load role permissions data
   const loadRolePermissionsData = useCallback(async (page = 1, limit = 10, search = '') => {
@@ -274,8 +283,10 @@ const TheaterRoleAccess = () => {
     console.log('📝 Role:', role.name, 'ID:', role._id);
     console.log('📊 Active pages available:', activePages.length);
     console.log('🔒 Role permissions:', role.permissions?.length || 0);
+    console.log('🎯 Full role object:', role);
     
     if (activePages.length === 0) {
+      console.error('❌ No active pages available!');
       showError('Page permissions are still loading. Please wait a moment and try again.');
       return;
     }
@@ -293,12 +304,15 @@ const TheaterRoleAccess = () => {
     });
     
     console.log('✅ Prepared permissions:', permissions.length);
+    console.log('📋 Permissions data:', permissions);
+    console.log('🚀 Opening edit modal...');
     
     setFormData({
       roleId: role._id,
       permissions: permissions
     });
     setShowEditModal(true);
+    console.log('✅ Modal should be visible now');
   };
 
   // Delete role permission

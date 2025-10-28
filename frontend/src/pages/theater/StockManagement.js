@@ -577,7 +577,7 @@ const StockEntryModal = React.memo(({ isOpen, onClose, entry, onSave, isLoading 
       justifyContent: 'center',
       zIndex: 1000
     }}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+      <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()} style={{
         backgroundColor: 'white',
         borderRadius: '12px',
         maxWidth: '600px',
@@ -1998,7 +1998,10 @@ const StockManagement = React.memo(() => {
                       // FIXED: Always show data if we have it, regardless of loading state
                       if (stockEntries.length > 0) {
                         console.log('📋 Showing actual data:', stockEntries.length, 'entries');
-                        return stockEntries.map((entry, index) => {
+                        // Filter to show only ADDED entries, not SOLD
+                        const addedEntries = stockEntries.filter(entry => entry.type === 'ADDED' || entry.type === 'ADD');
+                        console.log('📋 Filtered to show only ADDED entries:', addedEntries.length, 'out of', stockEntries.length);
+                        return addedEntries.map((entry, index) => {
                           const displayData = entry.displayData || {};
                           
                           return (
@@ -2345,5 +2348,38 @@ const StockManagement = React.memo(() => {
 });
 
 StockManagement.displayName = 'StockManagement';
+
+// Global Modal Width Styling
+const style = document.createElement('style');
+style.textContent = `
+  .theater-edit-modal-content {
+    max-width: 900px !important;
+    width: 90% !important;
+  }
+
+  @media (max-width: 1024px) {
+    .theater-edit-modal-content {
+      max-width: 90% !important;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .theater-edit-modal-content {
+      max-width: 95% !important;
+      width: 95% !important;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .theater-edit-modal-content {
+      max-width: 98% !important;
+      width: 98% !important;
+    }
+  }
+`;
+if (!document.head.querySelector('style[data-component="StockManagement"]')) {
+  style.setAttribute('data-component', 'StockManagement');
+  document.head.appendChild(style);
+}
 
 export default StockManagement;

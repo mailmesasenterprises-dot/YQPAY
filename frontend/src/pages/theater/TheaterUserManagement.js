@@ -41,6 +41,7 @@ const TheaterUserManagement = () => {
   // Modal states
   const [crudModal, setCrudModal] = useState({ isOpen: false, mode: 'view', user: null });
   const [deleteModal, setDeleteModal] = useState({ show: false, userId: null, userName: '' });
+  const [editConfirmModal, setEditConfirmModal] = useState({ show: false, userData: null });
   const [successModal, setSuccessModal] = useState({ show: false, message: '' });
   
   // Form data
@@ -290,50 +291,69 @@ const TheaterUserManagement = () => {
 
   // Validate form
   const validateForm = () => {
+    console.log('🔍 Validating form - mode:', crudModal.mode);
+    console.log('🔍 Form data at validation:', formData);
     const errors = {};
 
-    if (!formData.username?.trim()) errors.username = 'Username is required';
-    if (!formData.email?.trim()) errors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) errors.email = 'Invalid email format';
+    // Username is only required for create mode
+    if (crudModal.mode === 'create' && !formData.username?.trim()) {
+      errors.username = 'Username is required';
+    }
+
+    // Email validation
+    if (!formData.email?.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      errors.email = 'Invalid email format';
+    }
     
+    // Password validation
     if (crudModal.mode === 'create') {
       if (!formData.password) errors.password = 'Password is required';
       else if (formData.password.length < 6) errors.password = 'Password must be at least 6 characters';
       if (formData.password !== formData.confirmPassword) errors.confirmPassword = 'Passwords do not match';
     } else if (crudModal.mode === 'edit' && formData.password) {
+      // Only validate password if user wants to change it
       if (formData.password.length < 6) errors.password = 'Password must be at least 6 characters';
       if (formData.password !== formData.confirmPassword) errors.confirmPassword = 'Passwords do not match';
     }
 
+    // Required fields for both create and edit
     if (!formData.fullName?.trim()) errors.fullName = 'Full name is required';
     if (!formData.phoneNumber?.trim()) errors.phoneNumber = 'Phone number is required';
-    else if (formData.phoneNumber.length !== 10) errors.phoneNumber = 'Phone number must be exactly 10 digits';
-    
-    if (!formData.pin?.trim()) errors.pin = 'PIN is required';
-    else if (formData.pin.length !== 4) errors.pin = 'PIN must be exactly 4 digits';
-    else if (!/^\d{4}$/.test(formData.pin)) errors.pin = 'PIN must contain only numbers';
-    
     if (!formData.role) errors.role = 'Role is required';
 
+    console.log('🔍 Validation errors found:', errors);
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   // Handle create user
   const handleCreateUser = async () => {
-    if (!validateForm()) return;
+    console.log('🎯 handleCreateUser called');
+    console.log('📝 Form data:', formData);
+    
+    if (!validateForm()) {
+      console.log('❌ Form validation failed');
+      return;
+    }
+
+    console.log('✅ Form validation passed');
 
     try {
+      // Backend expects: theater, username, email, password, role, fullName, phoneNumber
       const payload = {
+        theater: theaterId, // Backend expects 'theater' field, not 'theaterId'
         username: formData.username,
         email: formData.email,
         password: formData.password,
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
-        role: formData.role,
-        theater: theaterId,
-        pin: formData.pin?.trim()
+        role: formData.role
       };
+
+      console.log('📤 Sending payload:', payload);
+      console.log('🔗 POST URL:', `${config.api.baseUrl}/theater-users`);
 
       const response = await fetch(`${config.api.baseUrl}/theater-users`, {
         method: 'POST',
@@ -341,37 +361,77 @@ const TheaterUserManagement = () => {
         body: JSON.stringify(payload)
       });
 
+      console.log('📥 Response status:', response.status);
+
       if (response.ok) {
+        const data = await response.json();
+        console.log('✅ User created successfully:', data);
         setSuccessModal({ show: true, message: 'User created successfully!' });
         closeCrudModal();
         fetchUsers();
       } else {
         const errorData = await response.json();
-        setFormErrors({ submit: errorData.error || 'Failed to create user' });
+        console.error('❌ Create user failed:', errorData);
+        setFormErrors({ submit: errorData.error || errorData.message || 'Failed to create user' });
       }
     } catch (err) {
-      console.error('Error creating user:', err);
+      console.error('❌ Error creating user:', err);
       setFormErrors({ submit: 'Error creating user' });
     }
   };
 
-  // Handle update user
-  const handleUpdateUser = async () => {
-    if (!validateForm()) return;
+  // Handle update user - Show confirmation modal
+  const handleUpdateUser = () => {
+    console.log('🎯 handleUpdateUser called');
+    console.log('📝 Form data:', formData);
+    console.log('📝 Modal mode:', crudModal.mode);
+    
+    const isValid = validateForm();
+    console.log('📝 Validation result:', isValid);
+    console.log('📝 Form errors:', formErrors);
+    
+    if (!isValid) {
+      console.log('❌ Form validation failed - errors:', formErrors);
+      return;
+    }
 
+    console.log('✅ Form validation passed');
+
+    // Show confirmation modal with user data
+    setEditConfirmModal({ show: true, userData: formData });
+  };
+
+  // Confirm update user
+  const confirmUpdateUser = async () => {
+    console.log('🎯 confirmUpdateUser called');
+    console.log('📝 formData at confirm:', formData);
+    console.log('📝 formData.userId:', formData.userId);
+    
+    if (!formData.userId) {
+      console.error('❌ No userId found in formData!');
+      alert('Error: User ID is missing. Please close and reopen the edit form.');
+      return;
+    }
+    
     try {
+      setLoadingUsers(true);
+
+      // Backend expects: theaterId, fullName, email, phoneNumber, password, role, isActive
       const payload = {
-        username: formData.username,
-        email: formData.email,
+        theaterId: theaterId,
         fullName: formData.fullName,
+        email: formData.email,
         phoneNumber: formData.phoneNumber,
-        role: formData.role,
-        pin: formData.pin
+        role: formData.role
       };
 
-      if (formData.password) {
+      // Only include password if it's being changed
+      if (formData.password && formData.password.trim()) {
         payload.password = formData.password;
       }
+
+      console.log('📤 Sending update payload:', payload);
+      console.log('🔗 PUT URL:', `${config.api.baseUrl}/theater-users/${formData.userId}`);
 
       const response = await fetch(`${config.api.baseUrl}/theater-users/${formData.userId}`, {
         method: 'PUT',
@@ -379,35 +439,77 @@ const TheaterUserManagement = () => {
         body: JSON.stringify(payload)
       });
 
+      console.log('📥 Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('📥 Response data:', data);
+
       if (response.ok) {
+        console.log('✅ User updated successfully:', data);
+        setEditConfirmModal({ show: false, userData: null });
         setSuccessModal({ show: true, message: 'User updated successfully!' });
         closeCrudModal();
         fetchUsers();
       } else {
-        const errorData = await response.json();
-        setFormErrors({ submit: errorData.error || 'Failed to update user' });
+        console.error('❌ Update user failed:', data);
+        console.error('❌ Validation errors:', data.errors);
+        
+        // Show detailed error message
+        let errorMessage = data.message || 'Failed to update user';
+        if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+          errorMessage += '\n\nDetails:\n' + data.errors.map(err => 
+            `- ${err.path || err.param}: ${err.msg || err.message}`
+          ).join('\n');
+        }
+        
+        setEditConfirmModal({ show: false, userData: null });
+        setFormErrors({ submit: data.error || data.message || 'Failed to update user' });
+        alert('Update failed: ' + errorMessage);
       }
     } catch (err) {
-      console.error('Error updating user:', err);
+      console.error('❌ Error updating user:', err);
+      setEditConfirmModal({ show: false, userData: null });
       setFormErrors({ submit: 'Error updating user' });
+      alert('Network error: ' + err.message);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
   // Handle delete user
   const handleDeleteUser = async () => {
+    console.log('🗑️ handleDeleteUser called');
+    console.log('👤 User ID:', deleteModal.userId);
+    
     try {
-      const response = await fetch(`${config.api.baseUrl}/theater-users/${deleteModal.userId}`, {
+      const params = new URLSearchParams({
+        theaterId: theaterId,
+        permanent: 'true'
+      });
+      
+      console.log('🔗 DELETE URL:', `${config.api.baseUrl}/theater-users/${deleteModal.userId}?${params.toString()}`);
+      
+      const response = await fetch(`${config.api.baseUrl}/theater-users/${deleteModal.userId}?${params.toString()}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
 
+      console.log('📥 Response status:', response.status);
+
       if (response.ok) {
+        const data = await response.json();
+        console.log('✅ User deleted successfully:', data);
         setSuccessModal({ show: true, message: 'User deleted successfully!' });
         setDeleteModal({ show: false, userId: null, userName: '' });
         fetchUsers();
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Delete user failed:', errorData);
+        alert('Failed to delete user: ' + (errorData.error || errorData.message || 'Unknown error'));
       }
     } catch (err) {
-      console.error('Error deleting user:', err);
+      console.error('❌ Error deleting user:', err);
+      alert('Failed to delete user. Please try again.');
     }
   };
 
@@ -948,19 +1050,65 @@ const TheaterUserManagement = () => {
           </div>
         )}
 
-        {/* Success Modal */}
+        {/* Edit Confirmation Modal */}
+        {editConfirmModal.show && (
+          <div className="modal-overlay">
+            <div className="delete-modal">
+              <div className="modal-header">
+                <h3>Confirm User Update</h3>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to update user <strong>{editConfirmModal.userData?.username}</strong>?</p>
+                <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', textAlign: 'left' }}>
+                  <p><strong>Full Name:</strong> {editConfirmModal.userData?.fullName}</p>
+                  <p><strong>Email:</strong> {editConfirmModal.userData?.email}</p>
+                  <p><strong>Phone:</strong> {editConfirmModal.userData?.phoneNumber}</p>
+                  <p><strong>Role:</strong> {availableRoles.find(r => r._id === editConfirmModal.userData?.role)?.name || 'N/A'}</p>
+                  {editConfirmModal.userData?.password && (
+                    <p><strong>Password:</strong> Will be updated</p>
+                  )}
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button 
+                  onClick={() => setEditConfirmModal({ show: false, userData: null })}
+                  className="cancel-btn"
+                  disabled={loadingUsers}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmUpdateUser}
+                  className="confirm-delete-btn"
+                  disabled={loadingUsers}
+                >
+                  {loadingUsers ? 'Updating...' : 'Confirm Update'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Success Modal - Global Design Pattern */}
         {successModal.show && (
-          <div className="modal-overlay" onClick={() => setSuccessModal({ show: false, message: '' })}>
-            <div className="success-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="success-icon">✓</div>
-              <h3>Success!</h3>
-              <p>{successModal.message}</p>
-              <button
-                className="btn-primary"
-                onClick={() => setSuccessModal({ show: false, message: '' })}
-              >
-                OK
-              </button>
+          <div className="modal-overlay">
+            <div className="delete-modal" style={{ maxWidth: '400px' }}>
+              <div className="modal-header" style={{ backgroundColor: '#10b981', color: 'white' }}>
+                <h3>✓ Success</h3>
+              </div>
+              <div className="modal-body" style={{ textAlign: 'center', padding: '24px' }}>
+                <div style={{ fontSize: '48px', color: '#10b981', marginBottom: '16px' }}>✓</div>
+                <p style={{ fontSize: '16px', fontWeight: '500' }}>{successModal.message}</p>
+              </div>
+              <div className="modal-actions" style={{ justifyContent: 'center' }}>
+                <button 
+                  onClick={() => setSuccessModal({ show: false, message: '' })}
+                  className="confirm-delete-btn"
+                  style={{ minWidth: '100px' }}
+                >
+                  OK
+                </button>
+              </div>
             </div>
           </div>
         )}

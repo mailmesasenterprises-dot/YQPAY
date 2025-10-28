@@ -5,7 +5,7 @@ import TheaterLayout from '../../components/theater/TheaterLayout';
 import PageContainer from '../../components/PageContainer';
 import Pagination from '../../components/Pagination';
 import ErrorBoundary from '../../components/ErrorBoundary';
-import ImageUpload from '../../components/ImageUpload';
+import ImageUpload from '../../components/common/ImageUpload';
 import { ActionButton, ActionButtons } from '../../components/ActionButton';
 import { useModal } from '../../contexts/ModalContext';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
@@ -56,6 +56,8 @@ const TheaterProductTypes = () => {
   // Image upload state
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imageError, setImageError] = useState('');
 
   // Refs for cleanup and performance
   const abortControllerRef = useRef(null);
@@ -221,10 +223,16 @@ const TheaterProductTypes = () => {
       productCode: productType.productCode || '',
       description: productType.description || '',
       quantity: productType.quantity || '',
-      isActive: productType.isActive
+      isActive: productType.isActive,
+      imageUrl: productType.imageUrl || null,
+      removeImage: false
     });
     
-    // Set current image if exists
+    // Reset image states
+    setImageFile(null);
+    setImageError('');
+    
+    // Set current image preview if exists
     if (productType.imageUrl) {
       setImagePreview(productType.imageUrl);
     } else {
@@ -327,10 +335,14 @@ const TheaterProductTypes = () => {
       productCode: '',
       description: '',
       quantity: '',
-      isActive: true
+      isActive: true,
+      imageUrl: null,
+      removeImage: false
     });
     setSelectedImage(null);
     setImagePreview(null);
+    setImageFile(null);
+    setImageError('');
     setSelectedProductType(null);
     setShowCreateModal(true);
   };
@@ -342,27 +354,26 @@ const TheaterProductTypes = () => {
     }));
   };
 
-  // Image upload handlers
-  const handleImageUpload = (uploadData) => {
-    if (uploadData && uploadData.file) {
-      const file = uploadData.file;
-      setSelectedImage(file);
-      
-      // Create preview URL (use provided previewUrl or create new one)
-      const previewUrl = uploadData.previewUrl || URL.createObjectURL(file);
-      setImagePreview(previewUrl);
-      
-      console.log('✅ Image selected:', {
-        name: file.name,
-        size: file.size,
-        type: file.type
-      });
-    }
+  // Image handling functions (matching TheaterCategories pattern)
+  const handleImageSelect = (file) => {
+    setImageFile(file);
+    setImageError('');
+    setFormData(prev => ({
+      ...prev,
+      removeImage: false
+    }));
   };
 
   const handleImageRemove = () => {
+    setImageFile(null);
     setSelectedImage(null);
     setImagePreview(null);
+    setImageError('');
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: null,
+      removeImage: true
+    }));
     console.log('🗑️ Image removed');
   };
 
@@ -621,7 +632,7 @@ const TheaterProductTypes = () => {
         {/* Create Modal */}
         {showCreateModal && (
           <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Create New Product Name</h2>
                 <button 
@@ -690,12 +701,13 @@ const TheaterProductTypes = () => {
                   <div className="form-group">
                     <label>Product Image</label>
                     <ImageUpload
-                      onImageUpload={handleImageUpload}
-                      onImageRemove={handleImageRemove}
-                      maxFiles={1}
-                      maxFileSize={5}
-                      currentImages={imagePreview ? [imagePreview] : []}
-                      disabled={false}
+                      value={imageFile || null}
+                      onChange={handleImageSelect}
+                      onRemove={handleImageRemove}
+                      error={imageError}
+                      label="Upload Product Image"
+                      helperText="Drag and drop an image here, or click to select (optional)"
+                      style={{ marginTop: '8px' }}
                     />
                   </div>
                 </div>
@@ -722,7 +734,7 @@ const TheaterProductTypes = () => {
         {/* Edit Modal */}
         {showEditModal && (
           <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Edit Product Name</h2>
                 <button 
@@ -791,12 +803,13 @@ const TheaterProductTypes = () => {
                   <div className="form-group">
                     <label>Product Image</label>
                     <ImageUpload
-                      onImageUpload={handleImageUpload}
-                      onImageRemove={handleImageRemove}
-                      maxFiles={1}
-                      maxFileSize={5}
-                      currentImages={imagePreview ? [imagePreview] : []}
-                      disabled={false}
+                      value={imageFile || (formData.imageUrl && !formData.removeImage ? formData.imageUrl : null)}
+                      onChange={handleImageSelect}
+                      onRemove={handleImageRemove}
+                      error={imageError}
+                      label="Upload Product Image"
+                      helperText="Drag and drop an image here, or click to select (optional)"
+                      style={{ marginTop: '8px' }}
                     />
                   </div>
                 </div>
@@ -823,7 +836,7 @@ const TheaterProductTypes = () => {
         {/* View Modal */}
         {showViewModal && (
           <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2>Product Name Details</h2>
                 <button 
@@ -970,5 +983,44 @@ const TheaterProductTypes = () => {
     </ErrorBoundary>
   );
 };
+
+// ✅ Global Modal Width Styling
+const style = document.createElement('style');
+style.textContent = `
+  /* ============================================
+     MODAL WIDTH STYLING - GLOBAL STANDARD
+     ============================================ */
+  
+  /* Modal width for CRUD operations */
+  .theater-edit-modal-content {
+    max-width: 900px !important;
+    width: 85% !important;
+  }
+
+  /* Tablet responsive modal */
+  @media (max-width: 1024px) {
+    .theater-edit-modal-content {
+      width: 90% !important;
+    }
+  }
+
+  /* Mobile responsive modal */
+  @media (max-width: 768px) {
+    .theater-edit-modal-content {
+      width: 95% !important;
+      max-width: none !important;
+    }
+  }
+
+  /* Very Small Mobile modal */
+  @media (max-width: 480px) {
+    .theater-edit-modal-content {
+      width: 98% !important;
+    }
+  }
+`;
+if (typeof document !== 'undefined') {
+  document.head.appendChild(style);
+}
 
 export default TheaterProductTypes;

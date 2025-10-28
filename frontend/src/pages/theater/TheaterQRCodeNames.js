@@ -252,26 +252,42 @@ const TheaterQRCodeNames = () => {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
-      const response = await fetch(`${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}`, {
+      console.log('🗑️ Deleting QR Code Name:', selectedQRCodeName._id);
+      console.log('🔗 DELETE URL:', `${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}?permanent=true`);
+      
+      const response = await fetch(`${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}?permanent=true`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
           ...(token && { 'Authorization': `Bearer ${token}` })
-        },
-        body: JSON.stringify({ theaterId: theaterId })
+        }
       });
       
+      console.log('📡 DELETE response:', response.status, response.statusText);
+      
       if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Delete successful:', data);
         setShowDeleteModal(false);
         showSuccess('QR Code Name deleted successfully!');
         loadQRCodeNameData();
         setSelectedQRCodeName(null);
       } else {
         const errorData = await response.json();
-        showError(errorData.message || 'Failed to delete QR Code Name');
+        console.error('❌ Delete failed:', errorData);
+        
+        // Enhanced error handling
+        if (errorData.message && errorData.message.includes('Theater QR names not found')) {
+          showError('Theater not found. Please refresh the page and try again.');
+        } else if (errorData.message && errorData.message.includes('QR name not found')) {
+          showError('QR code name not found. It may have been already deleted.');
+          loadQRCodeNameData(); // Refresh to show current state
+        } else {
+          showError(errorData.message || 'Failed to delete QR Code Name');
+        }
       }
     } catch (error) {
-      console.error('Error deleting QR code name:', error);
+      console.error('❌ Error deleting QR code name:', error);
       showError('Failed to delete QR Code Name. Please try again.');
     }
   };
