@@ -42,7 +42,7 @@
   cursor: pointer;
   backdrop-filter: blur(10px);
   transition: all 0.2s ease;
-  margin-bottom: 24px;
+  flex-shrink: 0;
 }
 
 .back-button:active {
@@ -53,6 +53,9 @@
 .back-button svg {
   stroke: currentColor;
   display: block;
+  width: 46px;
+  height: 46px;
+  stroke-width: 3;
 }
 
 .phone-entry-title {

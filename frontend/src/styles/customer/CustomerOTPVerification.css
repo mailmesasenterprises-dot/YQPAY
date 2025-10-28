@@ -42,7 +42,7 @@
   cursor: pointer;
   backdrop-filter: blur(10px);
   transition: all 0.2s ease;
-  margin-bottom: 24px;
+  flex-shrink: 0;
 }
 
 .back-button:active {
@@ -53,6 +53,9 @@
 .back-button svg {
   stroke: currentColor;
   display: block;
+  width: 46px;
+  height: 46px;
+  stroke-width: 3;
 }
 
 .otp-title {
@@ -279,4 +282,43 @@
 
 .edit-number-button:hover {
   background: rgba(107, 14, 155, 0.05);
+}
+
+/* Change Number Section */
+.change-number-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.change-number-text {
+  font-size: 15px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.change-number-button {
+  background: transparent;
+  border: none;
+  color: #6B0E9B;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  text-decoration: underline;
+}
+
+.change-number-button:hover {
+  background: rgba(107, 14, 155, 0.05);
+  text-decoration: none;
+}
+
+.change-number-button:active {
+  transform: scale(0.96);
 }

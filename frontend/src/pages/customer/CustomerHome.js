@@ -724,27 +724,87 @@ const CustomerHome = () => {
               </button>
               
               {showProfileDropdown && (
-                <div className="profile-dropdown">
+                <div className="profile-dropdown modern-dropdown">
                   <button 
-                    className="dropdown-item"
+                    className="dropdown-card"
                     onClick={handleOrderHistory}
                   >
-                    <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                    <div className="card-icon recent-contacts">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                      </svg>
+                    </div>
+                    <div className="card-content">
+                      <h3 className="card-title">Order History</h3>
+                      <p className="card-subtitle">View your past orders</p>
+                    </div>
+                    <svg className="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 18l6-6-6-6"/>
                     </svg>
-                    <span>Order History</span>
+                  </button>
+                  
+                  <button 
+                    className="dropdown-card"
+                    onClick={() => {/* Handle favorites */}}
+                  >
+                    <div className="card-icon favourites">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      </svg>
+                    </div>
+                    <div className="card-content">
+                      <h3 className="card-title">Favourites</h3>
+                      <p className="card-subtitle">Your favorite items</p>
+                    </div>
+                    <svg className="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                  </button>
+                  
+                  <button 
+                    className="dropdown-card"
+                    onClick={() => {
+                      setShowProfileDropdown(false);
+                      const params = new URLSearchParams();
+                      params.set('theaterid', theaterId);
+                      if (theater?.name) params.set('theaterName', theater.name);
+                      navigate(`/customer/help-support?${params.toString()}`);
+                    }}
+                  >
+                    <div className="card-icon schedules">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                    </div>
+                    <div className="card-content">
+                      <h3 className="card-title">Help & Support</h3>
+                      <p className="card-subtitle">Get assistance</p>
+                    </div>
+                    <svg className="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
                   </button>
                   
                   {/* Only show logout if user is logged in */}
                   {localStorage.getItem('customerPhone') && (
                     <button 
-                      className="dropdown-item"
+                      className="dropdown-card logout-card"
                       onClick={handleLogout}
                     >
-                      <svg className="dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                      <div className="card-icon logout-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+                        </svg>
+                      </div>
+                      <div className="card-content">
+                        <h3 className="card-title">Logout</h3>
+                        <p className="card-subtitle">Sign out from your account</p>
+                      </div>
+                      <svg className="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 18l6-6-6-6"/>
                       </svg>
-                      <span>Logout</span>
                     </button>
                   )}
                 </div>
@@ -996,12 +1056,6 @@ const CustomerHome = () => {
                           {product.discountPercentage}% OFF
                         </div>
                       )}
-                      {/* Out of Stock Overlay */}
-                      {!isProductAvailable && (
-                        <div className="out-of-stock-overlay">
-                          <span className="out-of-stock-text">Out of Stock</span>
-                        </div>
-                      )}
                     </div>
                     
                     {/* Product Details */}
@@ -1040,41 +1094,51 @@ const CustomerHome = () => {
                     {/* Actions Section - Only for single products */}
                     {!collection.isCollection && product && (
                       <div className="product-item-actions" onClick={(e) => e.stopPropagation()}>
-                        <div className="product-actions">
-                          <button 
-                            className="quantity-btn minus"
-                            onClick={() => handleDecreaseQuantity(product)}
-                            disabled={!isProductAvailable}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                              <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        {isProductAvailable ? (
+                          <>
+                            <div className="product-actions">
+                              <button 
+                                className="quantity-btn minus"
+                                onClick={() => handleDecreaseQuantity(product)}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                  <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                              
+                              <span className="quantity-display">{productQty}</span>
+                              
+                              <button 
+                                className="quantity-btn plus"
+                                onClick={() => handleIncreaseQuantity(product)}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                  <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                </svg>
+                              </button>
+                            </div>
+                            {/* Veg/Non-Veg Indicator */}
+                            <div className="product-veg-indicator">
+                              {product.isVeg === true ? (
+                                <span className="veg-badge">
+                                  <span className="veg-dot">●</span> Veg
+                                </span>
+                              ) : product.isVeg === false ? (
+                                <span className="non-veg-badge">
+                                  <span className="non-veg-dot">●</span> Non-Veg
+                                </span>
+                              ) : null}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="out-of-stock-section">
+                            <svg className="out-of-stock-icon" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="10" fill="rgba(220, 38, 38, 0.1)" stroke="#dc2626" strokeWidth="2"/>
+                              <path d="M15 9L9 15M9 9l6 6" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round"/>
                             </svg>
-                          </button>
-                          
-                          <span className="quantity-display">{productQty}</span>
-                          
-                          <button 
-                            className="quantity-btn plus"
-                            onClick={() => isProductAvailable && handleIncreaseQuantity(product)}
-                            disabled={!isProductAvailable}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                            </svg>
-                          </button>
-                        </div>
-                        {/* Veg/Non-Veg Indicator */}
-                        <div className="product-veg-indicator">
-                          {product.isVeg === true ? (
-                            <span className="veg-badge">
-                              <span className="veg-dot">●</span> Veg
-                            </span>
-                          ) : product.isVeg === false ? (
-                            <span className="non-veg-badge">
-                              <span className="non-veg-dot">●</span> Non-Veg
-                            </span>
-                          ) : null}
-                        </div>
+                            <span className="out-of-stock-text">Out of Stock</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

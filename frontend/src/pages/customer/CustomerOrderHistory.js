@@ -123,34 +123,56 @@ const CustomerOrderHistory = () => {
     setLoginError('');
 
     try {
-      // Simulate sending OTP (in real app, call backend API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Call real API to send OTP
+      const fullPhone = '+91' + phoneNumber;
+      const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
       
-      console.log('✅ OTP sent to:', '+91' + phoneNumber);
-      
-      // Move to OTP step
-      setLoginStep('otp');
-      setResendTimer(30);
-      setCanResend(false);
-      
-      // Start countdown timer
-      const timer = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            clearInterval(timer);
-            return 0;
+      console.log('📞 Sending OTP to:', fullPhone);
+      console.log('🌐 API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber: fullPhone,
+          purpose: 'order_history'
+        })
+      });
+
+      const result = await response.json();
+      console.log('📥 Send OTP Response:', result);
+
+      if (result.success) {
+        console.log('✅ OTP sent successfully to:', fullPhone);
+        
+        // Move to OTP step
+        setLoginStep('otp');
+        setResendTimer(30);
+        setCanResend(false);
+        
+        // Start countdown timer
+        const timer = setInterval(() => {
+          setResendTimer((prev) => {
+            if (prev <= 1) {
+              setCanResend(true);
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        
+        // Auto-focus first OTP input
+        setTimeout(() => {
+          if (otpInputRefs.current[0]) {
+            otpInputRefs.current[0].focus();
           }
-          return prev - 1;
-        });
-      }, 1000);
-      
-      // Auto-focus first OTP input
-      setTimeout(() => {
-        if (otpInputRefs.current[0]) {
-          otpInputRefs.current[0].focus();
-        }
-      }, 100);
+        }, 100);
+      } else {
+        setLoginError(result.error || 'Failed to send OTP. Please try again.');
+      }
       
     } catch (err) {
       console.error('❌ Error sending OTP:', err);
@@ -222,24 +244,49 @@ const CustomerOrderHistory = () => {
     setLoginError('');
 
     try {
-      // Simulate OTP verification (in real app, verify with backend)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo, accept any 4-digit OTP
       const fullPhone = '+91' + phoneNumber;
+      const apiUrl = `${config.api.baseUrl}/sms/verify-otp`;
       
-      // Save phone number to localStorage
-      localStorage.setItem('customerPhone', fullPhone);
-      
-      // Mark as logged in
-      setIsLoggedIn(true);
-      setShowLoginForm(false);
-      
-      // Fetch order history
-      fetchOrderHistory(fullPhone);
+      console.log('🔍 Verifying OTP:', otpString);
+      console.log('📞 Phone:', fullPhone);
+      console.log('🌐 API URL:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber: fullPhone,
+          otp: otpString,
+          purpose: 'order_history'
+        })
+      });
+
+      const result = await response.json();
+      console.log('📥 Verification Response:', result);
+
+      if (result.success) {
+        console.log('✅ OTP verified successfully!');
+        
+        // Save phone number to localStorage
+        localStorage.setItem('customerPhone', fullPhone);
+        
+        // Mark as logged in
+        setIsLoggedIn(true);
+        setShowLoginForm(false);
+        
+        // Fetch order history
+        fetchOrderHistory(fullPhone);
+      } else {
+        setLoginError(result.error || 'Invalid OTP. Please try again.');
+        setOtp(['', '', '', '']);
+        otpInputRefs.current[0]?.focus();
+      }
       
     } catch (err) {
-      setLoginError('Invalid OTP. Please try again.');
+      console.error('❌ Verification Error:', err);
+      setLoginError('Failed to verify OTP. Please try again.');
       setOtp(['', '', '', '']);
       otpInputRefs.current[0]?.focus();
     } finally {
@@ -255,30 +302,53 @@ const CustomerOrderHistory = () => {
     setLoginError('');
     
     try {
-      // Simulate API call to resend OTP
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const fullPhone = '+91' + phoneNumber;
+      const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
       
-      // Reset timer
-      setResendTimer(30);
-      setCanResend(false);
-      
-      // Clear OTP inputs
-      setOtp(['', '', '', '']);
-      otpInputRefs.current[0]?.focus();
+      console.log('🔄 Resending OTP to:', fullPhone);
 
-      // Start new countdown
-      const timer = setInterval(() => {
-        setResendTimer((prev) => {
-          if (prev <= 1) {
-            setCanResend(true);
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber: fullPhone,
+          purpose: 'order_history'
+        })
+      });
+
+      const result = await response.json();
+      console.log('📥 Resend OTP Response:', result);
+
+      if (result.success) {
+        console.log('✅ OTP resent successfully');
+        
+        // Reset timer
+        setResendTimer(30);
+        setCanResend(false);
+        
+        // Clear OTP inputs
+        setOtp(['', '', '', '']);
+        otpInputRefs.current[0]?.focus();
+
+        // Start new countdown
+        const timer = setInterval(() => {
+          setResendTimer((prev) => {
+            if (prev <= 1) {
+              setCanResend(true);
+              clearInterval(timer);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+      } else {
+        setLoginError(result.error || 'Failed to resend OTP. Please try again.');
+      }
 
     } catch (err) {
+      console.error('❌ Error resending OTP:', err);
       setLoginError('Failed to resend OTP. Please try again.');
     } finally {
       setLoginLoading(false);
@@ -293,10 +363,21 @@ const CustomerOrderHistory = () => {
   };
 
   const handleBack = () => {
-    // Redirect to customer home (menu) page with theater ID
+    // Redirect to customer home (menu) page with all saved parameters
     if (theaterId) {
       const params = new URLSearchParams();
       params.set('theaterid', theaterId);
+      
+      // Get saved values from localStorage to restore state
+      const savedQr = localStorage.getItem('customerQrName');
+      const savedScreen = localStorage.getItem('customerScreenName');
+      const savedSeat = localStorage.getItem('customerSeat');
+      
+      if (savedQr) params.set('qrName', savedQr);
+      if (savedScreen) params.set('screen', savedScreen);
+      if (savedSeat) params.set('seat', savedSeat);
+      
+      console.log('🏠 Navigating back to home with params:', Object.fromEntries(params.entries()));
       navigate(`/customer/home?${params.toString()}`);
     } else {
       navigate(-1);
@@ -379,7 +460,7 @@ const CustomerOrderHistory = () => {
                 onClick={handleBack}
                 type="button"
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <svg viewBox="0 0 24 24" fill="none">
                   <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
@@ -441,7 +522,7 @@ const CustomerOrderHistory = () => {
                 onClick={handleBackToPhone}
                 type="button"
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <svg viewBox="0 0 24 24" fill="none">
                   <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </button>
@@ -529,14 +610,11 @@ const CustomerOrderHistory = () => {
           onClick={handleBack}
           type="button"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <svg viewBox="0 0 24 24" fill="none">
             <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <div className="header-content">
-          <h1 className="page-title">Order History</h1>
-          {theaterName && <p className="theater-name">{theaterName}</p>}
-        </div>
+        <h1 className="page-title">Order History</h1>
       </div>
 
       <div className="order-history-content">
@@ -561,10 +639,7 @@ const CustomerOrderHistory = () => {
             {orders.map((order, index) => (
               <div key={index} className="order-card">
                 <div className="order-header">
-                  <div className="order-number">
-                    <span className="label">Order</span>
-                    <span className="value">#{order.orderNumber}</span>
-                  </div>
+                  <span className="order-label">Order</span>
                   <div 
                     className="order-status"
                     style={{ color: getStatusColor(order.status) }}
@@ -573,21 +648,8 @@ const CustomerOrderHistory = () => {
                   </div>
                 </div>
 
-                <div className="order-date">
-                  {formatDate(order.createdAt)}
-                </div>
-
-                <div className="order-items">
-                  {order.items.map((item, idx) => (
-                    <div key={idx} className="order-item">
-                      <span className="item-name">
-                        {item.name} × {item.quantity}
-                      </span>
-                      <span className="item-price">
-                        {formatPrice(item.totalPrice)}
-                      </span>
-                    </div>
-                  ))}
+                <div className="order-number">
+                  #{order.orderNumber}
                 </div>
 
                 <div className="order-footer">

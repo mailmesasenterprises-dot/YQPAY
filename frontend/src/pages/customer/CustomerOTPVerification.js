@@ -297,6 +297,17 @@ const CustomerOTPVerification = () => {
               </button>
             )}
           </div>
+
+          <div className="change-number-section">
+            <span className="change-number-text">Wrong number?</span>
+            <button 
+              className="change-number-button"
+              onClick={handleBack}
+              type="button"
+            >
+              Change
+            </button>
+          </div>
         </div>
       </div>
     </div>
