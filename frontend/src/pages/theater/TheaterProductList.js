@@ -1557,7 +1557,27 @@ const TheaterProductList = () => {
         </div>
 
         {/* View Product Modal */}
-        {viewModal.show && (
+        {viewModal.show && (() => {
+          // Get category name - handle all cases
+          let categoryDisplayName = 'Uncategorized';
+          const product = viewModal.product;
+          
+          if (product?.categoryId && typeof product.categoryId === 'object') {
+            // CategoryId is populated object
+            categoryDisplayName = product.categoryId.categoryName || product.categoryId.name || 'Uncategorized';
+          } else if (product?.category && typeof product.category === 'object') {
+            // Category is populated object
+            categoryDisplayName = product.category.categoryName || product.category.name || 'Uncategorized';
+          } else if ((product?.categoryId || product?.category) && categories && categories.length > 0) {
+            // Category/CategoryId is just an ID string, look up in categories array
+            const catId = product.categoryId || product.category;
+            const foundCategory = categories.find(c => c._id?.toString() === catId?.toString());
+            if (foundCategory) {
+              categoryDisplayName = foundCategory.categoryName || foundCategory.name || 'Uncategorized';
+            }
+          }
+          
+          return (
           <div className="modal-overlay" onClick={() => setViewModal({ show: false, product: null })}>
             <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
@@ -1596,7 +1616,7 @@ const TheaterProductList = () => {
                     <label>Category</label>
                     <input 
                       type="text" 
-                      value={viewModal.product?.categoryId?.name || viewModal.product?.category?.name || 'Uncategorized'} 
+                      value={categoryDisplayName} 
                       className="form-control"
                       readOnly
                     />
@@ -1834,7 +1854,8 @@ const TheaterProductList = () => {
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Edit Product Modal */}
         {editModal.show && (
@@ -1877,7 +1898,7 @@ const TheaterProductList = () => {
                       <option value="">Select category...</option>
                       {categories.map((cat) => (
                         <option key={cat._id} value={cat._id}>
-                          {cat.name}
+                          {cat.categoryName || cat.name}
                         </option>
                       ))}
                     </select>

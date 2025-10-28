@@ -184,23 +184,24 @@ router.post('/general', [optionalAuth], async (req, res) => {
  */
 router.get('/firebase', [authenticateToken], async (req, res) => {
   try {
-    let theaterId = req.user.theaterId;
-    
-    if (req.user.role === 'super_admin' && req.query.theaterId) {
-      theaterId = req.query.theaterId;
-    }
+    console.log('📥 Getting Firebase configuration...');
 
-    const settings = theaterId 
-      ? await Settings.getCategory(theaterId, 'firebase')
-      : {};
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    // Get Firebase configuration from settings collection
+    const settingsDoc = await db.collection('settings').findOne({ type: 'firebase' });
+    const config = settingsDoc?.firebaseConfig || {};
+
+    console.log('✅ Firebase config retrieved:', Object.keys(config).length, 'fields');
 
     res.json({
       success: true,
-      data: { config: settings }
+      data: { config }
     });
 
   } catch (error) {
-    console.error('Get Firebase settings error:', error);
+    console.error('❌ Get Firebase settings error:', error);
     res.status(500).json({
       error: 'Failed to fetch Firebase settings',
       message: 'Internal server error'
@@ -214,23 +215,23 @@ router.get('/firebase', [authenticateToken], async (req, res) => {
  */
 router.get('/gcs', [authenticateToken], async (req, res) => {
   try {
-    let theaterId = req.user.theaterId;
-    
-    if (req.user.role === 'super_admin' && req.query.theaterId) {
-      theaterId = req.query.theaterId;
-    }
+    console.log('📥 Getting GCS configuration...');
 
-    const settings = theaterId 
-      ? await Settings.getCategory(theaterId, 'gcs')
-      : {};
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    const settingsDoc = await db.collection('settings').findOne({ type: 'gcs' });
+    const config = settingsDoc?.gcsConfig || {};
+
+    console.log('✅ GCS config retrieved');
 
     res.json({
       success: true,
-      data: { config: settings }
+      data: { config }
     });
 
   } catch (error) {
-    console.error('Get GCS settings error:', error);
+    console.error('❌ Get GCS settings error:', error);
     res.status(500).json({
       error: 'Failed to fetch GCS settings',
       message: 'Internal server error'
@@ -244,23 +245,23 @@ router.get('/gcs', [authenticateToken], async (req, res) => {
  */
 router.get('/mongodb', [authenticateToken], async (req, res) => {
   try {
-    let theaterId = req.user.theaterId;
-    
-    if (req.user.role === 'super_admin' && req.query.theaterId) {
-      theaterId = req.query.theaterId;
-    }
+    console.log('📥 Getting MongoDB configuration...');
 
-    const settings = theaterId 
-      ? await Settings.getCategory(theaterId, 'mongodb')
-      : {};
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    const settingsDoc = await db.collection('settings').findOne({ type: 'mongodb' });
+    const config = settingsDoc?.mongodbConfig || {};
+
+    console.log('✅ MongoDB config retrieved');
 
     res.json({
       success: true,
-      data: { config: settings }
+      data: { config }
     });
 
   } catch (error) {
-    console.error('Get MongoDB settings error:', error);
+    console.error('❌ Get MongoDB settings error:', error);
     res.status(500).json({
       error: 'Failed to fetch MongoDB settings',
       message: 'Internal server error'
@@ -482,6 +483,308 @@ router.post('/sms', [authenticateToken], async (req, res) => {
   }
 });
 
-module.exports = router;
+/**
+ * POST /api/settings/firebase
+ * Save Firebase configuration
+ */
+router.post('/firebase', [authenticateToken], async (req, res) => {
+  try {
+    const {
+      apiKey,
+      authDomain,
+      projectId,
+      storageBucket,
+      messagingSenderId,
+      appId,
+      measurementId
+    } = req.body;
+
+    console.log('🔄 Saving Firebase configuration...');
+
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    // Get existing configuration to merge
+    const existingDoc = await db.collection('settings').findOne({ type: 'firebase' });
+    const existingFirebaseConfig = existingDoc?.firebaseConfig || {};
+
+    // Merge with existing configuration
+    const firebaseConfig = {
+      ...existingFirebaseConfig,
+      ...(apiKey !== undefined && { apiKey }),
+      ...(authDomain !== undefined && { authDomain }),
+      ...(projectId !== undefined && { projectId }),
+      ...(storageBucket !== undefined && { storageBucket }),
+      ...(messagingSenderId !== undefined && { messagingSenderId }),
+      ...(appId !== undefined && { appId }),
+      ...(measurementId !== undefined && { measurementId })
+    };
+
+    console.log('💾 Saving Firebase config to database');
+
+    // Update or create the Firebase settings document
+    await db.collection('settings').findOneAndUpdate(
+      { type: 'firebase' },
+      {
+        $set: {
+          firebaseConfig: firebaseConfig,
+          lastUpdated: new Date()
+        }
+      },
+      {
+        upsert: true,
+        returnDocument: 'after'
+      }
+    );
+
+    console.log('✅ Firebase configuration saved successfully');
+
+    res.json({
+      success: true,
+      message: 'Firebase configuration saved successfully',
+      data: firebaseConfig
+    });
+
+  } catch (error) {
+    console.error('❌ Error saving Firebase configuration:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save Firebase configuration',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/settings/test-firebase
+ * Test Firebase connection
+ */
+router.post('/test-firebase', [authenticateToken], async (req, res) => {
+  try {
+    const {
+      apiKey,
+      authDomain,
+      projectId,
+      storageBucket,
+      messagingSenderId,
+      appId
+    } = req.body;
+
+    console.log('🔥 Testing Firebase connection...');
+
+    // Validate required fields
+    if (!apiKey || !projectId || !storageBucket) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required Firebase configuration fields',
+        details: {
+          apiKey: !apiKey ? 'required' : 'ok',
+          projectId: !projectId ? 'required' : 'ok',
+          storageBucket: !storageBucket ? 'required' : 'ok'
+        }
+      });
+    }
+
+    // Test 1: Validate API Key format
+    if (!apiKey.startsWith('AIza')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid API key format',
+        details: 'Firebase API keys should start with "AIza"'
+      });
+    }
+
+    // Test 2: Try to verify the API key by making a request to Firebase Auth REST API
+    const fetch = require('node-fetch');
+    const authUrl = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`;
+    
+    try {
+      const response = await fetch(authUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: 'test' })
+      });
+
+      const data = await response.json();
+      
+      // If we get an error about invalid token, that means the API key is valid
+      if (data.error) {
+        const errorCode = data.error.message;
+        if (errorCode.includes('INVALID_ID_TOKEN') || errorCode.includes('INVALID_ARGUMENT')) {
+          console.log('✅ Firebase API key is valid and reachable');
+          
+          return res.json({
+            success: true,
+            message: 'Firebase connection successful!',
+            details: {
+              apiKey: 'valid',
+              projectId: projectId,
+              authDomain: authDomain,
+              storageBucket: storageBucket,
+              status: 'connected'
+            }
+          });
+        } else if (errorCode.includes('API_KEY_INVALID')) {
+          return res.status(400).json({
+            success: false,
+            message: 'Firebase API key is invalid',
+            details: 'Please verify your API key in Firebase Console'
+          });
+        }
+      }
+      
+      // Unexpected response but API is reachable
+      console.log('✅ Firebase API is reachable');
+      return res.json({
+        success: true,
+        message: 'Firebase connection successful!',
+        details: {
+          apiKey: 'valid',
+          projectId: projectId,
+          status: 'connected'
+        }
+      });
+      
+    } catch (fetchError) {
+      console.error('❌ Firebase API connection error:', fetchError.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to connect to Firebase',
+        details: 'Please check your internet connection and Firebase configuration',
+        error: fetchError.message
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error testing Firebase connection:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to test Firebase connection',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/settings/mongodb
+ * Save MongoDB configuration
+ */
+router.post('/mongodb', [authenticateToken], async (req, res) => {
+  try {
+    const {
+      connectionString,
+      database,
+      poolSize,
+      socketTimeoutMS,
+      connectTimeoutMS
+    } = req.body;
+
+    console.log('🔄 Saving MongoDB configuration...');
+
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    const existingDoc = await db.collection('settings').findOne({ type: 'mongodb' });
+    const existingMongoConfig = existingDoc?.mongodbConfig || {};
+
+    const mongodbConfig = {
+      ...existingMongoConfig,
+      ...(connectionString !== undefined && { connectionString }),
+      ...(database !== undefined && { database }),
+      ...(poolSize !== undefined && { poolSize }),
+      ...(socketTimeoutMS !== undefined && { socketTimeoutMS }),
+      ...(connectTimeoutMS !== undefined && { connectTimeoutMS })
+    };
+
+    await db.collection('settings').findOneAndUpdate(
+      { type: 'mongodb' },
+      {
+        $set: {
+          mongodbConfig: mongodbConfig,
+          lastUpdated: new Date()
+        }
+      },
+      {
+        upsert: true,
+        returnDocument: 'after'
+      }
+    );
+
+    console.log('✅ MongoDB configuration saved successfully');
+
+    res.json({
+      success: true,
+      message: 'MongoDB configuration saved successfully',
+      data: mongodbConfig
+    });
+
+  } catch (error) {
+    console.error('❌ Error saving MongoDB configuration:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save MongoDB configuration',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/settings/gcs
+ * Save Google Cloud Storage configuration
+ */
+router.post('/gcs', [authenticateToken], async (req, res) => {
+  try {
+    const {
+      projectId,
+      bucketName,
+      credentials
+    } = req.body;
+
+    console.log('🔄 Saving GCS configuration...');
+
+    const mongoose = require('mongoose');
+    const db = mongoose.connection.db;
+
+    const existingDoc = await db.collection('settings').findOne({ type: 'gcs' });
+    const existingGcsConfig = existingDoc?.gcsConfig || {};
+
+    const gcsConfig = {
+      ...existingGcsConfig,
+      ...(projectId !== undefined && { projectId }),
+      ...(bucketName !== undefined && { bucketName }),
+      ...(credentials !== undefined && { credentials })
+    };
+
+    await db.collection('settings').findOneAndUpdate(
+      { type: 'gcs' },
+      {
+        $set: {
+          gcsConfig: gcsConfig,
+          lastUpdated: new Date()
+        }
+      },
+      {
+        upsert: true,
+        returnDocument: 'after'
+      }
+    );
+
+    console.log('✅ GCS configuration saved successfully');
+
+    res.json({
+      success: true,
+      message: 'GCS configuration saved successfully',
+      data: gcsConfig
+    });
+
+  } catch (error) {
+    console.error('❌ Error saving GCS configuration:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save GCS configuration',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

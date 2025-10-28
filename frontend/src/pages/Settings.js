@@ -936,7 +936,7 @@ const Settings = React.memo(() => {
                 </div>
                 
                 <div className="form-group">
-                  <label htmlFor="firebase-appId" data-required="true">App ID</label>
+                  <label htmlFor="firebase-appId" data-required="true">APP ID</label>
                   <input
                     id="firebase-appId"
                     type="text"
@@ -945,6 +945,21 @@ const Settings = React.memo(() => {
                     placeholder="1:123456789:web:abcdef123456"
                     className="form-control"
                   />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="firebase-measurementId">MEASUREMENT ID</label>
+                  <input
+                    id="firebase-measurementId"
+                    type="text"
+                    value={firebaseConfig.measurementId}
+                    onChange={(e) => handleFirebaseChange('measurementId', e.target.value)}
+                    placeholder="G-XXXXXXXXXX"
+                    className="form-control"
+                  />
+                  <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px', display: 'block' }}>
+                    Optional - Required only if using Google Analytics
+                  </small>
                 </div>
               </div>
 
