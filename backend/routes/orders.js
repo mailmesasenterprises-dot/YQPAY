@@ -11,49 +11,117 @@ const { authenticateToken, optionalAuth, requireTheaterAccess } = require('../mi
 const router = express.Router();
 
 /**
- * Helper function to record stock usage in MonthlyStock
+ * Helper function to record stock usage in MonthlyStock with FIFO logic
  */
 async function recordStockUsage(theaterId, productId, quantity, orderDate) {
   try {
     const entryDate = new Date(orderDate);
     const year = entryDate.getFullYear();
     const monthNumber = entryDate.getMonth() + 1;
+    const now = new Date();
 
-    // Get previous month's closing balance
+    // Get all monthly documents for this product (from oldest to newest)
+    const allMonthlyDocs = await MonthlyStock.find({
+      theaterId,
+      productId
+    }).sort({ year: 1, monthNumber: 1 });
+
+    let remainingToDeduct = quantity;
+    const deductionDetails = []; // Track which stocks were deducted from
+
+    // Helper function to check if stock is expired
+    const isStockExpired = (expireDate) => {
+      if (!expireDate) return false;
+      const expiry = new Date(expireDate);
+      const dayAfterExpiry = new Date(expiry);
+      dayAfterExpiry.setDate(expiry.getDate() + 1);
+      dayAfterExpiry.setHours(0, 1, 0, 0);
+      return now >= dayAfterExpiry;
+    };
+
+    // FIFO: Process each month's stock details from oldest to newest
+    for (const monthlyDoc of allMonthlyDocs) {
+      if (remainingToDeduct <= 0) break;
+
+      for (let i = 0; i < monthlyDoc.stockDetails.length; i++) {
+        if (remainingToDeduct <= 0) break;
+
+        const entry = monthlyDoc.stockDetails[i];
+        
+        // Only deduct from ADDED entries that are not expired
+        if (entry.type === 'ADDED' && !isStockExpired(entry.expireDate)) {
+          // Calculate available stock in this entry
+          const availableStock = Math.max(0, 
+            entry.stockAdded - (entry.usedStock || 0) - (entry.expiredStock || 0) - (entry.damageStock || 0)
+          );
+
+          if (availableStock > 0) {
+            // Deduct from this entry
+            const deductAmount = Math.min(remainingToDeduct, availableStock);
+            entry.usedStock = (entry.usedStock || 0) + deductAmount;
+            
+            // Track deduction details for logging
+            deductionDetails.push({
+              date: entry.date,
+              batchNumber: entry.batchNumber,
+              deducted: deductAmount,
+              expireDate: entry.expireDate
+            });
+
+            remainingToDeduct -= deductAmount;
+
+            // Mark the document as modified
+            monthlyDoc.markModified('stockDetails');
+            await monthlyDoc.save();
+
+            console.log(`  📦 FIFO Deduction: ${deductAmount} units from ${new Date(entry.date).toLocaleDateString()} (Batch: ${entry.batchNumber || 'N/A'})`);
+          }
+        }
+      }
+    }
+
+    // If we couldn't deduct all quantity, log a warning
+    if (remainingToDeduct > 0) {
+      console.warn(`  ⚠️ WARNING: Could not fully deduct stock. Remaining: ${remainingToDeduct} units`);
+    }
+
+    // Get or create monthly document for the sale record
     const previousBalance = await MonthlyStock.getPreviousMonthBalance(theaterId, productId, year, monthNumber);
-    
-    // Get or create monthly document
-    let monthlyDoc = await MonthlyStock.getOrCreateMonthlyDoc(theaterId, productId, year, monthNumber, previousBalance);
+    let currentMonthDoc = await MonthlyStock.getOrCreateMonthlyDoc(theaterId, productId, year, monthNumber, previousBalance);
 
     // Calculate current balance from existing entries
-    let currentBalance = monthlyDoc.carryForward;
-    if (monthlyDoc.stockDetails.length > 0) {
-      const lastEntry = monthlyDoc.stockDetails[monthlyDoc.stockDetails.length - 1];
+    let currentBalance = currentMonthDoc.carryForward;
+    if (currentMonthDoc.stockDetails.length > 0) {
+      const lastEntry = currentMonthDoc.stockDetails[currentMonthDoc.stockDetails.length - 1];
       currentBalance = lastEntry.balance;
     }
 
-    // Create SOLD entry
+    // Create SOLD entry with FIFO details
     const newEntry = {
       date: entryDate,
       type: 'SOLD',
       quantity: quantity,
       stockAdded: 0,
-      usedStock: quantity,
+      usedStock: quantity,  // Keep this for display/tracking purposes
       expiredStock: 0,
       damageStock: 0,
       balance: Math.max(0, currentBalance - quantity),
-      notes: 'Auto-generated from order'
+      notes: `FIFO Deduction: ${deductionDetails.map(d => 
+        `${d.deducted} from ${new Date(d.date).toLocaleDateString()}${d.batchNumber ? ` (${d.batchNumber})` : ''}`
+      ).join(', ')}`,
+      fifoDetails: deductionDetails // Store FIFO details for reference
     };
 
     // Add to stock details
-    monthlyDoc.stockDetails.push(newEntry);
+    currentMonthDoc.stockDetails.push(newEntry);
     
     // Save the document (pre-save hook will update totals)
-    await monthlyDoc.save();
+    await currentMonthDoc.save();
 
-    console.log(`  ✅ Recorded stock usage in MonthlyStock: ${quantity} units of product ${productId}`);
+    console.log(`  ✅ Recorded FIFO stock usage: ${quantity} units of product ${productId}`);
+    console.log(`  📋 Deduction details:`, deductionDetails);
     
-    return monthlyDoc;
+    return currentMonthDoc;
   } catch (error) {
     console.error(`  ⚠️ Failed to record stock usage in MonthlyStock:`, error.message);
     // Don't throw - allow order to complete even if MonthlyStock update fails
@@ -225,12 +293,18 @@ router.post('/theater', [
     const total = subtotal + taxAmount;
 
     console.log('💰 Order Totals:', { subtotal, taxAmount, total });
+    
+    // Determine order source early for logging
+    const orderSource = (qrName || seat) ? 'qr_code' : 'pos';
+    
     console.log('📝 Creating order with data:', {
       theaterId,
       customerInfo: finalCustomerInfo,
       itemsCount: orderItems.length,
       payment: { method: paymentMethod || 'cash', status: 'pending' },
-      source: req.user ? 'staff' : 'qr_code',
+      source: orderSource,
+      qrName,
+      seat,
       staffUsername: req.user?.username || 'anonymous'
     });
     
@@ -271,6 +345,8 @@ router.post('/theater', [
       console.log('⚠️ No req.user found - order will have null staffInfo');
     }
 
+    console.log('📱 Order Source:', orderSource, '(based on qrName:', qrName, 'seat:', seat, ')');
+
     // Create order object for array
     const newOrder = {
       orderNumber,
@@ -289,7 +365,7 @@ router.post('/theater', [
       status: 'confirmed',  // ✅ Default status changed to confirmed
       orderType: 'dine_in',
       staffInfo: staffInfo,  // ✅ Use the created staffInfo object
-      source: req.user ? 'staff' : 'qr_code',
+      source: orderSource,   // ✅ Dynamic source based on qrName/seat
       tableNumber,
       specialInstructions: finalSpecialInstructions,
       qrName: qrName || null,  // ✅ Store QR Name
@@ -858,10 +934,10 @@ router.get('/excel/:theaterId',
   async (req, res) => {
     try {
       const { theaterId } = req.params;
-      const { date, month, year, startDate, endDate, status } = req.query;
+      const { date, month, year, startDate, endDate, status, source } = req.query;
 
       console.log(`📊 Generating Excel report for theater: ${theaterId}`);
-      console.log(`   Filters:`, { date, month, year, startDate, endDate, status });
+      console.log(`   Filters:`, { date, month, year, startDate, endDate, status, source });
 
       // Get theater orders document - FIX: Use 'theater' field not 'theaterId'
       const theaterOrders = await TheaterOrders.findOne({ theater: new mongoose.Types.ObjectId(theaterId) });
@@ -877,6 +953,25 @@ router.get('/excel/:theaterId',
 
       let filteredOrders = [...theaterOrders.orderList];
       console.log(`📝 Initial orders count: ${filteredOrders.length}`);
+
+      // Apply source filter (qr_code for online orders, pos for POS orders)
+      if (source) {
+        const beforeFilter = filteredOrders.length;
+        console.log(`🔍 Filtering by source: '${source}'`);
+        console.log(`🔍 Sample order sources:`, filteredOrders.slice(0, 3).map(o => ({ 
+          orderNo: o.orderNumber, 
+          source: o.source,
+          hasSource: !!o.source 
+        })));
+        
+        filteredOrders = filteredOrders.filter(order => order.source === source);
+        console.log(`  📱 Filtered by source '${source}': ${beforeFilter} → ${filteredOrders.length} orders`);
+        
+        if (filteredOrders.length === 0) {
+          console.log(`⚠️ No orders found with source='${source}'. Available sources:`, 
+            [...new Set(theaterOrders.orderList.map(o => o.source || 'undefined'))]);
+        }
+      }
 
       // Apply date filters
       if (date) {
@@ -977,7 +1072,7 @@ router.get('/excel/:theaterId',
       };
 
       // Add title
-      worksheet.mergeCells('A1:J1');
+      worksheet.mergeCells('A1:N1');
       worksheet.getCell('A1').value = 'Order History Report';
       worksheet.getCell('A1').style = titleStyle;
       worksheet.getRow(1).height = 25;
@@ -1001,8 +1096,8 @@ router.get('/excel/:theaterId',
       }
       worksheet.getCell('A4').value = filterInfo;
 
-      // Add headers (row 6) - WITH STAFF NAME ONLY
-      const headers = ['S.No', 'Order No', 'Date', 'Time', 'Customer', 'Phone', 'Staff Name', 'Items', 'Quantity', 'Amount', 'Payment', 'Status'];
+      // Add headers (row 6) - WITH SEPARATE PAYMENT COLUMNS + TOTAL
+      const headers = ['S.No', 'Order No', 'Date', 'Time', 'Customer', 'Phone', 'Staff Name', 'Items', 'Quantity', 'Cash', 'UPI', 'Card', 'Total', 'Status'];
       worksheet.getRow(6).values = headers;
       worksheet.getRow(6).eachCell((cell) => {
         cell.style = headerStyle;
@@ -1017,16 +1112,21 @@ router.get('/excel/:theaterId',
         { key: 'time', width: 12 },
         { key: 'customer', width: 20 },
         { key: 'phone', width: 15 },
-        { key: 'staffName', width: 20 },     // Staff Name column
+        { key: 'staffName', width: 20 },
         { key: 'items', width: 40 },
         { key: 'quantity', width: 10 },
-        { key: 'amount', width: 15 },
-        { key: 'payment', width: 12 },
+        { key: 'cash', width: 15 },        // Cash column
+        { key: 'upi', width: 15 },         // UPI column
+        { key: 'card', width: 15 },        // Card/NEFT column
+        { key: 'total', width: 15 },       // Total column
         { key: 'status', width: 12 }
       ];
 
       // Add data rows
       let rowIndex = 7;
+      let totalCash = 0;
+      let totalUPI = 0;
+      let totalCard = 0;
       let totalRevenue = 0;
       let totalOrders = filteredOrders.length;
 
@@ -1038,8 +1138,31 @@ router.get('/excel/:theaterId',
                         order.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
         const amount = order.pricing?.total || order.totalAmount || 0;
         totalRevenue += amount;
+        
+        // Get payment method
+        const paymentMethod = (order.payment?.method || order.paymentMethod || '').toLowerCase();
+        
+        // Determine which column to put the amount in
+        let cashAmount = 0;
+        let upiAmount = 0;
+        let cardAmount = 0;
+        
+        if (paymentMethod === 'cash') {
+          cashAmount = amount;
+          totalCash += amount;
+        } else if (paymentMethod === 'upi' || paymentMethod === 'online') {
+          upiAmount = amount;
+          totalUPI += amount;
+        } else if (paymentMethod === 'card' || paymentMethod === 'neft' || paymentMethod === 'credit_card' || paymentMethod === 'debit_card') {
+          cardAmount = amount;
+          totalCard += amount;
+        } else {
+          // Default to cash if unknown
+          cashAmount = amount;
+          totalCash += amount;
+        }
 
-        // Extract staff username - CORRECTED to use the right field
+        // Extract staff username
         const staffName = order.staffInfo?.username || 'N/A';
 
         const row = worksheet.getRow(rowIndex);
@@ -1050,11 +1173,13 @@ router.get('/excel/:theaterId',
           orderDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
           order.customerName || order.customerInfo?.name || 'Guest',
           order.customerPhone || order.customerInfo?.phone || 'N/A',
-          staffName,      // Staff Name only
+          staffName,
           items,
           totalQty,
-          amount,
-          order.payment?.method || order.paymentMethod || 'N/A',
+          cashAmount || '',    // Cash column - empty if 0
+          upiAmount || '',     // UPI column - empty if 0
+          cardAmount || '',    // Card/NEFT column - empty if 0
+          amount,              // Total column - always shows amount
           order.status || 'pending'
         ];
 
@@ -1070,13 +1195,15 @@ router.get('/excel/:theaterId',
           // Items column (col 8) left-aligned, others centered
           cell.alignment = { vertical: 'middle', horizontal: colNumber === 8 ? 'left' : 'center' };
           
-          // Format currency (Amount column is now column 10)
-          if (colNumber === 10) {
-            cell.numFmt = '₹#,##0.00';
+          // Format currency for payment columns (10=Cash, 11=UPI, 12=Card, 13=Total)
+          if (colNumber === 10 || colNumber === 11 || colNumber === 12 || colNumber === 13) {
+            if (cell.value) {
+              cell.numFmt = '₹#,##0.00';
+            }
           }
           
-          // Status color coding (Status column is now column 12)
-          if (colNumber === 12) {
+          // Status color coding (Status column is now column 14)
+          if (colNumber === 14) {
             const status = order.status || 'pending';
             if (status === 'completed') {
               cell.font = { color: { argb: 'FF059669' }, bold: true };
@@ -1093,15 +1220,33 @@ router.get('/excel/:theaterId',
         rowIndex++;
       });
 
-      // Add summary rows
+      // Add summary rows with totals for each payment method
       rowIndex++;
       const summaryRow = worksheet.getRow(rowIndex);
-      summaryRow.values = ['', '', '', '', '', '', '', 'TOTAL:', totalOrders, totalRevenue, '', ''];
+      summaryRow.values = ['', '', '', '', '', '', '', 'TOTAL:', totalOrders, totalCash, totalUPI, totalCard, totalRevenue, ''];
       summaryRow.getCell(8).font = { bold: true, size: 12 };
       summaryRow.getCell(9).font = { bold: true, size: 12 };
+      
+      // Format Cash total (column 10)
       summaryRow.getCell(10).font = { bold: true, size: 12 };
       summaryRow.getCell(10).numFmt = '₹#,##0.00';
       summaryRow.getCell(10).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
+      
+      // Format UPI total (column 11)
+      summaryRow.getCell(11).font = { bold: true, size: 12 };
+      summaryRow.getCell(11).numFmt = '₹#,##0.00';
+      summaryRow.getCell(11).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
+      
+      // Format Card/NEFT total (column 12)
+      summaryRow.getCell(12).font = { bold: true, size: 12 };
+      summaryRow.getCell(12).numFmt = '₹#,##0.00';
+      summaryRow.getCell(12).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
+      
+      // Format Total Revenue (column 13)
+      summaryRow.getCell(13).font = { bold: true, size: 12, color: { argb: 'FF059669' } };
+      summaryRow.getCell(13).numFmt = '₹#,##0.00';
+      summaryRow.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+      
       summaryRow.height = 25;
 
       // Set response headers for file download

@@ -167,13 +167,13 @@ const StaffOrderItem = React.memo(({ item, onUpdateQuantity, onRemove }) => {
     }).format(price);
   };
 
-  const itemTotal = (item.sellingPrice || 0) * (item.quantity || 0);
+  const itemTotal = (parseFloat(item.sellingPrice) || 0) * (parseInt(item.quantity) || 0);
 
   return (
     <div className="pos-order-item">
       <div className="pos-item-content">
         <div className="pos-item-name">{item.name || 'Unknown Item'}</div>
-        <div className="pos-item-price">₹{(item.sellingPrice || 0).toFixed(2)}</div>
+        <div className="pos-item-price">₹{(parseFloat(item.sellingPrice) || 0).toFixed(2)}</div>
         
         <div className="pos-quantity-controls">
           <button 
@@ -192,7 +192,7 @@ const StaffOrderItem = React.memo(({ item, onUpdateQuantity, onRemove }) => {
           </button>
         </div>
         
-        <div className="pos-item-total">₹{itemTotal.toFixed(2)}</div>
+        <div className="pos-item-total">₹{(parseFloat(itemTotal) || 0).toFixed(2)}</div>
         <button 
           className="pos-remove-btn"
           onClick={() => onRemove(item._id)}
@@ -286,6 +286,7 @@ const OnlinePOSInterface = () => {
   const [newOrderIds, setNewOrderIds] = useState([]); // Track new orders for flashing
   const isMountedRef = useRef(true);
   const isInitialLoadRef = useRef(true); // Track if this is the first load
+  const hasLoadedOrdersRef = useRef(false); // Track if we've ever loaded orders
   
   // Performance monitoring
   usePerformanceMonitoring('TheaterOrderInterface');
@@ -295,10 +296,12 @@ const OnlinePOSInterface = () => {
     console.log('🔄 Component mounted - Resetting flash state');
     setNewOrderIds([]); // Clear any flash animations
     isInitialLoadRef.current = true; // Reset initial load flag
+    hasLoadedOrdersRef.current = false; // Reset loaded flag
     
     return () => {
       console.log('🔄 Component unmounting - Cleaning up');
       setNewOrderIds([]); // Clear on unmount too
+      hasLoadedOrdersRef.current = false;
     };
   }, []); // Empty dependency - run only on mount/unmount
 
@@ -346,6 +349,7 @@ const OnlinePOSInterface = () => {
         setCurrentOrder([]);
         setCustomerName('');
         setOrderNotes('');
+        setOrderImages([]);
         
         if (location.state.orderNumber) {
           console.log(`🎉 Order ${location.state.orderNumber} completed successfully`);
@@ -389,7 +393,7 @@ const OnlinePOSInterface = () => {
       } else {
         // Add new item with specified quantity
         // Extract price from array structure (pricing.basePrice) or old structure (sellingPrice)
-        const originalPrice = product.pricing?.basePrice ?? product.sellingPrice ?? 0;
+        const originalPrice = parseFloat(product.pricing?.basePrice ?? product.sellingPrice ?? 0) || 0;
         const discountPercentage = parseFloat(product.discountPercentage || product.pricing?.discountPercentage) || 0;
         const sellingPrice = discountPercentage > 0 
           ? originalPrice * (1 - discountPercentage / 100)
@@ -402,8 +406,8 @@ const OnlinePOSInterface = () => {
         return [...prevOrder, { 
           ...product, 
           quantity: quantity,
-          sellingPrice: sellingPrice,
-          originalPrice: originalPrice,
+          sellingPrice: parseFloat(sellingPrice) || 0,
+          originalPrice: parseFloat(originalPrice) || 0,
           discountPercentage: discountPercentage,
           taxRate: taxRate, // Ensure tax rate is available
           gstType: gstType // Ensure GST type is available
@@ -851,14 +855,17 @@ const OnlinePOSInterface = () => {
           setOnlineOrders(prevOrders => {
             console.log('🔍 Checking orders:', {
               isInitialLoad: isInitialLoadRef.current,
+              hasLoadedBefore: hasLoadedOrdersRef.current,
               prevOrdersCount: prevOrders.length,
               newOrdersCount: data.orders.length,
               currentNewOrderIds: newOrderIds.length
             });
             
-            // On initial load, don't trigger animations regardless of order count
-            if (isInitialLoadRef.current) {
-              console.log('📥 Initial load - skipping animation and beep');
+            // Skip notifications if this is the first time loading orders
+            // This covers: page refresh, initial navigation, and component mount
+            if (!hasLoadedOrdersRef.current) {
+              console.log('📥 First load detected - skipping all animations and beeps');
+              hasLoadedOrdersRef.current = true;
               isInitialLoadRef.current = false;
               return data.orders;
             }
@@ -869,7 +876,8 @@ const OnlinePOSInterface = () => {
             
             console.log('🔍 New orders check:', {
               prevOrderIds: prevOrderIds.length,
-              newOrdersFound: newOrders.length
+              newOrdersFound: newOrders.length,
+              newOrderNumbers: newOrders.map(o => o.orderNumber)
             });
             
             if (newOrders.length > 0) {
@@ -903,12 +911,21 @@ const OnlinePOSInterface = () => {
     }
   }, [theaterId, playBeepSound]);
 
+  // Track previous theaterId to detect actual theater changes vs initial mount
+  const prevTheaterIdRef = useRef(null);
+
   // Poll for new online orders every 10 seconds
   useEffect(() => {
     if (!theaterId) return;
 
-    // Reset initial load flag when theater changes
-    isInitialLoadRef.current = true;
+    // Only reset flags if theater actually changed (not on first mount)
+    if (prevTheaterIdRef.current !== null && prevTheaterIdRef.current !== theaterId) {
+      console.log('🔄 Theater changed, resetting load flags');
+      isInitialLoadRef.current = true;
+      hasLoadedOrdersRef.current = false;
+    }
+    
+    prevTheaterIdRef.current = theaterId;
 
     fetchOnlineOrders(); // Initial fetch
 
@@ -918,8 +935,6 @@ const OnlinePOSInterface = () => {
 
     return () => {
       clearInterval(interval);
-      // Reset flag on cleanup
-      isInitialLoadRef.current = true;
     };
   }, [theaterId, fetchOnlineOrders]);
 

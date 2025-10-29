@@ -78,7 +78,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
         const token = localStorage.getItem('authToken');
         if (!token) return;
 
-        const response = await fetch(`${config.apiUrl}/chat/theaters`, {
+        const response = await fetch(`${config.api.baseUrl}/chat/theaters`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -108,7 +108,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
 
       try {
         controller = new AbortController();
-        const response = await fetch(`${config.apiUrl}/notifications/stream`, {
+        const response = await fetch(`${config.api.baseUrl}/notifications/stream`, {
           headers: {
             'Authorization': `Bearer ${token}`
           },

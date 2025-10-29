@@ -25,6 +25,7 @@ const OnlineOrderHistory = () => {
   const [orders, setOrders] = useState([]);
   const [allOrders, setAllOrders] = useState([]); // Store all orders for pagination
   const [loading, setLoading] = useState(true);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [summary, setSummary] = useState({
     totalOrders: 0,
     confirmedOrders: 0,
@@ -183,6 +184,114 @@ const OnlineOrderHistory = () => {
     setCurrentPage(1);
   };
 
+  // Excel Download Handler
+  const handleDownloadExcel = useCallback(async () => {
+    console.log('🔵 Excel download button clicked');
+    console.log('🔵 Theater ID:', theaterId);
+    
+    if (!theaterId) {
+      console.error('❌ No theater ID available');
+      showError('Theater ID is missing');
+      return;
+    }
+    
+    // Check if user is authenticated
+    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+    console.log('🔑 Token found:', !!token);
+    
+    if (!token) {
+      console.error('❌ No authentication token found');
+      showError('Please login again to download reports');
+      return;
+    }
+    
+    setDownloadingExcel(true);
+    try {
+      // Build query parameters based on current filters
+      const params = new URLSearchParams();
+      
+      // Add source filter for online orders
+      params.append('source', 'qr_code');
+      
+      // Add date filter params
+      if (dateFilter.type === 'date' && dateFilter.date) {
+        params.append('date', dateFilter.date);
+      } else if (dateFilter.type === 'month' && dateFilter.month && dateFilter.year) {
+        params.append('month', dateFilter.month);
+        params.append('year', dateFilter.year);
+      }
+      
+      // Add status filter
+      if (statusFilter && statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+
+      const apiUrl = `${config.api.baseUrl}/orders/excel/${theaterId}?${params.toString()}`;
+      console.log('📊 Downloading Excel from:', apiUrl);
+      console.log('📊 Token exists:', !!token);
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📊 Response status:', response.status);
+
+      if (response.status === 401 || response.status === 403) {
+        console.error('❌ Authentication failed');
+        showError('Session expired. Please login again.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+
+      if (response.ok) {
+        // Download Excel file
+        const blob = await response.blob();
+        console.log('📊 Blob size:', blob.size, 'bytes');
+        
+        if (blob.size === 0) {
+          showError('No data available to export');
+          return;
+        }
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const dateStr = dateFilter.type === 'date' && dateFilter.date 
+          ? `_${dateFilter.date}` 
+          : dateFilter.type === 'month' 
+          ? `_${dateFilter.year}-${String(dateFilter.month).padStart(2, '0')}`
+          : '';
+        a.download = `Online_Orders${dateStr}_${Date.now()}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        console.log('✅ Excel downloaded successfully');
+      } else {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          console.error('❌ Error response:', errorData);
+          showError(errorData.error || `Failed to download Excel report (${response.status})`);
+        } else {
+          showError(`Failed to download Excel report (${response.status})`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error downloading Excel report:', error);
+      showError('Network error. Please check your connection and try again.');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  }, [theaterId, statusFilter, dateFilter, showError]);
+
   const handlePageChange = (page) => {
     setCurrentPage(page);
   };
@@ -295,6 +404,34 @@ const OnlineOrderHistory = () => {
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
+            <button 
+              type="button"
+              className="submit-btn excel-download-btn"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🟢 EXCEL BUTTON CLICKED!', { 
+                  downloadingExcel, 
+                  loading, 
+                  theaterId,
+                  disabled: downloadingExcel || loading 
+                });
+                handleDownloadExcel();
+              }}
+              disabled={downloadingExcel || loading}
+              style={{
+                backgroundColor: downloadingExcel ? '#9ca3af' : '#10b981',
+                cursor: downloadingExcel || loading ? 'not-allowed' : 'pointer',
+                opacity: downloadingExcel || loading ? 0.6 : 1,
+                pointerEvents: downloadingExcel || loading ? 'none' : 'auto',
+                minWidth: '100px',
+                padding: '8px 16px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <span className="btn-icon">{downloadingExcel ? '⏳' : '📊'}</span>
+              {downloadingExcel ? 'Downloading...' : 'Excel'}
+            </button>
             <button 
               className="submit-btn date-filter-btn"
               onClick={() => setShowDateFilterModal(true)}

@@ -37,7 +37,14 @@ const stockDetailSchema = new mongoose.Schema({
   },
   expireDate: Date,
   batchNumber: String,
-  notes: String
+  notes: String,
+  // FIFO tracking: stores details of which stocks were deducted for SOLD entries
+  fifoDetails: [{
+    date: Date,
+    batchNumber: String,
+    deducted: Number,
+    expireDate: Date
+  }]
 }, { _id: true });
 
 // Monthly stock document schema
@@ -135,7 +142,11 @@ monthlyStockSchema.pre('save', function(next) {
   
   this.stockDetails.forEach(detail => {
     this.totalStockAdded += detail.stockAdded || 0;
-    this.totalUsedStock += detail.usedStock || 0;
+    // ✅ FIFO FIX: Only count usedStock from ADDED entries to avoid double counting
+    // SOLD entries are for display/tracking only; actual deductions are in ADDED entries
+    if (detail.type === 'ADDED') {
+      this.totalUsedStock += detail.usedStock || 0;
+    }
     this.totalExpiredStock += detail.expiredStock || 0;
     this.totalDamageStock += detail.damageStock || 0;
   });

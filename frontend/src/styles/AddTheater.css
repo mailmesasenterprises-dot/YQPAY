@@ -204,6 +204,15 @@
   border-top: 1px solid var(--border-color);
 }
 
+.form-actions .cancel-btn {
+  flex: 0 0 auto;
+  min-width: 150px;
+  padding: 16px 48px;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .submit-btn {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: var(--white);

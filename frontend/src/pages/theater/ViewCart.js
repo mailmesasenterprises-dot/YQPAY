@@ -135,8 +135,12 @@ const ViewCart = () => {
     setShowSuccessModal(false);
     setOrderDetails(null);
     
-    // Navigate back to order interface with success state
-    navigate(`/theater-order/${theaterId}`, { 
+    // Navigate back to appropriate page based on source
+    const redirectPath = source === 'online-pos' 
+      ? `/online-pos/${theaterId}`
+      : `/theater-order/${theaterId}`;
+    
+    navigate(redirectPath, { 
       state: { 
         orderSuccess: true, 
         orderNumber: orderDetails?.orderNumber,
@@ -251,8 +255,12 @@ const ViewCart = () => {
         setOrderDetails(result.order);
         setShowSuccessModal(true);
         
-        // Navigate back to order interface with success state
-        navigate(`/theater-order/${theaterId}`, { 
+        // Navigate back to appropriate page based on source
+        const redirectPath = source === 'online-pos' 
+          ? `/online-pos/${theaterId}`
+          : `/theater-order/${theaterId}`;
+        
+        navigate(redirectPath, { 
           state: { 
             orderSuccess: true, 
             orderNumber: result.order.orderNumber,

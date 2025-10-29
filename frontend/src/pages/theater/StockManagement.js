@@ -122,6 +122,9 @@ const StockEntryRow = React.memo(({ entry, index, onEdit, onDelete }) => {
   const damageStock = entry.displayData?.damageStock || 0;
   const balance = entry.displayData?.balance || 0;
 
+  // Check if this is a SOLD entry with FIFO details
+  const hasFifoDetails = entry.type === 'SOLD' && entry.fifoDetails && entry.fifoDetails.length > 0;
+
   return (
     <tr className="theater-row">
       {/* Serial Number */}
@@ -145,12 +148,34 @@ const StockEntryRow = React.memo(({ entry, index, onEdit, onDelete }) => {
         </div>
       </td>
 
-      {/* Used Stock */}
+      {/* Used Stock with FIFO Details */}
       <td className="used-cell">
         <div className="stock-badge used-stock">
           <span className="stock-quantity">{usedStock}</span>
           <span className="stock-status">Used</span>
         </div>
+        {hasFifoDetails && (
+          <div className="fifo-details" style={{
+            marginTop: '4px',
+            padding: '6px 8px',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '4px',
+            fontSize: '11px',
+            lineHeight: '1.4'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px', color: '#856404' }}>
+              📦 FIFO Deduction Details:
+            </div>
+            {entry.fifoDetails.map((fifo, idx) => (
+              <div key={idx} style={{ color: '#856404', marginLeft: '8px' }}>
+                • {fifo.deducted} units from {formatDate(fifo.date)}
+                {fifo.batchNumber && ` (Batch: ${fifo.batchNumber})`}
+                {fifo.expireDate && ` - Expires: ${formatDate(fifo.expireDate)}`}
+              </div>
+            ))}
+          </div>
+        )}
       </td>
 
       {/* Expired Stock */}

@@ -89,7 +89,7 @@ const orderSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['qr_code', 'staff', 'online', 'app'],
+    enum: ['qr_code', 'staff', 'online', 'app', 'pos'],
     default: 'staff'
   },
   tableNumber: String,

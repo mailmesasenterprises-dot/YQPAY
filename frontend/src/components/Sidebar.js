@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import config from '../config';
@@ -152,6 +152,37 @@ const getIcon = (iconName) => {
 const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 'dashboard', userRole = 'super_admin' }) => {
   const navigate = useNavigate();
   const { userType, rolePermissions, theaterId } = useAuth();
+  const [theaterLogo, setTheaterLogo] = useState(null);
+  const [logoLoading, setLogoLoading] = useState(false);
+  
+  // Fetch theater logo for theater users
+  useEffect(() => {
+    const fetchTheaterLogo = async () => {
+      if ((userType === 'theater_user' || userType === 'theater_admin') && theaterId) {
+        setLogoLoading(true);
+        try {
+          const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
+            headers: {
+              'Authorization': `Bearer ${config.helpers.getAuthToken()}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.theater && data.theater.theaterPhoto) {
+              setTheaterLogo(data.theater.theaterPhoto);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching theater logo:', error);
+        } finally {
+          setLogoLoading(false);
+        }
+      }
+    };
+
+    fetchTheaterLogo();
+  }, [userType, theaterId]);
   
   const navigationItems = [
     { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', path: '/dashboard', tooltip: 'Main Dashboard - Overview & Analytics' },
@@ -226,16 +257,31 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
       {/* Sidebar */}
       <aside className={`dashboard-sidebar ${sidebarCollapsed ? 'collapsed' : 'expanded'}`}>
         <div className="sidebar-brand">
-          <div className="brand-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
+          <div className="brand-icon" style={{ 
+            background: (userType === 'super_admin' || theaterLogo) ? 'transparent' : undefined 
+          }}>
+            {userType === 'super_admin' ? (
+              // Show Application Logo for Super Admin
+              <img 
+                src="/logo192.png" 
+                alt="Application Logo" 
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            ) : (userType === 'theater_user' || userType === 'theater_admin') && theaterLogo ? (
+              // Show Theater Logo for Theater Users/Admins
+              <img 
+                src={theaterLogo} 
+                alt="Theater Logo" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }}
+              />
+            ) : (
+              // Default mask icon as fallback
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM5 9.5c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm14 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM12 20c-3.31 0-6-2.69-6-6 0-.79.15-1.56.44-2.25C7.92 10.11 10.11 9 12 9s4.08 1.11 5.56 2.75c.29.69.44 1.46.44 2.25 0 3.31-2.69 6-6 6zm-3.5-6c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm7 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+              </svg>
+            )}
           </div>
-          <div>
-            <div className="brand-text">{config.branding.companyName}</div>
-            <div className="brand-subtitle">{config.app.name}</div>
-          </div>
-        </div>
+                </div>
         
         <nav className="sidebar-nav">
           {filteredNavigationItems.map((item) => (

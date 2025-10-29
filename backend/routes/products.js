@@ -159,8 +159,8 @@ router.get('/:theaterId', [
             monthNumber: month
           });
 
-          // Use closing balance from MonthlyStock, or fall back to inventory.currentStock
-          const realStock = monthlyDoc?.closingBalance ?? product.inventory?.currentStock ?? 0;
+          // Only use closing balance from MonthlyStock. If no MonthlyStock record exists, stock is 0
+          const realStock = monthlyDoc?.closingBalance ?? 0;
           
           return {
             ...product,
@@ -755,7 +755,7 @@ categoriesRouter.post('/:theaterId', [
     const { theaterId } = req.params;
     // Accept both 'name' and 'categoryName' field names
     const categoryName = req.body.name || req.body.categoryName;
-    const { description, isActive, categoryType, sortOrder } = req.body;
+    const { description, isActive, categoryType, sortOrder, kioskTypeId } = req.body;
 
     // Validate that at least one name field is provided
     if (!categoryName) {
@@ -765,7 +765,7 @@ categoriesRouter.post('/:theaterId', [
       });
     }
 
-    console.log('🔥 Creating category:', { theaterId, name: categoryName, hasImage: !!req.file });
+    console.log('🔥 Creating category:', { theaterId, name: categoryName, kioskTypeId, hasImage: !!req.file });
 
     // Find or create category document for this theater
     let categoryDoc = await Category.findOne({ theater: theaterId });
@@ -797,6 +797,7 @@ categoriesRouter.post('/:theaterId', [
       description: description || '',
       sortOrder: sortOrder || 0,
       isActive: isActive !== undefined ? isActive : true,
+      kioskTypeId: kioskTypeId ? new mongoose.Types.ObjectId(kioskTypeId) : null,
       imageUrl: null,
       items: [],
       createdAt: new Date(),
@@ -873,9 +874,9 @@ categoriesRouter.put('/:theaterId/:categoryId', [
     const { theaterId, categoryId } = req.params;
     // Accept both 'name' and 'categoryName' field names
     const categoryName = req.body.name || req.body.categoryName;
-    const { description, isActive, categoryType, sortOrder, removeImage } = req.body;
+    const { description, isActive, categoryType, sortOrder, removeImage, kioskTypeId } = req.body;
     
-    console.log('🔥 Updating category:', { categoryId, name: categoryName, hasImage: !!req.file, removeImage });
+    console.log('🔥 Updating category:', { categoryId, name: categoryName, kioskTypeId, hasImage: !!req.file, removeImage });
     
     // Find category document for this theater
     const categoryDoc = await Category.findOne({ theater: theaterId });
@@ -915,6 +916,9 @@ categoriesRouter.put('/:theaterId/:categoryId', [
     if (isActive !== undefined) category.isActive = isActive;
     if (categoryType !== undefined) category.categoryType = categoryType;
     if (sortOrder !== undefined) category.sortOrder = sortOrder;
+    if (kioskTypeId !== undefined) {
+      category.kioskTypeId = kioskTypeId ? new mongoose.Types.ObjectId(kioskTypeId) : null;
+    }
     category.updatedAt = new Date();
 
     // Handle image update

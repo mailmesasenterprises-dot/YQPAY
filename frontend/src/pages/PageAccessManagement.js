@@ -3,6 +3,7 @@ import config from '../config';
 import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import PageContainer from '../components/PageContainer';
+import VerticalPageHeader from '../components/VerticalPageHeader';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Pagination from '../components/Pagination';
 import { useModal } from '../contexts/ModalContext';
@@ -30,6 +31,8 @@ const PageAccessManagement = () => {
   // State management (identical to Role Access Management)
   const [pageAccessConfigs, setPageAccessConfigs] = useState([]);
   const [activeRoles, setActiveRoles] = useState([]);
+  const [theater, setTheater] = useState(null);
+  const [theaterLoading, setTheaterLoading] = useState(!!theaterId);
   
   // Filter pages to show only theater admin related pages
   const theaterAdminPages = useMemo(() => {
@@ -154,6 +157,32 @@ const PageAccessManagement = () => {
     }
     return false;
   }, [theaterAdminPages.length, theaterId]);
+
+  // Fetch theater details
+  const fetchTheaterDetails = useCallback(async () => {
+    if (!theaterId) {
+      setTheaterLoading(false);
+      return;
+    }
+
+    try {
+      const token = config.helpers.getAuthToken();
+      const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
+        headers: {
+          ...token ? { 'Authorization': `Bearer ${token}` } : {}
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTheater(data.success ? data.data : data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch theater:', error);
+    } finally {
+      setTheaterLoading(false);
+    }
+  }, [theaterId]);
 
   // Load page data - mirror frontend pages and load existing toggle states
   const loadPageAccessData = useCallback(async () => {
@@ -535,13 +564,15 @@ const PageAccessManagement = () => {
 
   // Initial load - just mirror App.js pages
   useEffect(() => {
+    // Fetch theater details if theaterId is present
+    fetchTheaterDetails();
     
     // Load roles immediately
     loadActiveRoles();
     
     // Load page data
     loadPageAccessData();
-  }, [loadActiveRoles, loadPageAccessData]);
+  }, [fetchTheaterDetails, loadActiveRoles, loadPageAccessData]);
 
   // Update summary when toggle states change
   useEffect(() => {
@@ -596,31 +627,33 @@ const PageAccessManagement = () => {
   return (
     <ErrorBoundary>
       <AdminLayout pageTitle="Page Access Management" currentPage="page-access">
-        <div className="theater-list-container qr-management-page">
-          {/* Main Page Access Management Container */}
-          <div className="theater-main-container">
-            {/* Header */}
-            <div className="theater-list-header">
-              <div className="header-content">
-                <h1>Page Access Management</h1>
-              </div>
-            </div>
+        <div className="role-access-details-page qr-management-page">
+        <PageContainer
+          hasHeader={false}
+          className="role-access-vertical"
+        >
+          {/* Global Vertical Header Component */}
+          <VerticalPageHeader
+            title={theaterLoading ? 'Loading Theater...' : (theater?.name || 'Page Access Management')}
+            backButtonText="Back to Theater List"
+            backButtonPath="/page-access"
+          />
 
-            {/* Stats Section */}
-            <div className="qr-stats">
-              <div className="stat-card">
-                <div className="stat-number">{summary.activePageAccess}</div>
-                <div className="stat-label">Enabled in Database</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-number">{summary.inactivePageAccess}</div>
-                <div className="stat-label">Disabled Pages</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-number">{summary.totalPageAccess}</div>
-                <div className="stat-label">Total Pages in App.js</div>
-              </div>
+          {/* Stats Section */}
+          <div className="qr-stats">
+            <div className="stat-card">
+              <div className="stat-number">{summary.activePageAccess}</div>
+              <div className="stat-label">Enabled in Database</div>
             </div>
+            <div className="stat-card">
+              <div className="stat-number">{summary.inactivePageAccess}</div>
+              <div className="stat-label">Disabled Pages</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number">{summary.totalPageAccess}</div>
+              <div className="stat-label">Total Pages in App.js</div>
+            </div>
+          </div>
 
         {/* Theater Content Container */}
         <div className="theater-content">
@@ -778,10 +811,10 @@ const PageAccessManagement = () => {
               itemType="pages"
             />
           )}
-          
           </div> {/* End theater-content */}
-          </div> {/* End theater-main-container */}
-        </div> {/* End theater-list-container */}
+          
+        </PageContainer>
+        </div>
 
         {/* Modal components (identical structure to Role Access Management) */}
 

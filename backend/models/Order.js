@@ -142,7 +142,7 @@ const orderSchema = new mongoose.Schema({
   // Analytics and tracking
   source: {
     type: String,
-    enum: ['qr_code', 'staff', 'online', 'app'],
+    enum: ['qr_code', 'staff', 'online', 'app', 'pos'],
     default: 'staff'
   },
   

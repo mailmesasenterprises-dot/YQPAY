@@ -5,6 +5,7 @@ import TheaterLayout from '../../components/theater/TheaterLayout';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import Pagination from '../../components/Pagination';
 import { ActionButton, ActionButtons } from '../../components/ActionButton';
+import DateFilter from '../../components/DateFilter';
 import { useModal } from '../../contexts/ModalContext';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import '../../styles/TheaterList.css';
@@ -321,7 +322,7 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], pro
       {/* Quantity (Original Template Value from ProductType) */}
       <td>
         <div className="quantity-display">
-          <span className="quantity-value">{product.quantity || stockQuantity || '—'}</span>
+          <span className="quantity-value">{product.quantity || '—'}</span>
         </div>
       </td>
 
@@ -467,6 +468,20 @@ const TheaterProductList = () => {
   const [stockFilter, setStockFilter] = useState('all'); // all, in-stock, low-stock, out-of-stock
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
+
+  // Date filtering state
+  const [showDateFilterModal, setShowDateFilterModal] = useState(false);
+  const [dateFilter, setDateFilter] = useState({
+    type: 'all',
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    selectedDate: null,
+    startDate: null,
+    endDate: null
+  });
+
+  // Excel download state
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
 
   // Refs for optimization
   const abortControllerRef = useRef(null);
@@ -1155,6 +1170,106 @@ const TheaterProductList = () => {
     navigate(`/theater-stock-management/${theaterId}/${product._id}`);
   }, [navigate, theaterId]);
 
+  // Handle Excel Download
+  const handleDownloadExcel = useCallback(async () => {
+    try {
+      setDownloadingExcel(true);
+      console.log('📊 Starting Excel download for stock data...');
+      
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        modal.showError('Please login to download reports');
+        return;
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams();
+      
+      // Add date filter parameters
+      if (dateFilter.type === 'date' && dateFilter.selectedDate) {
+        params.append('date', dateFilter.selectedDate);
+      } else if (dateFilter.type === 'month') {
+        params.append('month', dateFilter.month);
+        params.append('year', dateFilter.year);
+      } else if (dateFilter.type === 'year') {
+        params.append('year', dateFilter.year);
+      } else if (dateFilter.type === 'range' && dateFilter.startDate && dateFilter.endDate) {
+        params.append('startDate', dateFilter.startDate);
+        params.append('endDate', dateFilter.endDate);
+      }
+
+      // Add filters
+      if (selectedCategory) {
+        params.append('category', selectedCategory);
+      }
+      if (statusFilter && statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+      if (stockFilter && stockFilter !== 'all') {
+        params.append('stockFilter', stockFilter);
+      }
+
+      const apiUrl = `${config.api.baseUrl}/theater-stock/excel/${theaterId}?${params.toString()}`;
+      console.log('📊 Downloading Excel from:', apiUrl);
+
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📊 Response status:', response.status);
+
+      if (response.status === 401 || response.status === 403) {
+        console.error('❌ Authentication failed');
+        modal.showError('Session expired. Please login again.');
+        return;
+      }
+
+      if (response.ok) {
+        const blob = await response.blob();
+        console.log('📊 Blob size:', blob.size, 'bytes');
+        
+        if (blob.size === 0) {
+          modal.showError('No data available to export');
+          return;
+        }
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const dateStr = dateFilter.type === 'date' && dateFilter.selectedDate 
+          ? `_${dateFilter.selectedDate}` 
+          : dateFilter.type === 'month' 
+          ? `_${dateFilter.year}-${String(dateFilter.month).padStart(2, '0')}`
+          : '';
+        a.download = `Product_Stock${dateStr}_${Date.now()}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        console.log('✅ Excel downloaded successfully');
+      } else {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          console.error('❌ Error response:', errorData);
+          modal.showError(errorData.error || `Failed to download Excel report (${response.status})`);
+        } else {
+          modal.showError(`Failed to download Excel report (${response.status})`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error downloading Excel report:', error);
+      modal.showError('Network error. Please check your connection and try again.');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  }, [theaterId, selectedCategory, statusFilter, stockFilter, dateFilter, modal]);
+
   const handleViewProduct = useCallback((product) => {
     const currentIndex = products.findIndex(p => p._id === product._id);
     setViewModal({ show: true, product, currentIndex });
@@ -1371,17 +1486,36 @@ const TheaterProductList = () => {
               <div className="header-content">
                 <h1>Product Management</h1>
               </div>
-              <button 
-                onClick={handleAddProduct}
-                className="add-theater-btn"
-              >
-                <span className="btn-icon">
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                  </svg>
-                </span>
-                Add New Product
-              </button>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button 
+                  className="submit-btn date-filter-btn"
+                  onClick={() => setShowDateFilterModal(true)}
+                  style={{
+                    backgroundColor: '#8B5CF6',
+                    padding: '10px 16px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <span className="btn-icon">📅</span>
+                  {dateFilter.type === 'all' ? 'Date Filter' : 
+                   dateFilter.type === 'date' ? `${new Date(dateFilter.selectedDate).toLocaleDateString()}` :
+                   dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
+                   dateFilter.type === 'year' ? `${dateFilter.year}` :
+                   dateFilter.type === 'range' ? `${new Date(dateFilter.startDate).toLocaleDateString()} - ${new Date(dateFilter.endDate).toLocaleDateString()}` :
+                   'Date Filter'}
+                </button>
+                <button 
+                  onClick={handleAddProduct}
+                  className="add-theater-btn"
+                >
+                  <span className="btn-icon">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                  </span>
+                  Add New Product
+                </button>
+              </div>
             </div>
 
             {/* Statistics Section */}
@@ -1419,6 +1553,35 @@ const TheaterProductList = () => {
                   className="search-input"
                 />
               </div>
+
+              <button 
+                type="button"
+                className="submit-btn excel-download-btn"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('🟢 EXCEL BUTTON CLICKED!', { 
+                    downloadingExcel, 
+                    loading, 
+                    theaterId,
+                    disabled: downloadingExcel || loading 
+                  });
+                  handleDownloadExcel();
+                }}
+                disabled={downloadingExcel || loading}
+                style={{
+                  backgroundColor: downloadingExcel ? '#9ca3af' : '#10b981',
+                  cursor: downloadingExcel || loading ? 'not-allowed' : 'pointer',
+                  opacity: downloadingExcel || loading ? 0.6 : 1,
+                  pointerEvents: downloadingExcel || loading ? 'none' : 'auto',
+                  minWidth: '100px',
+                  padding: '8px 16px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span className="btn-icon">{downloadingExcel ? '⏳' : '📊'}</span>
+                {downloadingExcel ? 'Downloading...' : 'Excel'}
+              </button>
 
               <select
                 value={selectedCategory}
@@ -2189,6 +2352,20 @@ const TheaterProductList = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Date Filter Modal */}
+        {showDateFilterModal && (
+          <DateFilter
+            isOpen={showDateFilterModal}
+            onClose={() => setShowDateFilterModal(false)}
+            onApply={(filter) => {
+              console.log('📅 Date filter applied:', filter);
+              setDateFilter(filter);
+              setShowDateFilterModal(false);
+            }}
+            currentFilter={dateFilter}
+          />
         )}
       </TheaterLayout>
     </ErrorBoundary>

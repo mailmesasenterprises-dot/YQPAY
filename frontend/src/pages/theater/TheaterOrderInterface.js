@@ -325,6 +325,7 @@ const TheaterOrderInterface = () => {
         setCurrentOrder([]);
         setCustomerName('');
         setOrderNotes('');
+        setOrderImages([]);
         
         if (location.state.orderNumber) {
           console.log(`🎉 Order ${location.state.orderNumber} completed successfully`);

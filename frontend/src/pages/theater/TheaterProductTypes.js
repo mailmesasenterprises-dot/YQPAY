@@ -54,7 +54,6 @@ const TheaterProductTypes = () => {
   });
 
   // Image upload state
-  const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imageError, setImageError] = useState('');
@@ -139,6 +138,12 @@ const TheaterProductTypes = () => {
         let productTypes = data.data || [];
         console.log('🔥 DEBUGGING: Product types extracted', productTypes);
         console.log('🔥 DEBUGGING: Product types count', productTypes.length);
+        
+        // Map image field to imageUrl for consistency
+        productTypes = productTypes.map(pt => ({
+          ...pt,
+          imageUrl: pt.imageUrl || pt.image // Ensure imageUrl is set from image field
+        }));
         
         // Sort by _id ascending (important: match Category page behavior)
         productTypes = productTypes.sort((a, b) => a._id.localeCompare(b._id));
@@ -233,12 +238,11 @@ const TheaterProductTypes = () => {
     setImageError('');
     
     // Set current image preview if exists
-    if (productType.imageUrl) {
-      setImagePreview(productType.imageUrl);
+    if (productType.imageUrl || productType.image) {
+      setImagePreview(productType.imageUrl || productType.image);
     } else {
       setImagePreview(null);
     }
-    setSelectedImage(null); // Reset selected image for upload
     
     setShowEditModal(true);
   };
@@ -265,8 +269,8 @@ const TheaterProductTypes = () => {
       formDataToSend.append('isActive', formData.isActive);
       
       // Add image if selected
-      if (selectedImage) {
-        formDataToSend.append('image', selectedImage);
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
       }
       
       const response = await fetch(url, {
@@ -294,7 +298,7 @@ const TheaterProductTypes = () => {
           quantity: '',
           isActive: true
         });
-        setSelectedImage(null);
+        setImageFile(null);
         setImagePreview(null);
         setSelectedProductType(null);
       } else {
@@ -339,7 +343,7 @@ const TheaterProductTypes = () => {
       imageUrl: null,
       removeImage: false
     });
-    setSelectedImage(null);
+    setImageFile(null);
     setImagePreview(null);
     setImageFile(null);
     setImageError('');
@@ -366,7 +370,6 @@ const TheaterProductTypes = () => {
 
   const handleImageRemove = () => {
     setImageFile(null);
-    setSelectedImage(null);
     setImagePreview(null);
     setImageError('');
     setFormData(prev => ({
