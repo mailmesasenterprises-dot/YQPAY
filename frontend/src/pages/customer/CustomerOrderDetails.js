@@ -25,18 +25,35 @@ const CustomerOrderDetails = () => {
       if (!theaterId || !phoneNumber) {
         throw new Error('Missing required parameters');
       }
+      
+      console.log('📞 Fetching order details for:', { orderId, phoneNumber, theaterId });
 
       const response = await fetch(`${config.api.baseUrl}/orders/theater/${theaterId}`);
       if (!response.ok) throw new Error('Failed to fetch orders');
 
       const data = await response.json();
-      console.log('📦 All orders received:', data.orders);
+      console.log('📦 All orders received:', data.orders?.length);
       
-      // Find the specific order by orderId and phone number
-      const foundOrder = data.orders.find(order => 
-        order._id === orderId && 
-        order.customerInfo?.phone === phoneNumber
-      );
+      // Find the specific order by orderId and phone number - check multiple phone field variations
+      const foundOrder = data.orders.find(order => {
+        const orderPhone = order.customerInfo?.phoneNumber || 
+                          order.customerInfo?.phone || 
+                          order.customerPhone ||
+                          order.phone;
+        
+        const matches = order._id === orderId && orderPhone === phoneNumber;
+        
+        if (order._id === orderId) {
+          console.log('🔍 Checking order:', {
+            orderId: order._id,
+            orderPhone: orderPhone,
+            searchPhone: phoneNumber,
+            matches: matches
+          });
+        }
+        
+        return matches;
+      });
 
       console.log('🎯 Found order:', foundOrder);
       console.log('📋 Order items:', foundOrder?.items);
@@ -50,6 +67,7 @@ const CustomerOrderDetails = () => {
       if (!foundOrder) throw new Error('Order not found');
       setOrder(foundOrder);
     } catch (err) {
+      console.error('❌ Error fetching order details:', err);
       setError(err.message);
     } finally {
       setLoading(false);

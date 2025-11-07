@@ -49,6 +49,12 @@ const CustomerHome = () => {
   const canvasRef = useRef(null);
   const scanIntervalRef = useRef(null);
   
+  // Notification state
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notificationIntervalRef = useRef(null);
+  
   // Favorites state
   const [favoriteProducts, setFavoriteProducts] = useState(() => {
     const saved = localStorage.getItem('customerFavorites');
@@ -440,6 +446,72 @@ const CustomerHome = () => {
     filterProductCollections();
   }, [productCollections, products, selectedCategory, searchQuery, isVegOnly, selectedPriceRange]);
 
+  // Fetch notifications for logged-in customers
+  const fetchNotifications = useCallback(async () => {
+    const phoneNumber = localStorage.getItem('customerPhone');
+    if (!phoneNumber) return;
+
+    try {
+      const response = await fetch(
+        `${config.api.baseUrl}/notifications/customer/${phoneNumber}?limit=20`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setNotifications(data.notifications || []);
+          setUnreadCount(data.unreadCount || 0);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching notifications:', error);
+    }
+  }, []);
+
+  // Poll for notifications every 5 seconds if user is logged in
+  useEffect(() => {
+    const phoneNumber = localStorage.getItem('customerPhone');
+    if (phoneNumber) {
+      // Fetch immediately
+      fetchNotifications();
+      
+      // Then poll every 5 seconds
+      notificationIntervalRef.current = setInterval(fetchNotifications, 5000);
+      
+      return () => {
+        if (notificationIntervalRef.current) {
+          clearInterval(notificationIntervalRef.current);
+        }
+      };
+    }
+  }, [fetchNotifications]);
+
+  // Handle notification click
+  const handleNotificationClick = () => {
+    setShowNotifications(!showNotifications);
+    setShowProfileDropdown(false); // Close profile dropdown if open
+  };
+
+  // Mark all notifications as read
+  const markAllNotificationsAsRead = async () => {
+    const phoneNumber = localStorage.getItem('customerPhone');
+    if (!phoneNumber) return;
+
+    try {
+      const response = await fetch(
+        `${config.api.baseUrl}/notifications/customer/${phoneNumber}/read-all`,
+        { method: 'PUT' }
+      );
+      
+      if (response.ok) {
+        setUnreadCount(0);
+        setNotifications(notifications.map(n => ({ ...n, read: true })));
+      }
+    } catch (error) {
+      console.error('❌ Error marking notifications as read:', error);
+    }
+  };
+
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
   };
@@ -677,6 +749,7 @@ const CustomerHome = () => {
   // Handle profile dropdown toggle
   const handleProfileClick = () => {
     setShowProfileDropdown(!showProfileDropdown);
+    setShowNotifications(false); // Close notification dropdown if open
   };
 
   // Handle order history navigation
@@ -795,22 +868,6 @@ const CustomerHome = () => {
             )}
           </div>
           <div className="header-actions">
-            {/* Bell Icon - Notifications */}
-            <button 
-              className="notification-btn"
-              aria-label="Notifications"
-              onClick={() => {
-                // Add notification handler here
-                console.log('Notifications clicked');
-              }}
-            >
-              <svg className="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
-              {/* Optional: Add notification badge */}
-              {/* <span className="notification-badge">3</span> */}
-            </button>
             
             <div className="profile-dropdown-container">
               <button 
@@ -962,20 +1019,94 @@ const CustomerHome = () => {
           </div>
         </div>
 
-        <div className="search-container">
-          <input 
-            type="text" 
-            className="search-input" 
-            placeholder="Search for products..." 
-            value={searchQuery}
-            onChange={handleSearchChange}
-            aria-label="Search products"
-          />
-          <button className="qr-scan-btn" aria-label="Scan QR Code" onClick={handleQRScan}>
-            <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13-2h-2v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/>
-            </svg>
-          </button>
+        <div className="search-notification-wrapper">
+          <div className="search-container">
+            <input 
+              type="text" 
+              className="search-input" 
+              placeholder="Search for products..." 
+              value={searchQuery}
+              onChange={handleSearchChange}
+              aria-label="Search products"
+            />
+            <button className="qr-scan-btn" aria-label="Scan QR Code" onClick={handleQRScan}>
+              <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M3 11h8V3H3v8zm2-6h4v4H5V5zm8-2v8h8V3h-8zm6 6h-4V5h4v4zM3 21h8v-8H3v8zm2-6h4v4H5v-4zm13-2h-2v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/>
+              </svg>
+            </button>
+          </div>
+          
+          {/* Bell Icon - Notifications */}
+          <div className="notification-dropdown-container">
+            <button 
+              className="notification-btn"
+              aria-label="Notifications"
+              onClick={handleNotificationClick}
+            >
+              <svg className="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              {unreadCount > 0 && (
+                <span className="notification-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
+            </button>
+            
+            {showNotifications && (
+              <div className="notification-dropdown modern-dropdown">
+                <div className="notification-header">
+                  <h3>Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button 
+                      className="mark-all-read-btn"
+                      onClick={markAllNotificationsAsRead}
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+                
+                <div className="notification-list">
+                  {notifications.length === 0 ? (
+                    <div className="no-notifications">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                      </svg>
+                      <p>No notifications yet</p>
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div 
+                        key={notification._id} 
+                        className={`notification-item ${!notification.read ? 'unread' : ''} ${notification.type}`}
+                      >
+                        <div className="notification-icon">
+                          {notification.type === 'preparing' && '⏱️'}
+                          {notification.type === 'delivered' && '✅'}
+                          {notification.type === 'ready' && '🔔'}
+                          {notification.type === 'cancelled' && '❌'}
+                        </div>
+                        <div className="notification-content">
+                          <h4>{notification.title}</h4>
+                          <p>{notification.message}</p>
+                          <span className="notification-time">
+                            {new Date(notification.timestamp).toLocaleString('en-IN', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        {!notification.read && <span className="unread-dot"></span>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Categories Section */}

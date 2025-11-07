@@ -55,6 +55,8 @@ const CustomerOrderHistory = () => {
   const fetchOrderHistory = async (phone) => {
     try {
       setLoading(true);
+      
+      console.log('📞 Fetching order history for phone:', phone);
 
       const response = await fetch(
         `${config.api.baseUrl}/orders/theater/${theaterId}`
@@ -65,12 +67,27 @@ const CustomerOrderHistory = () => {
       }
 
       const data = await response.json();
+      
+      console.log('📦 Total orders received:', data.orders?.length);
 
-      // Filter orders by phone number
-      const customerOrders = data.orders.filter(order => 
-        order.customerInfo?.phone === phone
-      );
+      // Filter orders by phone number - check multiple field variations
+      const customerOrders = data.orders.filter(order => {
+        const orderPhone = order.customerInfo?.phoneNumber || 
+                          order.customerInfo?.phone || 
+                          order.customerPhone ||
+                          order.phone;
+        
+        console.log('🔍 Checking order:', {
+          orderNumber: order.orderNumber,
+          orderPhone: orderPhone,
+          searchPhone: phone,
+          matches: orderPhone === phone
+        });
+        
+        return orderPhone === phone;
+      });
 
+      console.log('✅ Filtered orders for customer:', customerOrders.length);
 
       // Sort by date (newest first)
       const sortedOrders = customerOrders.sort((a, b) => 
@@ -79,7 +96,7 @@ const CustomerOrderHistory = () => {
 
       setOrders(sortedOrders);
     } catch (err) {
-
+      console.error('❌ Error fetching order history:', err);
       setError('Failed to load order history');
     } finally {
       setLoading(false);

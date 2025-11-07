@@ -242,7 +242,7 @@ const CustomerPayment = () => {
         customerName: phoneNumber, // Using phone as customer identifier
         customerInfo: {
           name: 'Customer',
-          phone: phoneNumber
+          phoneNumber: phoneNumber  // ✅ Include phone number in customerInfo
         },
         tableNumber: checkoutData.seat || 'Online Order',
         qrName: checkoutData.qrName,    // ✅ Include QR Name

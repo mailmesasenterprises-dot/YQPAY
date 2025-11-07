@@ -1,6 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
+const { 
+  getCustomerNotifications, 
+  markNotificationAsRead, 
+  markAllAsRead,
+  getUnreadCount 
+} = require('../services/notificationService');
 
 // Store SSE connections for real-time notifications
 const connections = new Map();
@@ -27,6 +33,76 @@ router.get('/stream', authenticateToken, (req, res) => {
   req.on('close', () => {
     connections.delete(userId);
   });
+});
+
+/**
+ * GET /api/notifications/customer/:phoneNumber
+ * Get notifications for a customer by phone number
+ */
+router.get('/customer/:phoneNumber', async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const { limit = 20 } = req.query;
+    
+    const notifications = await getCustomerNotifications(phoneNumber, parseInt(limit));
+    const unreadCount = await getUnreadCount(phoneNumber);
+    
+    res.json({
+      success: true,
+      notifications,
+      unreadCount
+    });
+  } catch (error) {
+    console.error('❌ Error fetching customer notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch notifications'
+    });
+  }
+});
+
+/**
+ * PUT /api/notifications/:notificationId/read
+ * Mark a notification as read
+ */
+router.put('/:notificationId/read', async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+    const success = await markNotificationAsRead(notificationId);
+    
+    res.json({
+      success,
+      message: success ? 'Notification marked as read' : 'Failed to mark notification as read'
+    });
+  } catch (error) {
+    console.error('❌ Error marking notification as read:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark notification as read'
+    });
+  }
+});
+
+/**
+ * PUT /api/notifications/customer/:phoneNumber/read-all
+ * Mark all notifications as read for a customer
+ */
+router.put('/customer/:phoneNumber/read-all', async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    const success = await markAllAsRead(phoneNumber);
+    
+    res.json({
+      success,
+      message: success ? 'All notifications marked as read' : 'Failed to mark notifications as read'
+    });
+  } catch (error) {
+    console.error('❌ Error marking all notifications as read:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark all notifications as read'
+    });
+  }
 });
 
 /**

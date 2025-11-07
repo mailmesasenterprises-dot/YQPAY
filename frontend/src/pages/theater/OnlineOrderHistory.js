@@ -546,7 +546,13 @@ const OnlineOrderHistory = () => {
               <span><strong>Bill To:</strong> ${order.customerName || order.customerInfo?.name || 'Customer'}</span>
             </div>
             <div class="bill-row">
-              <span><strong>QR/Seat:</strong> ${order.qrName || order.seat || 'N/A'}</span>
+              <span><strong>Phone:</strong> ${order.customerPhone || order.customerInfo?.phoneNumber || order.customerInfo?.phone || order.customerInfo?.name || 'N/A'}</span>
+            </div>
+            <div class="bill-row">
+              <span><strong>Screen:</strong> ${order.qrName || order.screenName || order.tableNumber || 'N/A'}</span>
+            </div>
+            <div class="bill-row">
+              <span><strong>Seat:</strong> ${order.seat || order.seatNumber || order.customerInfo?.seat || 'N/A'}</span>
             </div>
           </div>
 
@@ -630,9 +636,63 @@ const OnlineOrderHistory = () => {
     }
   };
 
+  // Update order status
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      
+      const url = `${config.api.baseUrl}/orders/${orderId}/status`;
+      console.log('🔄 Updating order status:',{ orderId, newStatus, token: token ? 'exists' : 'missing', fullUrl: url });
+      
+      const response = await fetch(
+        url,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: newStatus })
+        }
+      );
+
+      console.log('📡 Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Response error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Response data:', data);
+
+      if (data.success) {
+        // Update local state
+        setOrders(prevOrders =>
+          prevOrders.map(order =>
+            order._id === orderId ? { ...order, status: newStatus } : order
+          )
+        );
+        setAllOrders(prevOrders =>
+          prevOrders.map(order =>
+            order._id === orderId ? { ...order, status: newStatus } : order
+          )
+        );
+        
+        console.log(`✅ Order ${orderId} status updated to ${newStatus}`);
+      }
+    } catch (error) {
+      console.error('Update order status error:', error);
+      showError('Failed to update order status');
+    }
+  };
+
   // Table skeleton loader
   const TableRowSkeleton = () => (
     <tr className="skeleton-row">
+      <td><div className="skeleton-text"></div></td>
+      <td><div className="skeleton-text"></div></td>
       <td><div className="skeleton-text"></div></td>
       <td><div className="skeleton-text"></div></td>
       <td><div className="skeleton-text"></div></td>
@@ -658,6 +718,19 @@ const OnlineOrderHistory = () => {
           .calendar-day.empty { cursor: default; border: none; background: transparent; }
           .calendar-day.clickable:hover { background: #f3f0ff; border-color: #8B5CF6; }
           .calendar-day.selected { background: #8B5CF6; color: white; border-color: #8B5CF6; }
+          
+          /* Status Action Buttons */
+          .status-action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .status-action-btn:active {
+            transform: translateY(0);
+          }
+          .status-action-btn:not(.active):hover {
+            border-color: #d1d5db !important;
+            background: #f9fafb !important;
+          }
         `}
       </style>
       <TheaterLayout pageTitle="Online Orders" currentPage="online-orders">
@@ -766,6 +839,7 @@ const OnlineOrderHistory = () => {
                 <th>Amount</th>
                 <th>Status</th>
                 <th>Date</th>
+                <th>Action Status</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -788,7 +862,7 @@ const OnlineOrderHistory = () => {
                       <td className="customer-cell">
                         <div className="customer-info">
                           <div className="customer-name">{order.customerName || order.customerInfo?.name || 'N/A'}</div>
-                          <div className="customer-phone">{order.customerPhone || order.customerInfo?.phone || 'N/A'}</div>
+                          <div className="customer-phone">{order.customerPhone || order.customerInfo?.phoneNumber || order.customerInfo?.phone || order.customerInfo?.name || 'N/A'}</div>
                         </div>
                       </td>
                       <td className="qr-info-cell">
@@ -810,6 +884,61 @@ const OnlineOrderHistory = () => {
                       </td>
                       <td className="date-cell">
                         <div className="date-info">{formatDate(order.createdAt)}</div>
+                      </td>
+                      <td className="action-status-cell">
+                        <div className="status-action-buttons" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}>
+                          <button 
+                            className={`status-action-btn ${order.status === 'preparing' ? 'active' : ''}`}
+                            onClick={() => updateOrderStatus(order._id, 'preparing')}
+                            title="Mark as Preparing"
+                            style={{ 
+                              padding: '6px 8px', 
+                              border: order.status === 'preparing' ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              background: order.status === 'preparing' ? '#fef3c7' : '#fff',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" fill={order.status === 'preparing' ? '#f59e0b' : '#9ca3af'} style={{width: '18px', height: '18px', display: 'block'}}>
+                              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
+                            </svg>
+                          </button>
+                          <button 
+                            className={`status-action-btn ${order.status === 'completed' ? 'active' : ''}`}
+                            onClick={() => updateOrderStatus(order._id, 'completed')}
+                            title="Mark as Delivered"
+                            style={{ 
+                              padding: '6px 8px', 
+                              border: order.status === 'completed' ? '2px solid #10b981' : '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              background: order.status === 'completed' ? '#d1fae5' : '#fff',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" fill={order.status === 'completed' ? '#10b981' : '#9ca3af'} style={{width: '18px', height: '18px', display: 'block'}}>
+                              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
+                            </svg>
+                          </button>
+                          <button 
+                            className={`status-action-btn ${order.status === 'cancelled' ? 'active' : ''}`}
+                            onClick={() => updateOrderStatus(order._id, 'cancelled')}
+                            title="Mark as Cancelled"
+                            style={{ 
+                              padding: '6px 8px', 
+                              border: order.status === 'cancelled' ? '2px solid #ef4444' : '1px solid #e5e7eb',
+                              borderRadius: '6px',
+                              background: order.status === 'cancelled' ? '#fee2e2' : '#fff',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" fill={order.status === 'cancelled' ? '#ef4444' : '#9ca3af'} style={{width: '18px', height: '18px', display: 'block'}}>
+                              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M14.59,8L12,10.59L9.41,8L8,9.41L10.59,12L8,14.59L9.41,16L12,13.41L14.59,16L16,14.59L13.41,12L16,9.41L14.59,8Z"/>
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                       <td className="action-cell">
                         <div className="action-buttons" style={{ gap: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -840,7 +969,7 @@ const OnlineOrderHistory = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan="9" className="no-data" style={{ padding: '0', border: 'none' }}>
+                  <td colSpan="10" className="no-data" style={{ padding: '0', border: 'none' }}>
                     <div className="empty-state" style={{ 
                       margin: '20px auto',
                       maxWidth: '600px',
@@ -963,8 +1092,16 @@ const OnlineOrderHistory = () => {
                     <span>{selectedOrder.customerName || selectedOrder.customerInfo?.name || 'Customer'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 'bold' }}>QR/Seat:</span>
-                    <span>{selectedOrder.qrName || selectedOrder.seat || 'N/A'}</span>
+                    <span style={{ fontWeight: 'bold' }}>Phone:</span>
+                    <span>{selectedOrder.customerPhone || selectedOrder.customerInfo?.phoneNumber || selectedOrder.customerInfo?.phone || selectedOrder.customerInfo?.name || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                    <span style={{ fontWeight: 'bold' }}>Screen:</span>
+                    <span>{selectedOrder.qrName || selectedOrder.screenName || selectedOrder.tableNumber || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                    <span style={{ fontWeight: 'bold' }}>Seat:</span>
+                    <span>{selectedOrder.seat || selectedOrder.seatNumber || selectedOrder.customerInfo?.seat || 'N/A'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ fontWeight: 'bold' }}>Payment:</span>

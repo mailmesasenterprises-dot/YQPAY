@@ -783,9 +783,12 @@ const OnlinePOSInterface = () => {
 
     try {
       setLoadingOrders(true);
-      const response = await fetch(`${config.api.baseUrl}/orders/theater/${theaterId}?source=qr_code&limit=20`, {
+      const response = await fetch(`${config.api.baseUrl}/orders/theater/${theaterId}?source=qr_code&limit=20&_cacheBuster=${Date.now()}&_random=${Math.random()}`, {
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       });
 
@@ -867,7 +870,7 @@ const OnlinePOSInterface = () => {
 
     const interval = setInterval(() => {
       fetchOnlineOrders();
-    }, 10000); // Poll every 10 seconds
+    }, 1000); // Poll every 1 second (real-time updates)
 
     return () => {
       clearInterval(interval);
@@ -1073,7 +1076,14 @@ const OnlinePOSInterface = () => {
                   {onlineOrders.map((order, index) => {
                     const shouldFlash = newOrderIds.includes(order._id);
                     if (index === 0) {
-  }
+                      console.log('📱 Order data:', {
+                        orderNumber: order.orderNumber,
+                        customerInfo: order.customerInfo,
+                        phoneNumber: order.customerInfo?.phoneNumber,
+                        phone: order.customerInfo?.phone,
+                        name: order.customerInfo?.name
+                      });
+                    }
                     
                     return (
                       <div 
@@ -1123,6 +1133,21 @@ const OnlinePOSInterface = () => {
                            {order.qrName || order.screenName || order.tableNumber || 'N/A'} |  {order.seat || order.seatNumber || order.customerInfo?.seat || 'N/A'}
                         </span>
                       </div>
+
+                      {/* 3. Phone Number */}
+                      {(order.customerInfo?.phoneNumber || order.customerInfo?.phone || order.customerInfo?.name) && (
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '8px'
+                        }}>
+                          <span style={{ color: '#4b5563', fontWeight: '600' }}>Phone:</span>
+                          <span style={{ color: '#1f2937', fontWeight: 'bold' }}>
+                            {order.customerInfo.phoneNumber || order.customerInfo.phone || order.customerInfo.name || 'N/A'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     );
                   })}

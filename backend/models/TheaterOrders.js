@@ -34,6 +34,7 @@ const orderSchema = new mongoose.Schema({
   customerInfo: {
     name: { type: String, default: 'Walk-in Customer' },
     phone: String,
+    phoneNumber: String,  // Added for new orders
     email: String,
     tableNumber: String
   },

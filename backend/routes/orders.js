@@ -8,6 +8,7 @@ const Product = require('../models/Product');
 const MonthlyStock = require('../models/MonthlyStock');  // ✅ Import MonthlyStock model
 const { authenticateToken, optionalAuth, requireTheaterAccess } = require('../middleware/auth');
 const { calculateOrderTotals } = require('../utils/orderCalculation'); // 📊 Centralized calculation
+const { sendOrderNotification } = require('../services/notificationService'); // 🔔 Notification service
 
 const router = express.Router();
 
@@ -161,6 +162,89 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
 }
 
 /**
+ * PUT /api/orders/:orderId/status
+ * Update order status
+ * IMPORTANT: This route must be defined BEFORE parameterized routes like /theater/:theaterId
+ */
+router.put('/:orderId/status', [
+  authenticateToken,
+  body('status').isIn(['pending', 'confirmed', 'preparing', 'ready', 'served', 'cancelled', 'completed'])
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: errors.array()
+      });
+    }
+
+    console.log('🔄 Updating order status:', { orderId: req.params.orderId, newStatus: req.body.status });
+
+    // Orders are stored in an array inside a TheaterOrders document
+    // We need to find the document and update the specific order in the array
+    const result = await TheaterOrders.findOneAndUpdate(
+      { 'orderList._id': req.params.orderId }, // Find document containing this order
+      { 
+        $set: { 
+          'orderList.$.status': req.body.status,
+          'orderList.$.updatedAt': new Date()
+        } 
+      },
+      { new: true } // Return updated document
+    );
+
+    if (!result) {
+      console.log('❌ Order not found in orderList:', req.params.orderId);
+      return res.status(404).json({
+        error: 'Order not found',
+        code: 'ORDER_NOT_FOUND'
+      });
+    }
+
+    // Find the updated order in the array
+    const updatedOrder = result.orderList.find(o => o._id.toString() === req.params.orderId);
+
+    console.log('✅ Order status updated successfully:', { 
+      orderId: updatedOrder._id, 
+      newStatus: updatedOrder.status,
+      theaterId: result.theater 
+    });
+
+    // Check authorization
+    if (req.user.role !== 'super_admin' && req.user.theaterId?.toString() !== result.theater?.toString()) {
+      console.log('⛔ Access denied:', { userRole: req.user.role, userTheaterId: req.user.theaterId, orderTheaterId: result.theater });
+      return res.status(403).json({
+        error: 'Access denied',
+        code: 'ACCESS_DENIED'
+      });
+    }
+
+    // 🔔 Send notification to customer for specific status changes
+    if (req.body.status === 'preparing' || req.body.status === 'completed' || req.body.status === 'ready') {
+      await sendOrderNotification(updatedOrder, req.body.status);
+    }
+
+    res.json({
+      success: true,
+      message: 'Order status updated successfully',
+      data: {
+        orderId: updatedOrder._id,
+        status: updatedOrder.status,
+        updatedAt: updatedOrder.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Update order status error:', error);
+    res.status(500).json({
+      error: 'Failed to update order status',
+      message: 'Internal server error'
+    });
+  }
+});
+
+/**
  * POST /api/orders/theater
  * Create a new order for a theater
  */
@@ -188,10 +272,17 @@ router.post('/theater', [
     }
 
     const { theaterId, items, customerInfo, customerName, tableNumber, specialInstructions, orderNotes, paymentMethod, qrName, seat, source } = req.body;
+    
+    // Debug: Log received customerInfo
+    console.log('📞 [ORDER] Received customerInfo:', JSON.stringify(customerInfo, null, 2));
+    console.log('📞 [ORDER] Received customerName:', customerName);
+    
     // Handle both customerInfo and customerName formats
     const finalCustomerInfo = customerInfo || {
       name: customerName || 'Walk-in Customer'
     };
+    
+    console.log('📞 [ORDER] Final customerInfo:', JSON.stringify(finalCustomerInfo, null, 2));
 
     // Handle both specialInstructions and orderNotes
     const finalSpecialInstructions = specialInstructions || orderNotes || '';
@@ -370,7 +461,7 @@ router.post('/theater', [
         method: paymentMethod || 'cash',
         status: 'pending'
       },
-      status: 'confirmed',  // ✅ Default status changed to confirmed
+      status: orderSource === 'qr_code' ? 'preparing' : 'confirmed',  // ✅ Online orders (qr_code) start with 'preparing', others with 'confirmed'
       orderType: 'dine_in',
       staffInfo: staffInfo,  // ✅ Use the created staffInfo object
       source: orderSource,   // ✅ Dynamic source based on qrName/seat
@@ -384,6 +475,12 @@ router.post('/theater', [
       createdAt: orderDate,  // Use consistent orderDate
       updatedAt: orderDate   // Use consistent orderDate
     };
+    
+    // Determine which metadata counter to increment based on status
+    const statusIncrement = orderSource === 'qr_code' 
+      ? { 'metadata.preparingOrders': 1 }  // Online orders go to preparing
+      : { 'metadata.confirmedOrders': 1 }; // POS/Kiosk orders go to confirmed
+    
     // Use findOneAndUpdate with $push to add order to array
     const updatedTheaterOrders = await TheaterOrders.findOneAndUpdate(
       { theater: theaterId },
@@ -391,7 +488,7 @@ router.post('/theater', [
         $push: { orderList: newOrder },
         $inc: {
           'metadata.totalOrders': 1,
-          'metadata.confirmedOrders': 1,  // ✅ Increment confirmed orders since default status is 'confirmed'
+          ...statusIncrement,  // ✅ Increment appropriate status counter
           'metadata.totalRevenue': total
         },
         $set: {
@@ -408,6 +505,12 @@ router.post('/theater', [
 
     // Get the saved order (last item in array)
     const savedOrder = updatedTheaterOrders.orderList[updatedTheaterOrders.orderList.length - 1];
+    
+    // 🔔 Send notification to customer if order status is 'preparing' (QR code orders)
+    if (savedOrder.status === 'preparing') {
+      await sendOrderNotification(savedOrder, 'preparing');
+    }
+    
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
@@ -923,60 +1026,6 @@ router.get('/theater-stats', [
     console.error('Get theater stats error:', error);
     res.status(500).json({
       error: 'Failed to fetch theater statistics',
-      message: 'Internal server error'
-    });
-  }
-});
-
-/**
- * PUT /api/orders/:orderId/status
- * Update order status
- */
-router.put('/:orderId/status', [
-  authenticateToken,
-  body('status').isIn(['pending', 'confirmed', 'preparing', 'ready', 'served', 'cancelled', 'completed'])
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: errors.array()
-      });
-    }
-
-    const order = await Order.findById(req.params.orderId);
-    if (!order) {
-      return res.status(404).json({
-        error: 'Order not found',
-        code: 'ORDER_NOT_FOUND'
-      });
-    }
-
-    // Check authorization
-    if (req.user.role !== 'super_admin' && req.user.theaterId !== order.theaterId.toString()) {
-      return res.status(403).json({
-        error: 'Access denied',
-        code: 'ACCESS_DENIED'
-      });
-    }
-
-    await order.updateStatus(req.body.status);
-
-    res.json({
-      success: true,
-      message: 'Order status updated successfully',
-      data: {
-        orderId: order._id,
-        status: order.status,
-        updatedAt: order.updatedAt
-      }
-    });
-
-  } catch (error) {
-    console.error('Update order status error:', error);
-    res.status(500).json({
-      error: 'Failed to update order status',
       message: 'Internal server error'
     });
   }
