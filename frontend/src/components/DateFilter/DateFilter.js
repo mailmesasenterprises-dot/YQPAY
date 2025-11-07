@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import './DateFilter.css';
+import '../../styles/components/DateFilter/DateFilter.css';
 
 const DateFilter = ({ 
   isOpen, 
@@ -12,7 +12,8 @@ const DateFilter = ({
     selectedDate: null,
     startDate: null,
     endDate: null
-  }
+  },
+  dateOnly = false
 }) => {
   const [localFilter, setLocalFilter] = useState(initialFilter);
   const [rangeSelectionMode, setRangeSelectionMode] = useState(false);
@@ -173,17 +174,19 @@ const DateFilter = ({
         <div className="date-filter-modal-header">
           <h2>
             <span className="date-filter-modal-icon">📅</span>
-            Filter by Date
+            {dateOnly ? 'Select Current Date' : 'Filter by Date'}
           </h2>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <button 
-              className="date-filter-reset-header-btn"
-              onClick={handleReset}
-              title="Reset all filters"
-            >
-              <span className="date-filter-btn-icon">↻</span>
-              Reset
-            </button>
+            {!dateOnly && (
+              <button 
+                className="date-filter-reset-header-btn"
+                onClick={handleReset}
+                title="Reset all filters"
+              >
+                <span className="date-filter-btn-icon">↻</span>
+                Reset
+              </button>
+            )}
             <button 
               className="date-filter-close-btn"
               onClick={onClose}
@@ -214,97 +217,101 @@ const DateFilter = ({
         </div>
         
         <div className="date-filter-modal-body">
-          {/* Month & Year Selection - Updated */}
-          <div className="date-filter-form-group">
-            <label>Filter by Month & Year:</label>
-            <div className="date-filter-month-year-controls">
-              <select 
-                className="date-filter-form-control"
-                value={localFilter.month} 
-                onChange={(e) => setLocalFilter(prev => ({ ...prev, month: parseInt(e.target.value) }))}
-              >
-                {months.map((month, index) => {
-                  const monthValue = index + 1;
-                  const isValid = isMonthYearValid(monthValue, localFilter.year);
-                  return (
-                    <option key={index} value={monthValue} disabled={!isValid}>
-                      {month} {!isValid ? '(Future)' : ''}
-                    </option>
-                  );
-                })}
-              </select>
-              <select 
-                className="date-filter-form-control"
-                value={localFilter.year} 
-                onChange={(e) => {
-                  const newYear = parseInt(e.target.value);
-                  const newMonth = localFilter.month;
-                  
-                  // If the selected month becomes invalid with the new year, adjust to current month
-                  if (!isMonthYearValid(newMonth, newYear)) {
-                    const now = new Date();
-                    setLocalFilter(prev => ({ 
-                      ...prev, 
-                      year: newYear,
-                      month: now.getMonth() + 1 // Set to current month
-                    }));
-                  } else {
-                    setLocalFilter(prev => ({ ...prev, year: newYear }));
-                  }
-                }}
-              >
-                {years.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-              <button 
-                className="date-filter-submit-btn date-filter-apply-month-btn"
-                onClick={() => {
-                  // Validate month/year before applying
-                  if (!isMonthYearValid(localFilter.month, localFilter.year)) {
-                    alert('Cannot filter by a future month. Please select the current month or a past month.');
-                    return;
-                  }
-                  
-                  // Fix: Apply month filter immediately and close modal
-                  const monthFilter = {
-                    ...localFilter,
-                    type: 'month',
-                    selectedDate: null // Clear specific date when applying month filter
-                  };
-                  setLocalFilter(monthFilter);
-                  onApply(monthFilter);
-                  onClose();
-                }}
-              >
-                <span className="date-filter-btn-icon">✓</span>
-                Apply Month
-              </button>
+          {/* Month & Year Selection - Only show if not dateOnly mode */}
+          {!dateOnly && (
+            <div className="date-filter-form-group">
+              <label>Filter by Month & Year:</label>
+              <div className="date-filter-month-year-controls">
+                <select 
+                  className="date-filter-form-control"
+                  value={localFilter.month} 
+                  onChange={(e) => setLocalFilter(prev => ({ ...prev, month: parseInt(e.target.value) }))}
+                >
+                  {months.map((month, index) => {
+                    const monthValue = index + 1;
+                    const isValid = isMonthYearValid(monthValue, localFilter.year);
+                    return (
+                      <option key={index} value={monthValue} disabled={!isValid}>
+                        {month} {!isValid ? '(Future)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                <select 
+                  className="date-filter-form-control"
+                  value={localFilter.year} 
+                  onChange={(e) => {
+                    const newYear = parseInt(e.target.value);
+                    const newMonth = localFilter.month;
+                    
+                    // If the selected month becomes invalid with the new year, adjust to current month
+                    if (!isMonthYearValid(newMonth, newYear)) {
+                      const now = new Date();
+                      setLocalFilter(prev => ({ 
+                        ...prev, 
+                        year: newYear,
+                        month: now.getMonth() + 1 // Set to current month
+                      }));
+                    } else {
+                      setLocalFilter(prev => ({ ...prev, year: newYear }));
+                    }
+                  }}
+                >
+                  {years.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+                <button 
+                  className="date-filter-submit-btn date-filter-apply-month-btn"
+                  onClick={() => {
+                    // Validate month/year before applying
+                    if (!isMonthYearValid(localFilter.month, localFilter.year)) {
+                      alert('Cannot filter by a future month. Please select the current month or a past month.');
+                      return;
+                    }
+                    
+                    // Fix: Apply month filter immediately and close modal
+                    const monthFilter = {
+                      ...localFilter,
+                      type: 'month',
+                      selectedDate: null // Clear specific date when applying month filter
+                    };
+                    setLocalFilter(monthFilter);
+                    onApply(monthFilter);
+                    onClose();
+                  }}
+                >
+                  <span className="date-filter-btn-icon">✓</span>
+                  Apply Month
+                </button>
+              </div>
             </div>
-          </div>
+          )}
           
           {/* Calendar Selection */}
           <div className="date-filter-form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <label>Or Select Specific Date:</label>
-              <button 
-                className={`date-filter-range-toggle-btn ${rangeSelectionMode ? 'active' : ''}`}
-                onClick={() => {
-                  setRangeSelectionMode(!rangeSelectionMode);
-                  setTempStartDate(null);
-                  if (!rangeSelectionMode) {
-                    setLocalFilter(prev => ({
-                      ...prev,
-                      selectedDate: null,
-                      startDate: null,
-                      endDate: null
-                    }));
-                  }
-                }}
-              >
-                <span className="date-filter-btn-icon">📅</span>
-                {rangeSelectionMode ? 'Cancel Range' : 'Select Date Range'}
-              </button>
+              <label>{dateOnly ? 'Select Current Date:' : 'Or Select Specific Date:'}</label>
+              {!dateOnly && (
+                <button 
+                  className={`date-filter-range-toggle-btn ${rangeSelectionMode ? 'active' : ''}`}
+                  onClick={() => {
+                    setRangeSelectionMode(!rangeSelectionMode);
+                    setTempStartDate(null);
+                    if (!rangeSelectionMode) {
+                      setLocalFilter(prev => ({
+                        ...prev,
+                        selectedDate: null,
+                        startDate: null,
+                        endDate: null
+                      }));
+                    }
+                  }}
+                >
+                  <span className="date-filter-btn-icon">📅</span>
+                  {rangeSelectionMode ? 'Cancel Range' : 'Select Date Range'}
+                </button>
+              )}
             </div>
             
             {rangeSelectionMode && (
@@ -327,37 +334,41 @@ const DateFilter = ({
             
             <div className="date-filter-calendar-container">
               <div className="date-filter-calendar-header">
-                <button 
-                  className="date-filter-calendar-nav-btn"
-                  onClick={() => {
-                    const newMonth = localFilter.month === 1 ? 12 : localFilter.month - 1;
-                    const newYear = localFilter.month === 1 ? localFilter.year - 1 : localFilter.year;
-                    setLocalFilter(prev => ({ ...prev, month: newMonth, year: newYear }));
-                  }}
-                  title="Previous month"
-                >
-                  ‹
-                </button>
-                <strong>{months[localFilter.month - 1]} {localFilter.year}</strong>
-                <button 
-                  className="date-filter-calendar-nav-btn"
-                  onClick={() => {
-                    const newMonth = localFilter.month === 12 ? 1 : localFilter.month + 1;
-                    const newYear = localFilter.month === 12 ? localFilter.year + 1 : localFilter.year;
-                    
-                    // Only allow navigation if the new month/year is not in the future
-                    if (isMonthYearValid(newMonth, newYear)) {
+                {!dateOnly && (
+                  <button 
+                    className="date-filter-calendar-nav-btn"
+                    onClick={() => {
+                      const newMonth = localFilter.month === 1 ? 12 : localFilter.month - 1;
+                      const newYear = localFilter.month === 1 ? localFilter.year - 1 : localFilter.year;
                       setLocalFilter(prev => ({ ...prev, month: newMonth, year: newYear }));
-                    }
-                  }}
-                  disabled={!isMonthYearValid(
-                    localFilter.month === 12 ? 1 : localFilter.month + 1,
-                    localFilter.month === 12 ? localFilter.year + 1 : localFilter.year
-                  )}
-                  title="Next month"
-                >
-                  ›
-                </button>
+                    }}
+                    title="Previous month"
+                  >
+                    ‹
+                  </button>
+                )}
+                <strong>{months[localFilter.month - 1]} {localFilter.year}</strong>
+                {!dateOnly && (
+                  <button 
+                    className="date-filter-calendar-nav-btn"
+                    onClick={() => {
+                      const newMonth = localFilter.month === 12 ? 1 : localFilter.month + 1;
+                      const newYear = localFilter.month === 12 ? localFilter.year + 1 : localFilter.year;
+                      
+                      // Only allow navigation if the new month/year is not in the future
+                      if (isMonthYearValid(newMonth, newYear)) {
+                        setLocalFilter(prev => ({ ...prev, month: newMonth, year: newYear }));
+                      }
+                    }}
+                    disabled={!isMonthYearValid(
+                      localFilter.month === 12 ? 1 : localFilter.month + 1,
+                      localFilter.month === 12 ? localFilter.year + 1 : localFilter.year
+                    )}
+                    title="Next month"
+                  >
+                    ›
+                  </button>
+                )}
               </div>
               <div className="date-filter-calendar-grid">
                 <div className="date-filter-calendar-weekdays">
@@ -382,6 +393,9 @@ const DateFilter = ({
                     const dateObj = day ? new Date(localFilter.year, localFilter.month - 1, day) : null;
                     const isFutureDate = dateObj && dateObj > today;
                     
+                    // In dateOnly mode, only allow selecting today's date
+                    const isDisabledForDateOnly = dateOnly && day && !isToday;
+                    
                     // Check if this day is in the selected range
                     const isInRange = day && localFilter.type === 'range' && localFilter.startDate && localFilter.endDate && currentDateStr >= localFilter.startDate && currentDateStr <= localFilter.endDate;
                     
@@ -397,13 +411,13 @@ const DateFilter = ({
                         key={index} 
                         className={`date-filter-calendar-day ${day ? 'clickable' : 'empty'} ${
                           isSelected ? 'selected' : ''
-                        } ${isToday ? 'today' : ''} ${isFutureDate ? 'disabled-future' : ''} ${
+                        } ${isToday ? 'today' : ''} ${isFutureDate || isDisabledForDateOnly ? 'disabled-future' : ''} ${
                           isInRange ? 'in-range' : ''
                         } ${isRangeStart ? 'range-start' : ''} ${isRangeEnd ? 'range-end' : ''} ${
                           isTempStart ? 'temp-start' : ''
                         }`}
-                        onClick={() => !isFutureDate && handleDateClick(day)}
-                        style={isFutureDate ? { 
+                        onClick={() => !isFutureDate && !isDisabledForDateOnly && handleDateClick(day)}
+                        style={(isFutureDate || isDisabledForDateOnly) ? { 
                           cursor: 'not-allowed', 
                           opacity: 0.3,
                           pointerEvents: 'none'
@@ -419,11 +433,13 @@ const DateFilter = ({
             
             {/* Action Buttons Right After Calendar */}
             <div className="date-filter-calendar-actions">
-              {/* Reset All Button */}
-              <button className="date-filter-cancel-btn date-filter-reset-all-btn" onClick={handleClear}>
-                <span className="date-filter-btn-icon">↻</span>
-                Reset All
-              </button>
+              {/* Reset All Button - Only show if not dateOnly mode */}
+              {!dateOnly && (
+                <button className="date-filter-cancel-btn date-filter-reset-all-btn" onClick={handleClear}>
+                  <span className="date-filter-btn-icon">↻</span>
+                  Reset All
+                </button>
+              )}
               
               {/* Submit Button */}
               <button className="date-filter-submit-btn date-filter-submit-date-btn" onClick={handleApply}>

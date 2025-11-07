@@ -4,6 +4,7 @@ import TheaterLayout from '../../components/theater/TheaterLayout';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import { getAuthToken, autoLogin } from '../../utils/authHelper';
+import { cacheProductImages, getImageSrc } from '../../utils/globalImageCache'; // 🎨 Batch product image caching + instant image loading
 import ImageUpload from '../../components/ImageUpload';
 import config from '../../config';
 import '../../styles/TheaterList.css';
@@ -51,7 +52,7 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
     : originalPrice;
   const hasDiscount = discountPercentage > 0;
 
-  // Get product image
+  // Get product image WITH INSTANT CACHE CHECK
   const getProductImage = () => {
     let imageUrl = null;
     
@@ -65,7 +66,8 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
       imageUrl = product.productImage;
     }
     
-    return imageUrl;
+    // 🚀 INSTANT: Return cached base64 if available, otherwise original URL
+    return imageUrl ? getImageSrc(imageUrl) : null;
   };
 
   const imageUrl = getProductImage();
@@ -264,12 +266,11 @@ const TheaterOrderInterface = () => {
       const savedCart = localStorage.getItem(`theater_pos_cart_${theaterId}`);
       if (savedCart) {
         const cartItems = JSON.parse(savedCart);
-        console.log('🛒 Loaded saved cart:', cartItems);
+
         return Array.isArray(cartItems) ? cartItems : [];
       }
     } catch (error) {
-      console.error('Error loading saved cart:', error);
-    }
+  }
     return [];
   });
   
@@ -309,10 +310,8 @@ const TheaterOrderInterface = () => {
     if (theaterId && currentOrder.length >= 0) {
       try {
         localStorage.setItem(`theater_pos_cart_${theaterId}`, JSON.stringify(currentOrder));
-        console.log('💾 Cart saved to localStorage:', currentOrder);
-      } catch (error) {
-        console.error('Error saving cart to localStorage:', error);
-      }
+  } catch (error) {
+  }
     }
   }, [currentOrder, theaterId]);
 
@@ -328,8 +327,7 @@ const TheaterOrderInterface = () => {
         setOrderImages([]);
         
         if (location.state.orderNumber) {
-          console.log(`🎉 Order ${location.state.orderNumber} completed successfully`);
-        }
+  }
         
         // Trigger product refresh by updating a refresh flag
         setLoading(true);
@@ -422,10 +420,8 @@ const TheaterOrderInterface = () => {
     if (theaterId) {
       try {
         localStorage.removeItem(`theater_pos_cart_${theaterId}`);
-        console.log('🗑️ Cart cleared from localStorage');
-      } catch (error) {
-        console.error('Error clearing cart from localStorage:', error);
-      }
+  } catch (error) {
+  }
     }
   }, [theaterId]);
 
@@ -476,9 +472,7 @@ const TheaterOrderInterface = () => {
           // API returns categoryName field, not name
           const categoryNames = activeCategories.map(cat => cat.categoryName || cat.name);
           
-          console.log('🏷️ ORDER INTERFACE: Categories loaded:', categoryNames);
-          console.log('🏷️ ORDER INTERFACE: Category objects:', activeCategories);
-          
+
           const mapping = activeCategories.reduce((map, cat) => {
             const catName = cat.categoryName || cat.name;
             map[catName] = cat._id;
@@ -491,29 +485,18 @@ const TheaterOrderInterface = () => {
           
           // Debug: Check products after categories are loaded
           setTimeout(() => {
-            console.log('🕐 DELAYED CHECK - Current products:', products.length);
-            console.log('🕐 DELAYED CHECK - Current categories:', categoryNames);
-            console.log('🕐 DELAYED CHECK - Current mapping:', mapping);
-            
+
             if (products.length > 0) {
-              console.log('🔍 PRODUCT-CATEGORY ANALYSIS:');
+
               products.forEach(product => {
-                console.log(`Product: "${product.name}"`);
-                console.log(`  - Category field: "${product.category}"`);
-                console.log(`  - Category type: ${typeof product.category}`);
-                console.log(`  - Matches any category name: ${categoryNames.includes(product.category)}`);
-                console.log(`  - Matches any category ID: ${Object.values(mapping).includes(product.category)}`);
-                console.log('---');
-              });
+  });
             }
           }, 1000);
         }
       } else {
-        console.log('❌ Categories API failed:', categoriesResponse.status);
-      }
+  }
     } catch (error) {
-      console.error('❌ Failed to load categories:', error);
-    }
+  }
   }, [theaterId]);
 
   const fetchProducts = useCallback(async () => {
@@ -574,24 +557,12 @@ const TheaterOrderInterface = () => {
         const allProducts = Array.isArray(data.data) ? data.data : (data.data?.products || []);
         theaterProducts = allProducts; // Show all products, but inactive ones will appear as "Out of Stock"
         
-        console.log('🍿 ORDER INTERFACE: Total products:', allProducts.length);
-        console.log('🍿 ORDER INTERFACE: Products to show:', theaterProducts.length);
-        console.log('🍿 ORDER INTERFACE: Sample product data:', {
-          name: allProducts[0]?.name,
-          isActive: allProducts[0]?.isActive,
-          isAvailable: allProducts[0]?.isAvailable,
-          stock: allProducts[0]?.inventory?.currentStock ?? allProducts[0]?.stockQuantity,
-          price: allProducts[0]?.pricing?.basePrice ?? allProducts[0]?.sellingPrice
-        });
-      } else {
-        console.error('🍿 ORDER INTERFACE: API returned success: false', data);
+  } else {
+
         throw new Error(data.message || 'Failed to load products');
       }
       
-      console.log('📦 SETTING PRODUCTS: isMounted:', isMountedRef.current);
-      console.log('📦 PRODUCTS TO SET:', theaterProducts);
-      console.log('📦 SAMPLE PRODUCT:', theaterProducts[0]);
-      
+
       // Ensure products is always an array with safe objects
       const safeProducts = Array.isArray(theaterProducts) ? theaterProducts.map((product, index) => {
         let assignedCategory = product.category;
@@ -611,8 +582,7 @@ const TheaterOrderInterface = () => {
             const categories = ['Snacks', 'Drinks', 'Beverages1'];
             assignedCategory = categories[index % categories.length];
           }
-          console.log(`🔧 ASSIGNED CATEGORY: "${product.name}" → "${assignedCategory}"`);
-        }
+  }
         
         return {
           ...product,
@@ -625,40 +595,51 @@ const TheaterOrderInterface = () => {
       }) : [];
       
       setProducts(safeProducts);
-      console.log('✅ ORDER INTERFACE: Safe products set in state:', safeProducts.length);
-      console.log('🏷️ PRODUCTS WITH CATEGORIES:', safeProducts.map(p => ({
-        name: p.name,
-        category: p.category,
-        originalCategory: theaterProducts.find(op => op._id === p._id)?.category
-      })));
-      
+
+      // 🎨 AUTO-CACHE ALL PRODUCT IMAGES (LIKE OFFLINE POS)
+      if (safeProducts.length > 0) {
+        console.log(`🎨 [TheaterOrderInterface] Auto-caching ${safeProducts.length} product images...`);
+        cacheProductImages(safeProducts).catch(err => {
+          console.error('Error caching product images:', err);
+        });
+      }
+
       // Check if products have null/undefined categories
       const productsWithoutCategory = safeProducts.filter(p => !p.category || p.category === 'Other');
       
       // Load categories separately
       await loadCategories();
+
+      // Cache the data
+      try {
+        const cacheKey = `orderInterfaceData_${theaterId}`;
+        sessionStorage.setItem(cacheKey, JSON.stringify({
+          products: safeProducts,
+          categories: categories,
+          categoryMapping: categoryMapping,
+          timestamp: Date.now()
+        }));
+      } catch (e) {
+        console.error('Failed to cache data:', e);
+      }
       
     } catch (err) {
       // Show clean empty interface instead of error
-      console.log('🎨 Showing clean empty interface due to error');
-      
+
       // Set empty products and basic categories to show clean interface
       setProducts([]);
       setCategories(['Snacks', 'Beverages', 'Combo Deals', 'Desserts']); // Show empty categories
       setError(''); // Clear error to show clean interface
       
-      console.log('✅ Clean empty interface loaded');
-    } finally {
-      console.log('🏁 FINALLY BLOCK: isMounted:', isMountedRef.current);
+  } finally {
+
       setLoading(false);
-      console.log('🏁 ORDER INTERFACE: Loading set to false (forced)');
-    }
+  }
   }, [theaterId]);
 
   // Load initial data - simplified without abort controller
   useEffect(() => {
-    console.log('🔥 USE EFFECT TRIGGERED! Theater ID:', theaterId);
-    
+
     // FORCE STATE CLEANUP on component mount
     setProducts([]);
     setCategories([]);
@@ -668,7 +649,30 @@ const TheaterOrderInterface = () => {
     setError('');
     
     if (theaterId) {
-      // Add a small delay to prevent rate limiting
+      // Try to load from cache first for instant display
+      const cacheKey = `orderInterfaceData_${theaterId}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const cachedData = JSON.parse(cached);
+          const cacheAge = Date.now() - cachedData.timestamp;
+          // Use cache if less than 2 minutes old
+          if (cacheAge < 120000) {
+            setProducts(cachedData.products || []);
+            setCategories(cachedData.categories || []);
+            setCategoryMapping(cachedData.categoryMapping || {});
+            setLoading(false);
+            
+            // Fetch fresh data in background to update cache
+            setTimeout(() => fetchProducts(), 100);
+            return;
+          }
+        } catch (e) {
+          console.error('Cache parse error:', e);
+        }
+      }
+
+      // No valid cache, add delay and fetch
       const timer = setTimeout(() => {
         fetchProducts();
       }, 100);
@@ -699,24 +703,34 @@ const TheaterOrderInterface = () => {
       
       const lineTotal = price * qty;
       
-      // Calculate discount amount
-      const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
-      calculatedDiscount += discountAmount;
-      
-      // Apply discount to get discounted line total
-      const discountedLineTotal = lineTotal - discountAmount;
-      
       if (gstType === 'INCLUDE') {
-        // GST INCLUDE - price includes GST, extract the GST amount from discounted total
-        const gstAmount = discountedLineTotal * (taxRate / (100 + taxRate));
-        const basePrice = discountedLineTotal - gstAmount;
+        // GST INCLUDE - Price already includes GST
+        // Extract GST from the original price
+        const taxAmount = lineTotal * (taxRate / (100 + taxRate));
+        
+        // Calculate discount on the original price
+        const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
+        
+        // Subtotal is original price minus tax
+        const basePrice = lineTotal - taxAmount;
+        
         calculatedSubtotal += basePrice;
-        calculatedTax += gstAmount;
+        calculatedTax += taxAmount;
+        calculatedDiscount += discountAmount;
       } else {
-        // GST EXCLUDE - add GST on top of discounted price
-        const gstAmount = discountedLineTotal * (taxRate / 100);
+        // GST EXCLUDE - GST is added on top
+        // Calculate discount on the original price
+        const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
+        
+        // Apply discount first
+        const discountedLineTotal = lineTotal - discountAmount;
+        
+        // Calculate tax on the discounted amount
+        const taxAmount = discountedLineTotal * (taxRate / 100);
+        
         calculatedSubtotal += discountedLineTotal;
-        calculatedTax += gstAmount;
+        calculatedTax += taxAmount;
+        calculatedDiscount += discountAmount;
       }
     });
     
@@ -749,8 +763,7 @@ const TheaterOrderInterface = () => {
         // Match by category ID
         const match = categoryIdStr === selectedCategoryIdStr;
         
-        console.log(`Product "${product.name}": categoryId="${categoryIdStr}" vs selected="${selectedCategoryIdStr}" => ${match ? '✅' : '❌'}`);
-        
+
         return match;
       });
     }

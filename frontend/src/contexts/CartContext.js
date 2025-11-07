@@ -114,23 +114,19 @@ export const CartProvider = ({ children }) => {
         const testKey = 'test_storage';
         localStorage.setItem(testKey, 'test');
         localStorage.removeItem(testKey);
-        console.log('✅ localStorage is available');
 
         const savedCart = localStorage.getItem('yqpay_cart');
-        console.log('🛒 Loading cart from localStorage:', savedCart);
+
         if (savedCart && savedCart !== 'null' && savedCart !== '[]') {
           const cartItems = JSON.parse(savedCart);
-          console.log('🛒 Parsed cart items:', cartItems);
+
           if (Array.isArray(cartItems) && cartItems.length > 0) {
             dispatch({ type: CART_ACTIONS.LOAD_CART, payload: cartItems });
-            console.log('🛒 Cart loaded successfully with', cartItems.length, 'items');
-          }
+  }
         } else {
-          console.log('🛒 No valid saved cart found');
-        }
+  }
       } catch (error) {
-        console.error('❌ Error loading cart from localStorage:', error);
-      } finally {
+  } finally {
         setIsLoaded(true);
       }
     };
@@ -144,21 +140,17 @@ export const CartProvider = ({ children }) => {
     if (!isLoaded) return;
     
     try {
-      console.log('💾 Saving cart to localStorage:', state.items);
+
       const cartData = JSON.stringify(state.items);
       localStorage.setItem('yqpay_cart', cartData);
-      console.log('💾 Cart saved successfully. Storage contains:', localStorage.getItem('yqpay_cart'));
-      
+
       // Verify the save worked
       const verification = localStorage.getItem('yqpay_cart');
       if (verification === cartData) {
-        console.log('✅ Cart persistence verified');
-      } else {
-        console.error('❌ Cart persistence failed - data mismatch');
-      }
+  } else {
+  }
     } catch (error) {
-      console.error('❌ Error saving cart to localStorage:', error);
-    }
+  }
   }, [state.items, isLoaded]);
 
   // Development helper - make cart state accessible in console
@@ -166,23 +158,22 @@ export const CartProvider = ({ children }) => {
     if (process.env.NODE_ENV === 'development') {
       window.cartState = state;
       window.cartActions = { addItem, removeItem, updateQuantity, clearCart };
-      console.log('🛒 Cart debugging: state and actions available in console');
-    }
+  }
   }, [state]);
 
   // Cart actions
   const addItem = (product) => {
-    console.log('➕ Adding item to cart:', product);
+
     dispatch({ type: CART_ACTIONS.ADD_ITEM, payload: product });
   };
 
   const removeItem = (product) => {
-    console.log('➖ Removing item from cart:', product);
+
     dispatch({ type: CART_ACTIONS.REMOVE_ITEM, payload: product });
   };
 
   const updateQuantity = (productId, quantity) => {
-    console.log('🔄 Updating quantity:', productId, quantity);
+
     dispatch({ 
       type: CART_ACTIONS.UPDATE_QUANTITY, 
       payload: { _id: productId, quantity } 

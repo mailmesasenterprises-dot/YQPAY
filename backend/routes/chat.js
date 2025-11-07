@@ -11,9 +11,6 @@ const { notifyAllSuperAdmins, sendNotificationToUser } = require('./notification
  */
 router.get('/theaters', authenticateToken, async (req, res) => {
   try {
-    console.log('📋 Fetching theaters for chat list...');
-    console.log('👤 User from token:', req.user);
-    
     // Get all theaters
     const theaters = await Theater.find({}, {
       name: 1,
@@ -36,9 +33,6 @@ router.get('/theaters', authenticateToken, async (req, res) => {
         };
       })
     );
-
-    console.log(`✅ Found ${theaters.length} theaters`);
-
     // Return array directly for backward compatibility
     res.json(theatersWithUnread);
 
@@ -60,9 +54,6 @@ router.get('/messages/:theaterId', authenticateToken, async (req, res) => {
   try {
     const { theaterId } = req.params;
     const { limit = 100, skip = 0 } = req.query;
-
-    console.log(`💬 Fetching messages for theater: ${theaterId}`);
-
     const messages = await ChatMessage.find({ theaterId })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
@@ -71,9 +62,6 @@ router.get('/messages/:theaterId', authenticateToken, async (req, res) => {
 
     // Reverse to show oldest first
     messages.reverse();
-
-    console.log(`✅ Found ${messages.length} messages`);
-
     res.json({
       success: true,
       data: messages
@@ -97,10 +85,6 @@ router.post('/messages', authenticateToken, async (req, res) => {
   try {
     const { theaterId, message } = req.body;
     const user = req.user;
-
-    console.log('📤 Sending new message...');
-    console.log('👤 User info:', { userId: user.userId, role: user.role, username: user.username });
-
     // Validate
     if (!theaterId || !message || message.trim().length === 0) {
       return res.status(400).json({
@@ -126,9 +110,6 @@ router.post('/messages', authenticateToken, async (req, res) => {
     else {
       senderRole = 'theater_user';
     }
-
-    console.log('📝 Mapped role:', user.role, '→', senderRole);
-
     // Create message
     const newMessage = new ChatMessage({
       theaterId,
@@ -140,9 +121,6 @@ router.post('/messages', authenticateToken, async (req, res) => {
     });
 
     await newMessage.save();
-
-    console.log('✅ Message sent successfully');
-
     // Send real-time notification
     try {
       const theater = await Theater.findById(theaterId);
@@ -150,7 +128,6 @@ router.post('/messages', authenticateToken, async (req, res) => {
       if (senderRole === 'super_admin') {
         // Super admin sent message - notify theater users
         // You can add theater user notification logic here
-        console.log('📨 Notifying theater users about new message from super admin');
       } else {
         // Theater user sent message - notify super admins
         const notification = {
@@ -163,7 +140,6 @@ router.post('/messages', authenticateToken, async (req, res) => {
         };
         
         const sentCount = notifyAllSuperAdmins(notification);
-        console.log(`📢 Real-time notification sent to ${sentCount} super admins`);
       }
     } catch (notifError) {
       console.error('⚠️ Error sending real-time notification:', notifError);
@@ -194,9 +170,6 @@ router.put('/messages/:theaterId/mark-read', authenticateToken, async (req, res)
   try {
     const { theaterId } = req.params;
     const user = req.user;
-
-    console.log(`✅ Marking messages as read for theater: ${theaterId}`);
-
     // Super admin marks theater messages as read
     const forSuperAdmin = user.role === 'super_admin';
     
@@ -225,9 +198,6 @@ router.delete('/messages/:messageId', authenticateToken, async (req, res) => {
   try {
     const { messageId } = req.params;
     const user = req.user;
-
-    console.log(`🗑️ Deleting message: ${messageId}`);
-
     const message = await ChatMessage.findById(messageId);
 
     if (!message) {
@@ -246,9 +216,6 @@ router.delete('/messages/:messageId', authenticateToken, async (req, res) => {
     }
 
     await ChatMessage.findByIdAndDelete(messageId);
-
-    console.log('✅ Message deleted successfully');
-
     res.json({
       success: true,
       message: 'Message deleted successfully'

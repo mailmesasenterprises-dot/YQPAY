@@ -1,7 +1,5 @@
 const mongoose = require('mongoose');
 
-console.log('🔧 Loading TheaterOrders model (Array-based)...');
-
 // Individual order item schema
 const orderItemSchema = new mongoose.Schema({
   productId: {
@@ -89,7 +87,7 @@ const orderSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['qr_code', 'staff', 'online', 'app', 'pos'],
+    enum: ['qr_code', 'staff', 'online', 'app', 'pos', 'kiosk'],
     default: 'staff'
   },
   tableNumber: String,
@@ -136,7 +134,4 @@ theaterOrdersSchema.index({ theater: 1 });
 theaterOrdersSchema.index({ 'orderList.orderNumber': 1 });
 theaterOrdersSchema.index({ 'orderList.status': 1 });
 theaterOrdersSchema.index({ 'orderList.createdAt': -1 });
-
-console.log('✅ TheaterOrders schema created with array structure');
-
 module.exports = mongoose.model('TheaterOrders', theaterOrdersSchema, 'theaterorders');

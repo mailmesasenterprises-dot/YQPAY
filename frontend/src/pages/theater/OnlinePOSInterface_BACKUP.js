@@ -415,13 +415,10 @@ const OnlinePOSInterface = () => {
   const fetchProducts = useCallback(async () => {
     if (!theaterId || !isMountedRef.current) return;
     
-    console.log('🔍 OnlinePOS Debug: theaterId =', theaterId);
-    console.log('🔍 OnlinePOS Debug: Starting fetchProducts...');
-    
+
     try {
       let authToken = getAuthToken();
-      console.log('🔍 OnlinePOS Debug: authToken =', authToken ? 'EXISTS' : 'NULL');
-      
+
       if (!authToken) {
         authToken = await autoLogin();
         if (!authToken) {
@@ -430,8 +427,7 @@ const OnlinePOSInterface = () => {
       }
       
       const apiUrl = `/api/theater-products/${theaterId}`;
-      console.log('🔍 OnlinePOS Debug: API URL =', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -442,8 +438,6 @@ const OnlinePOSInterface = () => {
         }
       });
 
-      console.log('🔍 OnlinePOS Debug: Response status =', response.status);
-      console.log('🔍 OnlinePOS Debug: Response ok =', response.ok);
 
       if (!response.ok) {
         throw new Error(`Failed to load products: ${response.status}`);
@@ -459,9 +453,7 @@ const OnlinePOSInterface = () => {
         const allProducts = Array.isArray(data.data) ? data.data : (data.data?.products || []);
         theaterProducts = allProducts; // Show all products, but inactive ones will appear as "Out of Stock"
         
-        console.log('🍿 ONLINE POS: Total products:', allProducts.length);
-        console.log('🍿 ONLINE POS: Products to show:', theaterProducts.length);
-        
+
         // Extract categories from products
         const theaterCategories = [...new Set(allProducts.map(product => 
           typeof product.category === 'string' ? product.category : ''
@@ -469,19 +461,15 @@ const OnlinePOSInterface = () => {
         
         setCategories(theaterCategories);
       } else {
-        console.error('🍿 ONLINE POS: API returned success: false', data);
+
         throw new Error(data.message || 'Failed to load products');
       }
       
       setProducts(theaterProducts);
-      console.log('✅ OnlinePOS: Products loaded successfully:', theaterProducts.length);
-      
-    } catch (err) {
-      console.error('🔍 OnlinePOS Debug: Error in fetchProducts =', err);
-      console.error('🔍 OnlinePOS Debug: Error message =', err.message);
-      
+  } catch (err) {
+
       // Fallback: Try to use sample products if API fails
-      console.log('🔄 OnlinePOS: Trying fallback products...');
+
       const fallbackProducts = [
         {
           _id: 'fallback1',
@@ -509,15 +497,14 @@ const OnlinePOSInterface = () => {
       setCategories(['BURGER']);
       setError(''); // Clear error since we have fallback products
     } finally {
-      console.log('🔍 OnlinePOS Debug: Setting loading to false');
+
       setLoading(false);
     }
   }, [theaterId]);
 
   // Load initial data
   useEffect(() => {
-    console.log('🔄 OnlinePOS: useEffect triggered, theaterId =', theaterId);
-    
+
     setProducts([]);
     setCategories([]);
     setCategoryMapping({});
@@ -526,11 +513,11 @@ const OnlinePOSInterface = () => {
     setError('');
     
     if (theaterId) {
-      console.log('🔄 OnlinePOS: Starting fetchProducts...');
+
       // Force immediate product loading
       fetchProducts();
     } else {
-      console.log('❌ OnlinePOS: No theaterId found');
+
       setLoading(false);
     }
     

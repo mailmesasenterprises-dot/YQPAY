@@ -105,8 +105,7 @@ const RoleAccessManagementList = () => {
       }
       
       // PERFORMANCE OPTIMIZATION: Use optimized API endpoint with caching
-      console.log('🌐 Fetching theaters for role access management from:', `${config.api.baseUrl}/theaters?${params.toString()}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theaters?${params.toString()}`, {
         signal: abortController.signal,
         headers: {
@@ -121,8 +120,7 @@ const RoleAccessManagementList = () => {
       }
       
       const data = await response.json();
-      console.log('🌐 Theater response for role access management:', data);
-      
+
       if (data.success) {
         // PERFORMANCE OPTIMIZATION: Direct state updates
         const theaterData = data.data || [];
@@ -139,11 +137,11 @@ const RoleAccessManagementList = () => {
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('🌐 Theater fetch for role access management was cancelled');
+
         return;
       }
       
-      console.error('Error fetching theaters for role access management:', error);
+
       setError('Failed to load theaters for role access management');
       setTheaters([]);
     } finally {

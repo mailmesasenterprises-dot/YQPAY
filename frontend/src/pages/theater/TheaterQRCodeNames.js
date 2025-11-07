@@ -68,7 +68,7 @@ const TheaterQRCodeNames = () => {
   // Validate theater access
   useEffect(() => {
     if (userType === 'theater_user' && userTheaterId && theaterId !== userTheaterId) {
-      console.error('Theater access denied: User can only access their own theater');
+
       return;
     }
   }, [theaterId, userTheaterId, userType]);
@@ -170,8 +170,7 @@ const TheaterQRCodeNames = () => {
       if (error.name === 'AbortError') {
         return;
       }
-      console.error('Error loading QR code names:', error);
-    } finally {
+  } finally {
       if (isMountedRef.current) {
         setLoading(false);
       }
@@ -252,9 +251,7 @@ const TheaterQRCodeNames = () => {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
-      console.log('🗑️ Deleting QR Code Name:', selectedQRCodeName._id);
-      console.log('🔗 DELETE URL:', `${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}?permanent=true`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}?permanent=true`, {
         method: 'DELETE',
         headers: {
@@ -263,19 +260,17 @@ const TheaterQRCodeNames = () => {
         }
       });
       
-      console.log('📡 DELETE response:', response.status, response.statusText);
-      
+
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Delete successful:', data);
+
         setShowDeleteModal(false);
         showSuccess('QR Code Name deleted successfully!');
         loadQRCodeNameData();
         setSelectedQRCodeName(null);
       } else {
         const errorData = await response.json();
-        console.error('❌ Delete failed:', errorData);
-        
+
         // Enhanced error handling
         if (errorData.message && errorData.message.includes('Theater QR names not found')) {
           showError('Theater not found. Please refresh the page and try again.');
@@ -287,7 +282,7 @@ const TheaterQRCodeNames = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Error deleting QR code name:', error);
+
       showError('Failed to delete QR Code Name. Please try again.');
     }
   };
@@ -338,7 +333,7 @@ const TheaterQRCodeNames = () => {
         }
       }
     } catch (error) {
-      console.error('Error saving QR code name:', error);
+
       showError('An error occurred while saving the QR Code Name.');
     }
   };

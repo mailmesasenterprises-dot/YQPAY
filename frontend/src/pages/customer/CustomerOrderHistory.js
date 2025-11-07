@@ -34,7 +34,7 @@ const CustomerOrderHistory = () => {
     const savedPhone = localStorage.getItem('customerPhone');
     
     if (!theaterId) {
-      console.error('Missing theater ID');
+
       setError('Theater information is missing');
       setLoading(false);
       return;
@@ -55,8 +55,6 @@ const CustomerOrderHistory = () => {
   const fetchOrderHistory = async (phone) => {
     try {
       setLoading(true);
-      console.log('📞 Fetching orders for phone:', phone);
-      console.log('🎭 Theater ID:', theaterId);
 
       const response = await fetch(
         `${config.api.baseUrl}/orders/theater/${theaterId}`
@@ -67,15 +65,13 @@ const CustomerOrderHistory = () => {
       }
 
       const data = await response.json();
-      console.log('📦 All theater orders:', data);
 
       // Filter orders by phone number
       const customerOrders = data.orders.filter(order => 
         order.customerInfo?.phone === phone
       );
 
-      console.log('✅ Customer orders:', customerOrders);
-      
+
       // Sort by date (newest first)
       const sortedOrders = customerOrders.sort((a, b) => 
         new Date(b.createdAt) - new Date(a.createdAt)
@@ -83,7 +79,7 @@ const CustomerOrderHistory = () => {
 
       setOrders(sortedOrders);
     } catch (err) {
-      console.error('❌ Error fetching orders:', err);
+
       setError('Failed to load order history');
     } finally {
       setLoading(false);
@@ -127,8 +123,6 @@ const CustomerOrderHistory = () => {
       const fullPhone = '+91' + phoneNumber;
       const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
       
-      console.log('📞 Sending OTP to:', fullPhone);
-      console.log('🌐 API URL:', apiUrl);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -142,11 +136,9 @@ const CustomerOrderHistory = () => {
       });
 
       const result = await response.json();
-      console.log('📥 Send OTP Response:', result);
 
       if (result.success) {
-        console.log('✅ OTP sent successfully to:', fullPhone);
-        
+
         // Move to OTP step
         setLoginStep('otp');
         setResendTimer(30);
@@ -175,7 +167,7 @@ const CustomerOrderHistory = () => {
       }
       
     } catch (err) {
-      console.error('❌ Error sending OTP:', err);
+
       setLoginError('Failed to send OTP. Please try again.');
     } finally {
       setLoginLoading(false);
@@ -247,9 +239,6 @@ const CustomerOrderHistory = () => {
       const fullPhone = '+91' + phoneNumber;
       const apiUrl = `${config.api.baseUrl}/sms/verify-otp`;
       
-      console.log('🔍 Verifying OTP:', otpString);
-      console.log('📞 Phone:', fullPhone);
-      console.log('🌐 API URL:', apiUrl);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -264,11 +253,9 @@ const CustomerOrderHistory = () => {
       });
 
       const result = await response.json();
-      console.log('📥 Verification Response:', result);
 
       if (result.success) {
-        console.log('✅ OTP verified successfully!');
-        
+
         // Save phone number to localStorage
         localStorage.setItem('customerPhone', fullPhone);
         
@@ -285,7 +272,7 @@ const CustomerOrderHistory = () => {
       }
       
     } catch (err) {
-      console.error('❌ Verification Error:', err);
+
       setLoginError('Failed to verify OTP. Please try again.');
       setOtp(['', '', '', '']);
       otpInputRefs.current[0]?.focus();
@@ -305,7 +292,6 @@ const CustomerOrderHistory = () => {
       const fullPhone = '+91' + phoneNumber;
       const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
       
-      console.log('🔄 Resending OTP to:', fullPhone);
 
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -319,11 +305,9 @@ const CustomerOrderHistory = () => {
       });
 
       const result = await response.json();
-      console.log('📥 Resend OTP Response:', result);
 
       if (result.success) {
-        console.log('✅ OTP resent successfully');
-        
+
         // Reset timer
         setResendTimer(30);
         setCanResend(false);
@@ -346,9 +330,8 @@ const CustomerOrderHistory = () => {
       } else {
         setLoginError(result.error || 'Failed to resend OTP. Please try again.');
       }
+  } catch (err) {
 
-    } catch (err) {
-      console.error('❌ Error resending OTP:', err);
       setLoginError('Failed to resend OTP. Please try again.');
     } finally {
       setLoginLoading(false);
@@ -377,7 +360,7 @@ const CustomerOrderHistory = () => {
       if (savedScreen) params.set('screen', savedScreen);
       if (savedSeat) params.set('seat', savedSeat);
       
-      console.log('🏠 Navigating back to home with params:', Object.fromEntries(params.entries()));
+
       navigate(`/customer/home?${params.toString()}`);
     } else {
       navigate(-1);
@@ -610,8 +593,8 @@ const CustomerOrderHistory = () => {
           onClick={handleBack}
           type="button"
         >
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
         <h1 className="page-title">Order History</h1>

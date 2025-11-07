@@ -23,8 +23,7 @@ export const AuthProvider = ({ children }) => {
 
   // EMERGENCY FIX: Always allow access
   useEffect(() => {
-    console.log('🚨 EMERGENCY AUTH: Bypassing all validation');
-    
+
     // Set emergency admin session
     const emergencyUser = {
       id: '68d37e90354ed566e0855ab9',
@@ -40,7 +39,6 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(true);
     setIsLoading(false);
     
-    console.log('✅ EMERGENCY AUTH: Access granted');
   }, []);
 
   const clearAuthData = () => {
@@ -60,9 +58,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     try {
-      console.log('🔑 AUTH DEBUG: Attempting login...');
-      console.log('🔑 AUTH DEBUG: API URL:', `${config.api.baseUrl}/auth/login`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/auth/login`, {
         method: 'POST',
         headers: {
@@ -71,9 +67,8 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify(credentials),
       });
 
-      console.log('🔑 AUTH DEBUG: Login response status:', response.status);
+
       const data = await response.json();
-      console.log('🔑 AUTH DEBUG: Login response data:', data);
 
       if (response.ok && data.token) {
         // Store authentication data
@@ -91,20 +86,20 @@ export const AuthProvider = ({ children }) => {
         setRolePermissions(data.rolePermissions || []);
         setIsAuthenticated(true);
 
-        console.log('✅ AUTH DEBUG: Login successful, user authenticated');
+
         return { success: true, data };
       } else {
-        console.log('❌ AUTH DEBUG: Login failed:', data.message);
+
         return { success: false, message: data.message };
       }
     } catch (error) {
-      console.log('❌ AUTH DEBUG: Login error:', error.message);
+
       return { success: false, message: error.message };
     }
   };
 
   const logout = () => {
-    console.log('🚪 AUTH DEBUG: Logging out user');
+
     clearAuthData();
     navigate('/login');
   };

@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import OfflineNotice from '../../components/OfflineNotice';
 import useNetworkStatus from '../../hooks/useNetworkStatus';
+import BannerCarousel from '../../components/customer/BannerCarousel';
+import { getCachedData, setCachedData } from '../../utils/cacheUtils';
 import config from '../../config';
 import '../../styles/customer/CustomerLanding.css';
 
@@ -96,8 +98,7 @@ const CustomerLanding = () => {
       return;
     }
     
-    console.log('🎯 Customer Landing - Theater ID:', id, '| QR Name:', qr, '| Screen:', screen, '| Seat:', seat);
-    
+
     setTheaterId(id);
     setScreenName(screen);
     setSeatId(seat);
@@ -112,11 +113,9 @@ const CustomerLanding = () => {
   // Verify QR code status
   const verifyQRCode = async (qrName, theaterId) => {
     try {
-      console.log('🔍 Verifying QR Code:', qrName, 'for theater:', theaterId);
-      
+
       const apiUrl = `${config.api.baseUrl}/single-qrcodes/verify-qr/${qrName}?theaterId=${theaterId}`;
-      console.log('📡 Verification API URL:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
@@ -124,118 +123,91 @@ const CustomerLanding = () => {
         }
       });
 
-      console.log('📡 Verification Response Status:', response.status, response.statusText);
-      
+
       const data = await response.json();
-      console.log('📦 Verification Response Data:', data);
-      
+
       if (!response.ok || !data.success || !data.isActive) {
         // QR code is deactivated or not found
-        console.log('❌ QR Code is deactivated or not found:', {
-          responseOk: response.ok,
-          dataSuccess: data.success,
-          dataIsActive: data.isActive
-        });
-        
+
         // Redirect to error page
         navigate(`/qr-unavailable?theaterid=${theaterId}`);
         return;
       }
       
-      console.log('✅ QR Code verified successfully:', data);
-      
-    } catch (error) {
-      console.error('❌ Error verifying QR code:', error);
-      console.error('❌ Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
+  } catch (error) {
+
       // If verification fails (network error), redirect to error page
       navigate(`/qr-unavailable?theaterid=${theaterId}`);
     }
   };
 
-  // Load theater data
-  const loadTheaterData = useCallback(async (id) => {
-    try {
-      console.log('🎭 Loading theater data for ID:', id);
-      console.log('🎭 Config API Base URL:', config.api.baseUrl);
-      
-      const apiUrl = `${config.api.baseUrl}/theaters/${id}`;
-      console.log('📡 API URL:', apiUrl);
-      console.log('📡 Making fetch request...');
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        mode: 'cors' // Explicitly enable CORS
-      });
-      
-      console.log('📡 Response received:', response.status, response.statusText);
-      console.log('📡 Response OK:', response.ok);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      console.log('📦 API Response:', data);
-      
-      if (data.success && data.data) {
-        setTheater(data.data);
-        console.log('✅ Theater loaded:', data.data.name);
-      } else {
-        throw new Error(data.error || data.message || 'Theater not found');
-      }
-    } catch (error) {
-      console.error('❌ Error loading theater:', error);
-      console.error('❌ Error type:', error.name);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
-      
-      // Show detailed error message
-      const errorMsg = error.message || 'Unknown error occurred';
-      setError(`Theater not found: Load failed\n${errorMsg}`);
-      console.error('❌ Setting error state:', errorMsg);
-    }
-  }, []);
-
-  // Load settings data (theme, logo)
-  const loadSettings = useCallback(async () => {
-    try {
-      console.log('⚙️ Loading settings...');
-      
-      const apiUrl = `${config.api.baseUrl}/settings/general`;
-      console.log('📡 Settings API URL:', apiUrl);
-      const response = await fetch(apiUrl);
-      const data = await response.json();
-      
-      if (data.success && data.data.config) {
-        setSettings(data.data.config);
-        console.log('✅ Settings loaded:', data.data.config.applicationName);
-      }
-    } catch (error) {
-      console.error('❌ Error loading settings:', error);
-      // Continue without settings (use defaults) - settings are not critical
-    }
-  }, []);
-
-  // Load data when theater ID is available
+  // Load data when theater ID is available with cache-first strategy
   useEffect(() => {
     if (theaterId) {
-      Promise.all([
-        loadTheaterData(theaterId),
-        loadSettings()
-      ]).finally(() => {
+      const cacheKey = `customerLanding_${theaterId}`;
+      
+      // Check cache first for instant loading
+      const cached = getCachedData(cacheKey);
+      if (cached) {
+        console.log('⚡ [CustomerLanding] Loading from cache');
+        if (cached.theater) setTheater(cached.theater);
+        if (cached.settings) setSettings(cached.settings);
         setLoading(false);
-      });
+      }
+      
+      // Fetch fresh data in parallel (background refresh)
+      const fetchFreshData = async () => {
+        try {
+          const [theaterRes, settingsRes] = await Promise.all([
+            fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              mode: 'cors'
+            }),
+            fetch(`${config.api.baseUrl}/settings/general`)
+          ]);
+          
+          const [theaterData, settingsData] = await Promise.all([
+            theaterRes.json(),
+            settingsRes.json()
+          ]);
+          
+          // Process theater data
+          let freshTheater = null;
+          if (theaterRes.ok && theaterData.success && theaterData.data) {
+            freshTheater = theaterData.data;
+            setTheater(freshTheater);
+          } else {
+            throw new Error(theaterData.error || theaterData.message || 'Theater not found');
+          }
+          
+          // Process settings data
+          let freshSettings = null;
+          if (settingsData.success && settingsData.data.config) {
+            freshSettings = settingsData.data.config;
+            setSettings(freshSettings);
+          }
+          
+          // Cache the fresh data
+          setCachedData(cacheKey, {
+            theater: freshTheater,
+            settings: freshSettings
+          });
+          
+          setLoading(false);
+        } catch (error) {
+          console.error('💥 [CustomerLanding] Error loading data:', error);
+          setError(`Theater not found: Load failed\n${error.message || 'Unknown error'}`);
+          setLoading(false);
+        }
+      };
+      
+      fetchFreshData();
     }
-  }, [theaterId, loadTheaterData, loadSettings]);
+  }, [theaterId]);
 
   // Navigation handlers
   const handleOrderFood = () => {
@@ -296,7 +268,12 @@ const CustomerLanding = () => {
             onClick={() => {
               setError(null);
               setLoading(true);
-              if (theaterId) loadTheaterData(theaterId);
+              if (theaterId) {
+                // Clear cache and reload
+                const cacheKey = `customerLanding_${theaterId}`;
+                sessionStorage.removeItem(cacheKey);
+                window.location.reload();
+              }
             }}
             style={{
               marginTop: '20px',
@@ -329,6 +306,9 @@ const CustomerLanding = () => {
             {theater?.location?.city || theater?.location?.address || 'LOCATION'}
           </p>
         </div>
+
+        {/* Banner Carousel Section */}
+        {theaterId && <BannerCarousel theaterId={theaterId} />}
 
           {/* Cinema Combo Display - Direct Image */}
           <div className="food-section fade-in-delay">

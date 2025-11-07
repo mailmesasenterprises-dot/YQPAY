@@ -29,34 +29,7 @@
   box-shadow: 0 4px 20px rgba(107, 14, 155, 0.3);
 }
 
-.back-button {
-  width: 48px;
-  height: 48px;
-  background: rgba(255, 255, 255, 0.15);
-  border: none;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.back-button:active {
-  transform: scale(0.95);
-  background: rgba(255, 255, 255, 0.25);
-}
-
-.back-button svg {
-  stroke: currentColor;
-  display: block;
-  width: 46px;
-  height: 46px;
-  stroke-width: 3;
-}
+/* Back button styles moved to customer-global.css for consistency */
 
 .phone-entry-title {
   font-size: 32px;

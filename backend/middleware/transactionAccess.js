@@ -33,7 +33,6 @@ async function filterTransactionsByRole(req, res, next) {
     // Super admin can view all transactions across all theaters
     if (user.role === 'super_admin' || user.isAdmin) {
       req.transactionFilter = {}; // No filter - see everything
-      console.log('🔓 Super Admin: Access to ALL transactions');
       return next();
     }
 
@@ -69,14 +68,14 @@ async function filterTransactionsByRole(req, res, next) {
       req.transactionFilter = { 
         theater: role.theater 
       };
-      console.log(`🎭 Theater Admin (${role.name}): Access to all transactions for theater ${role.theater}`);
+
     } else {
       // Regular staff: Only their own transactions
       req.transactionFilter = {
         theater: role.theater,
         createdBy: user._id
       };
-      console.log(`👤 Staff (${role.name}): Access to own transactions only`);
+
     }
 
     next();

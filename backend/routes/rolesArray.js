@@ -3,9 +3,6 @@ const router = express.Router();
 const RoleArray = require('../models/RoleArray');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { body, validationResult, param, query } = require('express-validator');
-
-console.log('🔧 RoleArray routes file loaded successfully!');
-
 /**
  * @route   GET /api/roles
  * @desc    Get roles for a theater (array-based structure)
@@ -19,13 +16,10 @@ router.get('/', [
   query('search').optional().isString().withMessage('Search must be string')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/roles - Request received');
-    console.log('Query params:', req.query);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -49,9 +43,6 @@ router.get('/', [
       search,
       isActive: isActive !== undefined ? isActive === 'true' : undefined
     });
-
-    console.log(`✅ Found ${result.roles.length} roles for theater ${theaterId}`);
-
     res.json({
       success: true,
       data: {
@@ -88,8 +79,7 @@ router.post('/', [
   body('isDefault').optional().isBoolean().withMessage('isDefault must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 POST /api/roles - Create role (theaterId in body)');
-    
+
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -110,19 +100,10 @@ router.post('/', [
       isDefault = false 
     } = req.body;
 
-    console.log('🔍 Debug role creation request:');
-    console.log('📄 Request body:', JSON.stringify(req.body, null, 2));
-    console.log('📋 Permissions array length:', permissions.length);
-    console.log('📋 Permissions content:', JSON.stringify(permissions, null, 2));
 
     // Find or create roles document for theater
-    console.log('🔍 About to call findOrCreateByTheater...');
     let rolesDoc = await RoleArray.findOrCreateByTheater(theaterId);
-    console.log('✅ findOrCreateByTheater completed');
-    console.log('📊 Current roleList length:', rolesDoc.roleList.length);
-
     // Add new role
-    console.log('🔍 About to call addRole...');
     const newRole = await rolesDoc.addRole({
       name: name.trim(),
       description: description.trim(),
@@ -133,13 +114,8 @@ router.post('/', [
       canDelete: !isDefault, // Default roles cannot be deleted
       canEdit: true
     });
-    console.log('✅ addRole completed');
-
     // Populate theater info
     await rolesDoc.populate('theater', 'name location');
-
-    console.log(`✅ Role "${name}" created for theater ${theaterId}`);
-
     res.status(201).json({
       success: true,
       message: 'Role created successfully',
@@ -184,10 +160,7 @@ router.put('/:roleId', [
   body('isActive').optional().isBoolean().withMessage('isActive must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 PUT /api/roles/:roleId - Update role');
-    console.log('🔍 Role ID:', req.params.roleId);
-    console.log('📦 Update Data:', JSON.stringify(req.body, null, 2));
-    
+
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -212,25 +185,9 @@ router.put('/:roleId', [
 
     // Get role before update
     const roleBefore = rolesDoc.roleList.id(roleId);
-    console.log('🔵 Role BEFORE update:', {
-      _id: roleBefore._id,
-      name: roleBefore.name,
-      isActive: roleBefore.isActive
-    });
-
     // Update the role
     const updatedRole = await rolesDoc.updateRole(roleId, updateData);
-    
-    console.log('🟢 Role AFTER update:', {
-      _id: updatedRole._id,
-      name: updatedRole.name,
-      isActive: updatedRole.isActive
-    });
-
     await rolesDoc.populate('theater', 'name location');
-
-    console.log(`✅ Role ${roleId} updated`);
-
     res.json({
       success: true,
       message: 'Role updated successfully',
@@ -277,12 +234,6 @@ router.delete('/:roleId', [
   query('permanent').optional().isBoolean().withMessage('Permanent must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 DELETE /api/roles/:roleId - Delete role');
-    console.log('🔍 Request params:', req.params);
-    console.log('🔍 Role ID:', req.params.roleId);
-    console.log('🔍 Request query:', req.query);
-    console.log('🔍 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -317,11 +268,9 @@ router.delete('/:roleId', [
     if (permanent) {
       // Permanent delete
       await rolesDoc.deleteRole(roleId);
-      console.log(`✅ Role ${roleId} permanently deleted`);
     } else {
       // Soft delete
       await rolesDoc.deactivateRole(roleId);
-      console.log(`✅ Role ${roleId} deactivated`);
     }
 
     await rolesDoc.populate('theater', 'name location');
@@ -375,8 +324,6 @@ router.post('/:roleId/permissions', [
   body('route').optional().isString()
 ], async (req, res) => {
   try {
-    console.log('📥 POST /api/roles/:roleId/permissions - Add permission to role');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -408,9 +355,6 @@ router.post('/:roleId/permissions', [
     });
 
     await rolesDoc.populate('theater', 'name location');
-
-    console.log(`✅ Permission "${page}" added to role ${roleId}`);
-
     res.json({
       success: true,
       message: 'Permission added successfully',
@@ -443,8 +387,6 @@ router.put('/:roleId/permissions/:page', [
   body('hasAccess').isBoolean().withMessage('hasAccess must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 PUT /api/roles/:roleId/permissions/:page - Update role permission');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -471,9 +413,6 @@ router.put('/:roleId/permissions/:page', [
     const updatedRole = await rolesDoc.updateRolePermission(roleId, page, hasAccess);
 
     await rolesDoc.populate('theater', 'name location');
-
-    console.log(`✅ Permission "${page}" updated for role ${roleId}`);
-
     res.json({
       success: true,
       message: 'Permission updated successfully',
@@ -503,8 +442,6 @@ router.get('/:roleId', [
   param('roleId').isMongoId().withMessage('Valid role ID is required')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/roles/:roleId - Get specific role');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -535,9 +472,6 @@ router.get('/:roleId', [
         message: 'Role not found'
       });
     }
-
-    console.log(`✅ Role ${roleId} found`);
-
     res.json({
       success: true,
       data: {

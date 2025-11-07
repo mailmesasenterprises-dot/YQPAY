@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import TheaterSidebar from './TheaterSidebar';
 import Header from '../Header'; // Use global header component
 import config from '../../config';
@@ -18,7 +19,10 @@ const TheaterLayout = ({ children, pageTitle = 'Theater Dashboard' }) => {
     return savedState !== null ? JSON.parse(savedState) : true; // Default to collapsed (icons only)
   });
   
+  const [theaterName, setTheaterName] = useState('');
   const location = useLocation();
+  const { theaterId } = useParams();
+  const { user, theaterId: userTheaterId } = useAuth();
 
   // Custom setSidebarOpen that persists state
   const handleSetSidebarOpen = (value) => {
@@ -44,10 +48,14 @@ const TheaterLayout = ({ children, pageTitle = 'Theater Dashboard' }) => {
   const getCurrentPage = () => {
     const path = location.pathname;
     if (path.includes('/theater-dashboard')) return 'dashboard';
+    if (path.includes('/theater-banner')) return 'banner';
     if (path.includes('/theater-order-history')) return 'order-history';
+    if (path.includes('/online-order-history')) return 'online-order-history';
+    if (path.includes('/kiosk-order-history')) return 'kiosk-order-history';
     if (path.includes('/view-cart')) return 'order-interface'; // View Cart should highlight Order Interface
     if (path.includes('/theater-order/')) return 'order-interface';
     if (path.includes('/online-pos/')) return 'online-pos';
+    if (path.includes('/offline-pos/')) return 'offline-pos';
     if (path.includes('/theater/orders')) return 'orders';
     if (path.includes('/theater-categories')) return 'categories';
     if (path.includes('/theater-kiosk-types')) return 'kiosk-types';
@@ -55,6 +63,7 @@ const TheaterLayout = ({ children, pageTitle = 'Theater Dashboard' }) => {
     if (path.includes('/theater-product-types')) return 'product-types';
     if (path.includes('/theater-add-product')) return 'add-product';
     if (path.includes('/theater-stock-management')) return 'products';
+    if (path.includes('/theater-messages')) return 'messages';
     if (path.includes('/theater-reports')) return 'reports';
     if (path.includes('/theater-roles')) return 'theater-roles';
     if (path.includes('/theater-role-access')) return 'theater-role-access';
@@ -88,6 +97,68 @@ const TheaterLayout = ({ children, pageTitle = 'Theater Dashboard' }) => {
       document.body.classList.remove('sidebar-open');
     };
   }, [sidebarOpen]);
+
+  // Fetch theater name and update browser title
+  useEffect(() => {
+    const fetchTheaterName = async () => {
+      // Determine effective theater ID
+      let effectiveTheaterId = theaterId || userTheaterId;
+      
+      if (!effectiveTheaterId && user) {
+        if (user.assignedTheater) {
+          effectiveTheaterId = user.assignedTheater._id || user.assignedTheater;
+        } else if (user.theater) {
+          effectiveTheaterId = user.theater._id || user.theater;
+        }
+      }
+
+      if (!effectiveTheaterId) {
+        document.title = `${pageTitle} - YQPayNow`;
+        return;
+      }
+
+      // Check if theater name is cached in localStorage
+      const cachedTheaterName = localStorage.getItem(`theater_${effectiveTheaterId}_name`);
+      if (cachedTheaterName) {
+        setTheaterName(cachedTheaterName);
+        document.title = `${pageTitle} - ${cachedTheaterName}`;
+        return;
+      }
+
+      // Fetch theater info from API
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`${config.api.baseUrl}/theater-dashboard/${effectiveTheaterId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.theater && data.theater.name) {
+            const name = data.theater.name;
+            setTheaterName(name);
+            // Cache the theater name to avoid repeated API calls
+            localStorage.setItem(`theater_${effectiveTheaterId}_name`, name);
+            document.title = `${pageTitle} - ${name}`;
+          } else {
+            document.title = `${pageTitle} - YQPayNow`;
+          }
+        } else {
+          document.title = `${pageTitle} - YQPayNow`;
+        }
+      } catch (error) {
+        console.error('Failed to fetch theater name:', error);
+        document.title = `${pageTitle} - YQPayNow`;
+      }
+    };
+
+    fetchTheaterName();
+  }, [theaterId, userTheaterId, user, pageTitle]);
+
 
   return (
     <div className={`dashboard-container ${sidebarOpen ? 'sidebar-open' : ''}`}>

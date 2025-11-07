@@ -33,6 +33,11 @@ const theaterSchema = new mongoose.Schema({
     trim: true,
     match: [/^[\+]?[1-9][\d]{0,15}$/, 'Please enter a valid phone number']
   },
+  gstNumber: {
+    type: String,
+    trim: true,
+    uppercase: true
+  },
   address: {
     street: String,
     city: String,
@@ -148,6 +153,111 @@ const theaterSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  // 🔥 DUAL PAYMENT GATEWAY CONFIGURATION
+  paymentGateway: {
+    // API 1: KIOSK/POS PAYMENT GATEWAY
+    kiosk: {
+      enabled: { type: Boolean, default: false },
+      provider: {
+        type: String,
+        enum: ['razorpay', 'phonepe', 'paytm', 'stripe', 'none'],
+        default: 'none'
+      },
+      
+      // Razorpay Configuration for Kiosk/POS
+      razorpay: {
+        enabled: { type: Boolean, default: false },
+        keyId: { type: String, default: '' },
+        keySecret: { type: String, default: '' },
+        webhookSecret: { type: String, default: '' },
+        testMode: { type: Boolean, default: true }
+      },
+      
+      // PhonePe Configuration for Kiosk/POS
+      phonepe: {
+        enabled: { type: Boolean, default: false },
+        merchantId: { type: String, default: '' },
+        saltKey: { type: String, default: '' },
+        saltIndex: { type: String, default: '' },
+        testMode: { type: Boolean, default: true }
+      },
+      
+      // Paytm Configuration for Kiosk/POS
+      paytm: {
+        enabled: { type: Boolean, default: false },
+        merchantId: { type: String, default: '' },
+        merchantKey: { type: String, default: '' },
+        websiteName: { type: String, default: 'DEFAULT' },
+        industryType: { type: String, default: 'Retail' },
+        testMode: { type: Boolean, default: true }
+      },
+      
+      // Accepted payment methods for Kiosk/POS
+      acceptedMethods: {
+        cash: { type: Boolean, default: true },
+        card: { type: Boolean, default: true },
+        upi: { type: Boolean, default: true },
+        netbanking: { type: Boolean, default: false },
+        wallet: { type: Boolean, default: false }
+      },
+      
+      configuredAt: Date,
+      configuredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    },
+    
+    // API 2: ONLINE PAYMENT GATEWAY
+    online: {
+      enabled: { type: Boolean, default: false },
+      provider: {
+        type: String,
+        enum: ['razorpay', 'phonepe', 'paytm', 'stripe', 'none'],
+        default: 'none'
+      },
+      
+      // Razorpay Configuration for Online
+      razorpay: {
+        enabled: { type: Boolean, default: false },
+        keyId: { type: String, default: '' },
+        keySecret: { type: String, default: '' },
+        webhookSecret: { type: String, default: '' },
+        testMode: { type: Boolean, default: true }
+      },
+      
+      // PhonePe Configuration for Online
+      phonepe: {
+        enabled: { type: Boolean, default: false },
+        merchantId: { type: String, default: '' },
+        saltKey: { type: String, default: '' },
+        saltIndex: { type: String, default: '' },
+        testMode: { type: Boolean, default: true }
+      },
+      
+      // Paytm Configuration for Online
+      paytm: {
+        enabled: { type: Boolean, default: false },
+        merchantId: { type: String, default: '' },
+        merchantKey: { type: String, default: '' },
+        websiteName: { type: String, default: 'DEFAULT' },
+        industryType: { type: String, default: 'Retail' },
+        testMode: { type: Boolean, default: true }
+      },
+      
+      // Accepted payment methods for Online
+      acceptedMethods: {
+        cash: { type: Boolean, default: false },
+        card: { type: Boolean, default: true },
+        upi: { type: Boolean, default: true },
+        netbanking: { type: Boolean, default: true },
+        wallet: { type: Boolean, default: true }
+      },
+      
+      configuredAt: Date,
+      configuredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    },
+    
+    // Global Settings
+    lastUpdated: Date
+  },
   status: {
     type: String,
     enum: ['active', 'inactive', 'suspended'],

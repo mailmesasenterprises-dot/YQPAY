@@ -133,12 +133,11 @@ const ProfessionalPOSInterface = () => {
       const savedCart = localStorage.getItem(`professional_pos_cart_${theaterId}`);
       if (savedCart) {
         const cartItems = JSON.parse(savedCart);
-        console.log('🛒 Loaded saved professional cart:', cartItems);
+
         return Array.isArray(cartItems) ? cartItems : [];
       }
     } catch (error) {
-      console.error('Error loading saved professional cart:', error);
-    }
+  }
     return [];
   });
   
@@ -196,10 +195,8 @@ const ProfessionalPOSInterface = () => {
     if (theaterId) {
       try {
         localStorage.removeItem(`professional_pos_cart_${theaterId}`);
-        console.log('🗑️ Professional cart cleared from localStorage');
-      } catch (error) {
-        console.error('Error clearing professional cart from localStorage:', error);
-      }
+  } catch (error) {
+  }
     }
   }, [theaterId]);
 
@@ -292,15 +289,13 @@ const ProfessionalPOSInterface = () => {
       
     } catch (err) {
       // Show clean empty interface instead of error
-      console.log('🎨 Showing clean empty interface due to error');
-      
+
       // Set empty products and basic categories to show clean interface
       setProducts([]);
       setCategories(['BURGER', 'FRENCH FRIES', 'ICE CREAM', 'PIZZA', 'POP CORN']); // Show empty categories
       setError(''); // Clear error to show clean interface
       
-      console.log('✅ Clean empty interface loaded');
-    } finally {
+  } finally {
       setLoading(false);
     }
   }, [theaterId]);
@@ -328,10 +323,8 @@ const ProfessionalPOSInterface = () => {
     if (theaterId && currentOrder.length >= 0) {
       try {
         localStorage.setItem(`professional_pos_cart_${theaterId}`, JSON.stringify(currentOrder));
-        console.log('💾 Professional cart saved to localStorage:', currentOrder);
-      } catch (error) {
-        console.error('Error saving professional cart to localStorage:', error);
-      }
+  } catch (error) {
+  }
     }
   }, [currentOrder, theaterId]);
 

@@ -3,8 +3,7 @@
 import config from '../config';
 
 export const clearTheaterCache = () => {
-  console.log('🧹 Clearing all theater-related cache...');
-  
+
   // Clear localStorage
   if (window.localStorage) {
     const keysToRemove = [];
@@ -22,8 +21,7 @@ export const clearTheaterCache = () => {
     
     keysToRemove.forEach(key => {
       localStorage.removeItem(key);
-      console.log(`Removed localStorage key: ${key}`);
-    });
+  });
   }
   
   // Clear sessionStorage
@@ -43,8 +41,7 @@ export const clearTheaterCache = () => {
     
     keysToRemove.forEach(key => {
       sessionStorage.removeItem(key);
-      console.log(`Removed sessionStorage key: ${key}`);
-    });
+  });
   }
   
   // Clear browser cache for theater-related requests
@@ -53,18 +50,16 @@ export const clearTheaterCache = () => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName.includes('theater') || cacheName.includes('api')) {
-            console.log(`Clearing cache: ${cacheName}`);
+
             return caches.delete(cacheName);
           }
         })
       );
     }).catch(error => {
-      console.warn('Error clearing browser caches:', error);
-    });
+  });
   }
   
-  console.log('✅ Theater cache clearing completed');
-};
+  };
 
 export const addCacheBuster = (url) => {
   const separator = url.includes('?') ? '&' : '?';

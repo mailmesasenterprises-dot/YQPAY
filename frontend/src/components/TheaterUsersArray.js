@@ -59,8 +59,7 @@ const TheaterUsersArray = () => {
         setTheaters(result.data || []);
       }
     } catch (error) {
-      console.error('Error loading theaters:', error);
-    }
+  }
   };
 
   /**

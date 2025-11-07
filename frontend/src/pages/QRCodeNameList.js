@@ -191,10 +191,10 @@ const QRCodeNameList = () => {
       }
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Theater request was cancelled');
+
         return;
       }
-      console.error('Error fetching theaters:', error);
+
       setError('Failed to load theaters. Please try again.');
     } finally {
       setLoading(false);

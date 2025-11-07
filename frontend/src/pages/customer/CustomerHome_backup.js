@@ -34,15 +34,14 @@ const CustomerHome = () => {
       const data = await res.json();
       if (data.success && data.data) setTheater(data.data);
     } catch (err) {
-      console.error('Error loading theater:', err);
-    }
+  }
   }, []);
 
   const loadProducts = useCallback(async (id) => {
     try {
       const res = await fetch(`${config.api.baseUrl}/theater-products/${id}`);
       const data = await res.json();
-      console.log('🍔 Products API Response:', data);
+
       if (data.success && data.data.products) {
         const mappedProducts = data.data.products.map(p => {
           // Handle different image formats
@@ -68,19 +67,18 @@ const CustomerHome = () => {
             category: p.category || 'Other',
           };
         });
-        console.log('✅ Mapped products:', mappedProducts);
+
         setProducts(mappedProducts);
       }
     } catch (err) {
-      console.error('Error loading products:', err);
-    }
+  }
   }, []);
 
   const loadCategories = useCallback(async (id) => {
     try {
       const res = await fetch(`${config.api.baseUrl}/theater-categories/${id}`);
       const data = await res.json();
-      console.log('📦 Categories API Response:', data);
+
       if (data.success && data.data.categories) {
         const activeCategories = data.data.categories
           .filter(cat => cat.isActive)
@@ -92,12 +90,11 @@ const CustomerHome = () => {
             icon: cat.icon || '📦',
             isActive: cat.isActive
           }));
-        console.log('✅ Mapped categories:', activeCategories);
+
         setCategories(activeCategories);
       }
     } catch (err) {
-      console.error('Error loading categories:', err);
-    }
+  }
   }, []);
 
   useEffect(() => {
@@ -245,7 +242,7 @@ const CustomerHome = () => {
               const imgUrl = product.image && typeof product.image === 'string' 
                 ? (product.image.startsWith('http') ? product.image : `${config.api.baseUrl}${product.image}`) 
                 : null;
-              console.log(`Product: ${product.name}, Image: ${product.image}, Final URL: ${imgUrl}`);
+
               const cartItem = cart.items?.find(item => item._id === product._id);
               const quantity = cartItem?.quantity || 0;
               

@@ -81,7 +81,6 @@ router.post('/login', [
     try {
       user = await User.findOne({ username }).populate('theaterId').maxTimeMS(2000);
     } catch (error) {
-      console.log('User lookup timeout, checking theater...');
     }
     
     // If no user found, check if it's a theater login
@@ -98,7 +97,6 @@ router.post('/login', [
           };
         }
       } catch (error) {
-        console.log('Theater lookup timeout');
       }
     }
 

@@ -251,7 +251,7 @@ const TheaterList = () => {
 
   // Clear any cached data on component mount
   useEffect(() => {
-    console.log('🚀 TheaterList component mounted - clearing all caches');
+
     clearTheaterCache();
   }, []);
 
@@ -290,8 +290,7 @@ const TheaterList = () => {
       const baseUrl = `/api/theaters?${params.toString()}`;
       const cacheBustedUrl = addCacheBuster(baseUrl);
       
-      console.log('🌐 Fetching theaters from:', cacheBustedUrl);
-      
+
       const response = await fetch(cacheBustedUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -319,10 +318,10 @@ const TheaterList = () => {
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('Request was cancelled');
+
         return;
       }
-      console.error('Error fetching theaters:', error);
+
       setError('Failed to load theaters');
     } finally {
       setLoading(false);
@@ -345,7 +344,7 @@ const TheaterList = () => {
       );
       
       // CACHE INVALIDATION: Clear ALL theater-related cache aggressively
-      console.log('🧹 Clearing cache after theater deletion');
+
       clearTheaterCache();
       
       // Close modal and show success message
@@ -355,17 +354,15 @@ const TheaterList = () => {
       // Optional: Background refresh to ensure server consistency (no await to avoid blocking)
       setTimeout(() => {
         fetchTheaters().catch(error => {
-          console.warn('Background refresh after delete failed:', error);
-        });
+  });
       }, 100); // Small delay to ensure cache is cleared
     } catch (error) {
-      console.error('Error deleting theater:', error);
+
       modal.showError('Failed to delete theater');
     }
   }, [modal]);
 
-  const handleEditClick = useCallback((theater) => {
-    console.log('Theater data:', theater); // Debug log
+  const handleEditClick = useCallback((theater) => { // Debug log
     const currentIndex = theaters.findIndex(t => t._id === theater._id);
     setEditFormData({
       theaterName: theater.name || '',
@@ -480,7 +477,7 @@ const TheaterList = () => {
       
       return result.fileUrl || result.url;
     } catch (error) {
-      console.error(`Error uploading ${fileType}:`, error);
+
       setUploadProgress(prev => ({ ...prev, [fileType]: null }));
       throw error;
     }
@@ -541,9 +538,7 @@ const TheaterList = () => {
           ...(uploadedFiles.businessLicense && { businessLicense: uploadedFiles.businessLicense }),
           ...(uploadedFiles.agreementDocument && { agreementDocument: uploadedFiles.agreementDocument })
         };
-      }
-
-      console.log('Sending update data:', updateData); // Debug log
+      } // Debug log
 
       const response = await fetch(`/api/theaters/${editModal.theater._id}`, {
         method: 'PUT',
@@ -551,22 +546,18 @@ const TheaterList = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updateData)
-      });
-
-      console.log('Response status:', response.status); // Debug log
+      }); // Debug log
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('API Error:', errorData);
+
         throw new Error('Failed to update theater');
       }
 
-      const responseData = await response.json();
-      console.log('API Response:', responseData); // Debug log
+      const responseData = await response.json(); // Debug log
       
       // Handle different response formats
-      const updatedTheater = responseData.data || responseData;
-      console.log('Updated theater data:', updatedTheater); // Debug log
+      const updatedTheater = responseData.data || responseData; // Debug log
       
       // First, update the local state immediately for instant feedback
       setTheaters(prevTheaters => 
@@ -599,11 +590,11 @@ const TheaterList = () => {
       
       // Optional: Background refresh for data consistency (no await to avoid blocking)
       fetchTheaters().catch(error => {
-        console.warn('Background refresh failed:', error);
+
         // No user-facing error since local update already succeeded
       });
     } catch (error) {
-      console.error('Error updating theater:', error);
+
       modal.showError('Failed to update theater');
     }
   };
@@ -625,7 +616,7 @@ const TheaterList = () => {
       // Refresh the current page to get updated data
       fetchTheaters();
     } catch (error) {
-      console.error('Error updating theater status:', error);
+
       modal.showError('Failed to update theater status');
     }
   };
@@ -906,8 +897,7 @@ const TheaterList = () => {
                       <td className="actions-cell">
                         <div className="action-buttons">
                           <button 
-                            onClick={() => {
-                              console.log('View theater data:', theater); // Debug log
+                            onClick={() => { // Debug log
                               handleViewClick(theater);
                             }}
                             className="action-btn view-btn"

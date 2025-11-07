@@ -83,6 +83,12 @@ const IconReports = () => (
   </svg>
 );
 
+const IconBanner = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-9-1l2.5-3.21 1.79 2.15 2.5-3.22L21 19H3l3-3.86z"/>
+  </svg>
+);
+
 
 
 const IconLock = () => (
@@ -112,6 +118,7 @@ const getIcon = (iconName) => {
     sales: <IconSales />,
     messages: <IconMessages />,
     reports: <IconReports />,
+    banner: <IconBanner />,
     lock: <IconLock />,
     settings: <IconSettings />
   };
@@ -135,29 +142,12 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
   }
   
   // Debug logging
-  console.log('=== TheaterSidebar Debug ===');
-  console.log('theaterId from AuthContext:', theaterId);
-  console.log('effectiveTheaterId:', effectiveTheaterId);
-  console.log('userType:', userType);
-  console.log('user.assignedTheater:', user?.assignedTheater);
-  console.log('user.theater:', user?.theater);
-  console.log('rolePermissions:', rolePermissions);
-  console.log('rolePermissions type:', typeof rolePermissions);
-  console.log('rolePermissions length:', rolePermissions?.length);
-  console.log('rolePermissions content:', JSON.stringify(rolePermissions, null, 2));
-  console.log('localStorage rolePermissions:', localStorage.getItem('rolePermissions'));
-  console.log('============================');
 
   // ✅ USE REAL ROLE PERMISSIONS FROM DATABASE (No hardcoded override)
   let effectiveRolePermissions = rolePermissions;
   
   if (!effectiveRolePermissions || effectiveRolePermissions.length === 0) {
-    console.warn('⚠️ WARNING: No role permissions found - user may need to re-login');
-    console.warn('⚠️ Showing fallback navigation (Dashboard only)');
-    console.warn('⚠️ Solution: Log out and log in again to load permissions from database');
   } else {
-    console.log('✅ Role permissions loaded from AuthContext:', effectiveRolePermissions.length);
-    console.log('✅ Filtering sidebar navigation based on database permissions');
   }
   
   // All available navigation items
@@ -170,10 +160,13 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
     { id: 'kiosk-types', icon: 'categories', label: 'Kiosk Type', path: effectiveTheaterId ? `/theater-kiosk-types/${effectiveTheaterId}` : '/theater-kiosk-types' },
     { id: 'order-interface', icon: 'orderinterface', label: 'Order Interface', path: effectiveTheaterId ? `/theater-order/${effectiveTheaterId}` : '/theater-order' },
     { id: 'online-pos', icon: 'orderinterface', label: 'Online POS', path: effectiveTheaterId ? `/online-pos/${effectiveTheaterId}` : '/online-pos' },
+    { id: 'offline-pos', icon: 'orderinterface', label: '📶 Offline POS', path: effectiveTheaterId ? `/offline-pos/${effectiveTheaterId}` : '/offline-pos' }, // ✅ Offline POS
     { id: 'order-history', icon: 'orderhistory', label: 'Order History', path: effectiveTheaterId ? `/theater-order-history/${effectiveTheaterId}` : '/theater-order-history' },
     { id: 'online-order-history', icon: 'orderhistory', label: 'Online Orders', path: effectiveTheaterId ? `/online-order-history/${effectiveTheaterId}` : '/online-order-history' },
+    { id: 'kiosk-order-history', icon: 'orderhistory', label: 'Kiosk Orders', path: effectiveTheaterId ? `/kiosk-order-history/${effectiveTheaterId}` : '/kiosk-order-history' },
     { id: 'messages', icon: 'messages', label: 'Messages', path: effectiveTheaterId ? `/theater-messages/${effectiveTheaterId}` : '/theater-messages' },
     { id: 'reports', icon: 'reports', label: 'Reports', path: effectiveTheaterId ? `/theater-reports/${effectiveTheaterId}` : '/theater-reports' }, // ✅ NEW
+    { id: 'banner', icon: 'banner', label: 'Theater Banner', path: effectiveTheaterId ? `/theater-banner/${effectiveTheaterId}` : '/theater-banner' }, // ✅ Theater Banner
     { id: 'theater-roles', icon: 'users', label: 'Role Management', path: effectiveTheaterId ? `/theater-roles/${effectiveTheaterId}` : '/theater-roles' }, // ✅ Theater Roles
     { id: 'theater-role-access', icon: 'lock', label: 'Role Access', path: effectiveTheaterId ? `/theater-role-access/${effectiveTheaterId}` : '/theater-role-access' }, // ✅ Theater Role Access
     { id: 'qr-code-names', icon: 'qrcode', label: 'QR Code Names', path: effectiveTheaterId ? `/theater-qr-code-names/${effectiveTheaterId}` : '/theater-qr-code-names' }, // ✅ Theater QR Code Names
@@ -190,19 +183,17 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
   // Super admin sees all pages, theater users see only permitted pages
   
   if (userType === 'super_admin') {
-    console.log('✅ Super Admin detected - showing all pages');
+
     navigationItems = allNavigationItems;
   } else if (!effectiveRolePermissions || effectiveRolePermissions.length === 0) {
-    console.log('⚠️ WARNING: No role permissions available - showing fallback Dashboard only');
-    console.log('⚠️ User must re-login to load permissions from database');
+
     // Fallback: only show Dashboard if no permissions are available
     navigationItems = allNavigationItems.filter(item => item.id === 'dashboard');
   } else {
-    console.log('🎯 Filtering navigation with effectiveRolePermissions:', effectiveRolePermissions);
+
     navigationItems = filterNavigationByPermissions(allNavigationItems, effectiveRolePermissions);
   }
   
-  console.log('🎯 Final navigation items:', navigationItems.map(item => item.label));
 
   const handleNavigation = (item) => {
     // Don't automatically close sidebar on navigation - let user control it manually
@@ -220,10 +211,12 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
       {/* Sidebar */}
       <aside className={`dashboard-sidebar ${sidebarCollapsed ? 'collapsed' : 'expanded'}`}>
         <div className="sidebar-brand">
-          <div className="brand-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/>
-            </svg>
+          <div className="brand-icon" style={{ background: 'transparent' }}>
+            <img 
+              src="/images/logo.jpg" 
+              alt="Theater Logo" 
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
           </div>
           <div>
             <div className="brand-text">Theater Admin</div>

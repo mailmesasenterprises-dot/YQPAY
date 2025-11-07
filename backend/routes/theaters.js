@@ -133,21 +133,14 @@ router.post('/',
   ]),
   async (req, res) => {
     try {
-      console.log('🎭 Creating new theater...');
-      console.log('📄 Form data:', Object.keys(req.body));
-      console.log('📎 Files received:', req.files ? Object.keys(req.files) : 'none');
-      
+
+
       // Detailed file logging
       if (req.files) {
         Object.keys(req.files).forEach(fieldName => {
           const fileArray = req.files[fieldName];
           fileArray.forEach(file => {
-            console.log(`   📄 ${fieldName}:`, {
-              originalname: file.originalname,
-              mimetype: file.mimetype,
-              size: `${(file.size / 1024).toFixed(2)} KB`,
-              hasBuffer: !!file.buffer
-            });
+
           });
         });
       }
@@ -210,13 +203,9 @@ router.post('/',
       let fileUrls = {};
       if (req.files && Object.keys(req.files).length > 0) {
         try {
-          console.log('☁️  Uploading files to GCS...');
-          
           // Create folder path: theater list/[Theater Name]
           const sanitizedTheaterName = name.trim().replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, ' ');
           const theaterFolder = `theater list/${sanitizedTheaterName}`;
-          console.log(`📁 Creating folder: ${theaterFolder}`);
-          
           const allFiles = [];
           Object.keys(req.files).forEach(fieldName => {
             req.files[fieldName].forEach(file => {
@@ -225,7 +214,7 @@ router.post('/',
           });
 
           fileUrls = await uploadFiles(allFiles, theaterFolder);
-          console.log('✅ Files uploaded:', Object.keys(fileUrls));
+
         } catch (uploadError) {
           console.error('❌ File upload error:', uploadError);
           return res.status(500).json({
@@ -299,13 +288,9 @@ router.post('/',
 
       const theater = new Theater(theaterData);
       const savedTheater = await theater.save();
-
-      console.log('✅ Theater created successfully:', savedTheater._id);
-
       // Initialize default settings for the theater
       try {
         await Settings.initializeDefaults(savedTheater._id);
-        console.log('✅ Default settings initialized');
       } catch (settingsError) {
         console.warn('⚠️  Failed to initialize settings:', settingsError.message);
       }
@@ -316,11 +301,21 @@ router.post('/',
           savedTheater._id,
           savedTheater.name
         );
-        console.log('✅ Default Theater Admin role created:', defaultRole._id);
       } catch (roleError) {
         console.error('⚠️  Failed to create default Theater Admin role:', roleError.message);
         // Don't fail theater creation if role creation fails
         // The role can be created later via migration script if needed
+      }
+
+      // Create default Kiosk Screen role
+      try {
+        const kioskRole = await roleService.createDefaultKioskRole(
+          savedTheater._id,
+          savedTheater.name
+        );
+      } catch (kioskRoleError) {
+        console.error('⚠️  Failed to create default Kiosk Screen role:', kioskRoleError.message);
+        // Don't fail theater creation if role creation fails
       }
 
       res.status(201).json({
@@ -372,9 +367,7 @@ router.put('/:id',
   ]),
   async (req, res) => {
     try {
-      console.log('🔄 Updating theater:', req.params.id);
-      console.log('📄 Form data:', Object.keys(req.body));
-      console.log('📎 Files:', req.files ? Object.keys(req.files) : 'none');
+
 
       const theater = await Theater.findById(req.params.id);
       if (!theater) {
@@ -398,15 +391,11 @@ router.put('/:id',
       let fileUrls = {};
       if (req.files && Object.keys(req.files).length > 0) {
         try {
-          console.log('☁️  Uploading new files to GCS...');
-          
           // Create folder path: theater list/[Theater Name]
           // Use updated name if provided, otherwise use existing name
           const theaterName = req.body.name ? req.body.name.trim() : theater.name;
           const sanitizedTheaterName = theaterName.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, ' ');
           const theaterFolder = `theater list/${sanitizedTheaterName}`;
-          console.log(`📁 Uploading to folder: ${theaterFolder}`);
-          
           const allFiles = [];
           Object.keys(req.files).forEach(fieldName => {
             req.files[fieldName].forEach(file => {
@@ -415,7 +404,6 @@ router.put('/:id',
           });
 
           fileUrls = await uploadFiles(allFiles, theaterFolder);
-          console.log('✅ New files uploaded:', Object.keys(fileUrls));
 
           // Delete old files that are being replaced
           const filesToDelete = [];
@@ -443,7 +431,6 @@ router.put('/:id',
 
           if (filesToDelete.length > 0) {
             await deleteFiles(filesToDelete);
-            console.log(`🗑️  Deleted ${filesToDelete.length} old files`);
           }
         } catch (uploadError) {
           console.error('❌ File upload error:', uploadError);
@@ -465,26 +452,22 @@ router.put('/:id',
         updateData.isActive = req.body.isActive;
         // ✅ NEW: Handle related credentials when theater is deactivated/reactivated
         if (req.body.isActive === false) {
-          console.log('🔒 Theater being deactivated - updating related QR codes');
           // Update all QR codes for this theater to inactive
           try {
             const qrUpdateResult = await Theater.updateOne(
               { _id: req.params.id },
               { $set: { 'qrCodes.$[].isActive': false } }
             );
-            console.log('🔒 QR codes deactivated:', qrUpdateResult.modifiedCount);
           } catch (qrError) {
             console.warn('⚠️ Failed to deactivate QR codes:', qrError.message);
           }
         } else if (req.body.isActive === true) {
-          console.log('🔓 Theater being reactivated - updating related QR codes to active');
           // Automatically reactivate all QR codes for this theater
           try {
             const qrUpdateResult = await Theater.updateOne(
               { _id: req.params.id },
               { $set: { 'qrCodes.$[].isActive': true } }
             );
-            console.log('🔓 QR codes reactivated:', qrUpdateResult.modifiedCount);
           } catch (qrError) {
             console.warn('⚠️ Failed to reactivate QR codes:', qrError.message);
           }
@@ -552,15 +535,21 @@ router.put('/:id',
         };
       }
 
+      // 🔥 Handle Payment Gateway Configuration
+      if (req.body.paymentGateway) {
+        console.log('Updating payment gateway configuration:', req.body.paymentGateway);
+        updateData.paymentGateway = {
+          ...req.body.paymentGateway,
+          lastUpdated: new Date()
+        };
+      }
+
       // Update theater
       const updatedTheater = await Theater.findByIdAndUpdate(
         req.params.id,
         updateData,
         { new: true, runValidators: true }
       ).select('-password');
-
-      console.log('✅ Theater updated successfully:', updatedTheater._id);
-
       res.json({
         success: true,
         message: 'Theater updated successfully',
@@ -593,8 +582,6 @@ router.delete('/:id',
   requireRole(['super_admin']),
   async (req, res) => {
     try {
-      console.log('🗑️  Deleting theater:', req.params.id);
-
       const theater = await Theater.findById(req.params.id);
       if (!theater) {
         return res.status(404).json({
@@ -608,7 +595,6 @@ router.delete('/:id',
 
       if (deleteFiles) {
         // Hard delete with file cleanup
-        console.log('🗑️  Hard delete - removing files from GCS...');
         const filesToDelete = [];
         
         if (theater.documents?.theaterPhoto) filesToDelete.push(theater.documents.theaterPhoto);
@@ -622,7 +608,6 @@ router.delete('/:id',
         if (filesToDelete.length > 0) {
           try {
             const deletedCount = await deleteFiles(filesToDelete);
-            console.log(`🗑️  Deleted ${deletedCount}/${filesToDelete.length} files from GCS`);
           } catch (fileError) {
             console.warn('⚠️  Some files could not be deleted:', fileError.message);
           }
@@ -630,15 +615,12 @@ router.delete('/:id',
 
         // Remove from database
         await Theater.findByIdAndDelete(req.params.id);
-        console.log('✅ Theater hard deleted');
-
         res.json({
           success: true,
           message: 'Theater and associated files deleted successfully'
         });
       } else {
         // Soft delete - Use findByIdAndUpdate to avoid validation issues with old theaters
-        console.log('📝 Soft delete - setting isActive to false...');
         await Theater.findByIdAndUpdate(
           req.params.id,
           { 
@@ -647,9 +629,6 @@ router.delete('/:id',
           },
           { runValidators: false } // Don't run validators to avoid issues with old data
         );
-
-        console.log('✅ Theater soft deleted');
-
         res.json({
           success: true,
           message: 'Theater deactivated successfully'

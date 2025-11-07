@@ -70,9 +70,7 @@ const CustomerOrderSuccess = () => {
   }, [location.state, navigate]);
 
   const handleBackToMenu = () => {
-    console.log('🏠 Navigating back to home...');
-    console.log('Order data:', orderData);
-    
+
     // Get theater info from order data (passed from payment page)
     if (orderData?.theaterInfo?.theaterId) {
       const { theaterId, qrName, seat } = orderData.theaterInfo;
@@ -85,11 +83,10 @@ const CustomerOrderSuccess = () => {
       });
       
       const homeUrl = `/customer/home?${params.toString()}`;
-      console.log('✅ Navigating to:', homeUrl);
+
       navigate(homeUrl);
     } else {
-      console.warn('⚠️ No theater info in order data, trying localStorage...');
-      
+
       // Fallback: try localStorage
       try {
         const checkoutData = JSON.parse(localStorage.getItem('checkoutData') || '{}');
@@ -101,11 +98,11 @@ const CustomerOrderSuccess = () => {
           });
           navigate(`/customer/home?${params.toString()}`);
         } else {
-          console.warn('⚠️ No theater info anywhere, navigating to base home');
+
           navigate('/customer/home');
         }
       } catch (err) {
-        console.error('❌ Error:', err);
+
         navigate('/customer/home');
       }
     }
@@ -113,7 +110,7 @@ const CustomerOrderSuccess = () => {
 
   const handleViewOrderDetails = () => {
     // In a real app, this would navigate to order history/details page
-    console.log('Order details:', orderData);
+
     alert('Order details logged to console. In a real app, this would show detailed order information.');
   };
 

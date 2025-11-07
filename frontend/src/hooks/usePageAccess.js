@@ -24,7 +24,7 @@ export const usePageAccess = () => {
 
       // Theater users need to check permissions
       if (!theaterId || !rolePermissions || rolePermissions.length === 0) {
-        console.error('❌ SECURITY: No theater or role permissions found - BLOCKING ACCESS');
+
         setAllowedPages([]); // ✅ Explicitly set to empty (NO pages allowed)
         setFirstAccessiblePage(null); // ✅ No accessible page
         setIsLoading(false);
@@ -42,7 +42,7 @@ export const usePageAccess = () => {
             page: p.page
           }));
 
-        console.log('🔐 Allowed pages for user:', allowedPageRoutes);
+
         setAllowedPages(allowedPageRoutes);
 
         // Set first accessible page
@@ -50,12 +50,11 @@ export const usePageAccess = () => {
           const firstPage = allowedPageRoutes[0];
           const firstRoute = firstPage.route.replace(':theaterId', theaterId);
           setFirstAccessiblePage(firstRoute);
-          console.log('🎯 First accessible page:', firstRoute);
-        }
+  }
 
         setIsLoading(false);
       } catch (error) {
-        console.error('❌ Error checking page access:', error);
+
         setIsLoading(false);
       }
     };
@@ -74,7 +73,7 @@ export const usePageAccess = () => {
 
     // ✅ SECURITY: If no pages are allowed, DENY access to everything
     if (!allowedPages || allowedPages.length === 0) {
-      console.error('🚫 SECURITY: No allowed pages - BLOCKING access to:', location.pathname);
+
       return false;
     }
 
@@ -87,7 +86,7 @@ export const usePageAccess = () => {
       return currentPath === routePattern || currentPath.startsWith(routePattern);
     });
 
-    console.log('🔍 Checking access to:', currentPath, '→', hasAccess);
+
     return hasAccess;
   };
 
@@ -102,7 +101,7 @@ export const usePageAccess = () => {
     const hasAccess = hasAccessToCurrentPage();
     
     if (!hasAccess && firstAccessiblePage) {
-      console.log('🚫 No access to current page, redirecting to:', firstAccessiblePage);
+
       navigate(firstAccessiblePage, { replace: true });
     }
   };

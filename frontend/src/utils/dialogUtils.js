@@ -112,9 +112,7 @@ export const overrideBrowserDialogs = () => {
   window.prompt = (message, defaultValue) => {
     return customPrompt(message, 'Input Required', defaultValue);
   };
-
-  console.log('🎨 Browser dialogs have been replaced with custom modals');
-};
+  };
 
 /**
  * Restore original browser dialogs
@@ -129,7 +127,6 @@ export const restoreBrowserDialogs = () => {
     delete window.originalConfirm;
     delete window.originalPrompt;
     
-    console.log('🔄 Original browser dialogs have been restored');
   }
 };
 

@@ -197,6 +197,44 @@ body:has([class*="customer-"]) {
   --customer-gradient-primary-hover: linear-gradient(135deg, #7C1BAB 0%, #6B0E9B 100%);
 }
 
+/* ===== GLOBAL BACK BUTTON STYLES ===== */
+/* Standardized back button for ALL customer pages */
+.back-button {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.back-button:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Standardized SVG icon inside back button - GLOBAL */
+.back-button svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  display: block;
+  flex-shrink: 0;
+}
+
 /* ===== GLOBAL BUTTON STYLES ===== */
 /* Primary buttons across all customer pages */
 .customer-btn-primary,

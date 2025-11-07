@@ -11,9 +11,6 @@ const connections = new Map();
  */
 router.get('/stream', authenticateToken, (req, res) => {
   const userId = req.user.userId;
-  
-  console.log(`📡 SSE connection established for user: ${userId}`);
-
   // Set headers for SSE
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -28,7 +25,6 @@ router.get('/stream', authenticateToken, (req, res) => {
 
   // Handle client disconnect
   req.on('close', () => {
-    console.log(`🔌 SSE connection closed for user: ${userId}`);
     connections.delete(userId);
   });
 });
@@ -41,7 +37,6 @@ function sendNotificationToUser(userId, notification) {
   if (connection) {
     try {
       connection.write(`data: ${JSON.stringify(notification)}\n\n`);
-      console.log(`📨 Notification sent to user ${userId}:`, notification);
       return true;
     } catch (error) {
       console.error(`❌ Error sending notification to user ${userId}:`, error);
@@ -66,7 +61,6 @@ function notifyAllSuperAdmins(notification) {
       connections.delete(userId);
     }
   }
-  console.log(`📢 Notification broadcast to ${sentCount} connected users`);
   return sentCount;
 }
 

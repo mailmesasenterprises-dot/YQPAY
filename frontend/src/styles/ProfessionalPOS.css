@@ -737,6 +737,102 @@
   .pos-products-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
+
+  /* POS Mobile Table Optimization */
+  .pos-table th,
+  .pos-table td {
+    padding: 8px 4px;
+    font-size: 0.85rem;
+  }
+
+  /* Order items table responsive */
+  .pos-order-items {
+    font-size: 0.85rem;
+  }
+}
+
+/* Mobile Small - 480px breakpoint */
+@media (max-width: 480px) {
+  .pos-main-container {
+    padding: 10px;
+  }
+  
+  .pos-order-section {
+    height: 45vh;
+  }
+  
+  .pos-header {
+    padding: 12px;
+    gap: 12px;
+  }
+  
+  .pos-products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  /* Ultra compact table for small mobile */
+  .pos-table th,
+  .pos-table td {
+    padding: 6px 3px;
+    font-size: 0.75rem;
+  }
+
+  .pos-order-items {
+    font-size: 0.75rem;
+  }
+
+  /* Compact product cards */
+  .pos-product-card {
+    padding: 8px;
+  }
+
+  .pos-product-card h3 {
+    font-size: 0.8rem;
+  }
+
+  .pos-product-card .price {
+    font-size: 0.85rem;
+  }
+}
+
+/* Mobile Extra Small - 360px breakpoint */
+@media (max-width: 360px) {
+  .pos-main-container {
+    padding: 8px;
+  }
+  
+  .pos-order-section {
+    height: 40vh;
+  }
+  
+  .pos-header {
+    padding: 10px;
+    gap: 10px;
+  }
+  
+  .pos-products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 6px;
+  }
+
+  .pos-table th,
+  .pos-table td {
+    padding: 4px 2px;
+    font-size: 0.7rem;
+  }
+
+  .pos-product-card {
+    padding: 6px;
+  }
+
+  .pos-product-card h3 {
+    font-size: 0.75rem;
+  }
+
+  .pos-product-card .price {
+    font-size: 0.8rem;
+  }
 }
 
 /* Professional Order Summary Container (Like ViewCart) */

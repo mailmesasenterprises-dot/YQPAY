@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import TheaterLayout from '../../components/theater/TheaterLayout';
 import config from '../../config';
-import './TheaterMessages.css';
+import '../../styles/pages/theater/TheaterMessages.css';
 
 const TheaterMessages = () => {
   const { theaterId } = useAuth();
@@ -37,8 +37,7 @@ const TheaterMessages = () => {
         setTimeout(scrollToBottom, 100);
       }
     } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
+  }
   }, [theaterId]);
 
   // Mark messages as read
@@ -55,8 +54,7 @@ const TheaterMessages = () => {
         }
       });
     } catch (error) {
-      console.error('Error marking messages as read:', error);
-    }
+  }
   }, [theaterId]);
 
   // Send message
@@ -64,24 +62,23 @@ const TheaterMessages = () => {
     e.preventDefault();
     
     if (!newMessage.trim() || sending) {
-      console.log('❌ Cannot send - Message empty or already sending');
+
       return;
     }
     
     if (!theaterId) {
-      console.error('❌ No theater ID found');
+
       alert('Theater ID is missing. Please log in again.');
       return;
     }
     
-    console.log('📤 Sending message:', { theaterId, message: newMessage.trim() });
-    
+
     setSending(true);
     try {
       const token = localStorage.getItem('authToken');
       
       if (!token) {
-        console.error('❌ No auth token found');
+
         alert('Authentication token missing. Please log in again.');
         setSending(false);
         return;
@@ -99,21 +96,19 @@ const TheaterMessages = () => {
         })
       });
       
-      console.log('📡 Response status:', response.status);
-      
+
       const data = await response.json();
-      console.log('📡 Response data:', data);
-      
+
       if (data.success) {
-        console.log('✅ Message sent successfully');
+
         setNewMessage('');
         fetchMessages();
       } else {
-        console.error('❌ Failed to send message:', data.message);
+
         alert(data.message || 'Failed to send message');
       }
     } catch (error) {
-      console.error('❌ Error sending message:', error);
+
       alert('Error sending message: ' + error.message);
     } finally {
       setSending(false);

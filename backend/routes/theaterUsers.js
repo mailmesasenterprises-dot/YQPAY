@@ -34,9 +34,6 @@ router.post('/', [
     }
 
     const { theater, username, email, password, role, fullName, phoneNumber } = req.body;
-
-    console.log('🎭 Creating theater user:', { theater, username, email, role });
-
     // Verify theater exists
     const theaterExists = await Theater.findById(theater);
     if (!theaterExists) {
@@ -103,9 +100,6 @@ router.post('/', [
     // Populate references before returning
     await user.populate('role', 'name description');
     await user.populate('theater', 'name location');
-
-    console.log('✅ Theater user created successfully:', user._id);
-
     res.status(201).json({
       success: true,
       message: 'User created successfully',
@@ -142,9 +136,6 @@ router.get('/by-theater/:theaterId', [
 ], async (req, res) => {
   try {
     const { theaterId } = req.params;
-
-    console.log('📋 Fetching users for theater:', theaterId);
-
     const users = await TheaterUser.find({ theater: theaterId })
       .populate('role', 'name description')
       .populate('theater', 'name location')
@@ -164,9 +155,6 @@ router.get('/by-theater/:theaterId', [
       }
       return userObj;
     });
-
-    console.log(`✅ Found ${safeUsers.length} users for theater ${theaterId}`);
-
     res.json({
       success: true,
       data: safeUsers
@@ -250,8 +238,6 @@ router.put('/:id', [
 
     const { fullName, email, phoneNumber, password, role, isActive } = req.body;
 
-    console.log('🔄 Updating user:', req.params.id, 'Fields:', Object.keys(req.body));
-
     // Update fields if provided
     if (fullName !== undefined) user.fullName = fullName;
     if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
@@ -295,9 +281,6 @@ router.put('/:id', [
     // Populate references
     await user.populate('role', 'name description');
     await user.populate('theater', 'name location');
-
-    console.log('✅ User updated successfully:', user._id);
-
     res.json({
       success: true,
       message: 'User updated successfully',
@@ -338,16 +321,10 @@ router.delete('/:id', [authenticateToken], async (req, res) => {
         error: 'User not found'
       });
     }
-
-    console.log('🗑️ Soft deleting user:', req.params.id, 'Username:', user.username);
-
     // Soft delete - set isActive to false
     user.isActive = false;
     user.updatedAt = new Date();
     await user.save();
-
-    console.log('✅ User soft deleted successfully:', user._id);
-
     res.json({
       success: true,
       message: 'User deleted successfully'

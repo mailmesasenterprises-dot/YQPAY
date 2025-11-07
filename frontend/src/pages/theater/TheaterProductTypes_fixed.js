@@ -104,8 +104,7 @@ const TheaterCategories = () => {
 
       const baseUrl = `/api/theater-categories/${theaterId}?${params.toString()}`;
       
-      console.log('🔥 DEBUGGING: Fetching from', baseUrl);
-      
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -145,7 +144,7 @@ const TheaterCategories = () => {
           inactiveCategories: statisticsData.inactive || 0,
           totalCategories: statisticsData.total || 0
         };
-        console.log('🔥 DEBUGGING: Setting summary', summary);
+
         setSummary(summary);
       } else {
         throw new Error(data.message || 'Failed to load categories');
@@ -279,7 +278,7 @@ const TheaterCategories = () => {
         showError(errorData.message || 'Failed to save category');
       }
     } catch (error) {
-      console.error('Submit error:', error);
+
       showError('Failed to save category. Please try again.');
     }
   };
@@ -497,7 +496,7 @@ const TheaterCategories = () => {
                                 border: '2px solid #e0e0e0'
                               }}
                               onError={(e) => {
-                                console.log('Image load error for:', category.name, category.imageUrl || category.image);
+
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'flex';
                               }}
@@ -829,7 +828,7 @@ const TheaterCategories = () => {
                             objectFit: 'cover'
                           }}
                           onError={(e) => {
-                            console.log('Modal image load error:', selectedCategory.imageUrl || selectedCategory.image);
+
                             e.target.style.display = 'none';
                           }}
                         />

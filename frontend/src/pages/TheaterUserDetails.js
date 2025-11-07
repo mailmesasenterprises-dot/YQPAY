@@ -105,8 +105,7 @@ const TheaterUserDetails = () => {
         }
       }
     } catch (error) {
-      console.log('Cache read error:', error);
-    }
+  }
     return null;
   };
   
@@ -118,8 +117,7 @@ const TheaterUserDetails = () => {
         timestamp: Date.now()
       }));
     } catch (error) {
-      console.log('Cache write error:', error);
-    }
+  }
   };
 
   // Helper function to close modal and reset states
@@ -135,7 +133,7 @@ const TheaterUserDetails = () => {
   const roleUsers = users.filter(user => {
     // ✅ SAFETY: Handle null/undefined role (orphaned references)
     if (!user.role) {
-      console.warn('⚠️ User has no role:', user.username || user._id);
+
       return false;
     }
     
@@ -147,19 +145,18 @@ const TheaterUserDetails = () => {
   // Fetch available roles from Role Management with timeout and caching
   const fetchAvailableRoles = useCallback(async () => {
     if (!theaterId) {
-      console.warn('⚠️ No theater ID provided, cannot fetch roles');
+
       return;
     }
     
     try {
       setRolesLoading(true);
       
-      console.log('🎭 Starting role fetch for theater:', theaterId);
-      
+
       // Check cache first for instant loading
       const cachedRoles = getCachedRoles();
       if (cachedRoles && cachedRoles.length > 0) {
-        console.log('🚀 Using cached roles for instant loading');
+
         // ✅ CRITICAL FIX: Filter cached roles for safety and sort by ID ascending
         const validCachedRoles = cachedRoles
           .filter(role => role && role._id && role.name)
@@ -175,8 +172,7 @@ const TheaterUserDetails = () => {
           setRolesLoading(false);
           return;
         } else {
-          console.warn('⚠️ Cached roles were invalid, fetching fresh data');
-        }
+  }
       }
       
       // Add timeout for faster response
@@ -185,10 +181,7 @@ const TheaterUserDetails = () => {
       
       // ✅ Fetch theater-specific roles from the roles database
       const apiUrl = `${config.api.baseUrl}/roles?theaterId=${theaterId}&isActive=true`;
-      console.log('🎭 Fetching theater-specific roles for theaterId:', theaterId);
-      console.log('🔗 Full API URL:', apiUrl);
-      console.log('💾 Cache key will be:', `theater-roles-cache-${theaterId}`);
-      
+
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
@@ -206,35 +199,31 @@ const TheaterUserDetails = () => {
       }
 
       const result = await response.json();
-      console.log('🔍 Raw API response from Role Management (Theater-Specific):', result);
-      console.log('🎭 Loaded roles for theater ID:', theaterId);
-      
+
       if (result.success) {
         // ✅ FIXED: Use same pattern as RoleAccessManagement.js with fallback
         const rolesArray = result.data?.roles || [];
         
-        console.log('📋 Extracted roles array from Role Management API:', rolesArray);
-        console.log('📋 Number of roles found:', rolesArray.length);
-        
+
         // Filter only active roles and map to consistent structure with safety checks
         // ✅ FIXED: Sort by _id in ascending order
         const activeRoles = rolesArray
           .filter(role => {
             // ✅ Enhanced filtering with detailed logging
             if (!role) {
-              console.warn('⚠️ Null/undefined role found');
+
               return false;
             }
             if (!role._id) {
-              console.warn('⚠️ Role without _id:', role);
+
               return false;
             }
             if (!role.name) {
-              console.warn('⚠️ Role without name:', role);
+
               return false;
             }
             if (!role.isActive) {
-              console.log('ℹ️ Inactive role filtered out:', role.name);
+
               return false;
             }
             return true;
@@ -251,13 +240,10 @@ const TheaterUserDetails = () => {
             isDefault: role.isDefault || false // ✅ Include isDefault flag
           }));
           
-        console.log('✅ Active theater-specific roles loaded:', activeRoles);
-        console.log('🏢 Theater Context:', theaterId);
-        
+
         // ✅ Additional validation
         if (activeRoles.length === 0) {
-          console.warn('⚠️ No valid active roles found for this theater');
-        }
+  }
         
         setAvailableRoles(activeRoles);
         
@@ -270,8 +256,7 @@ const TheaterUserDetails = () => {
             ...prev, 
             role: activeRoles[0]._id 
           }));
-          console.log('🎭 Auto-selected first role for form:', activeRoles[0]);
-        }
+  }
         
         // Update tab roles for consistent display with safety checks
         // ✅ FIXED: Sort by _id in ascending order
@@ -279,15 +264,15 @@ const TheaterUserDetails = () => {
           .filter(role => {
             // ✅ CRITICAL: Multi-step validation to prevent null/undefined
             if (!role) {
-              console.error('❌ NULL/UNDEFINED role found in activeRoles!');
+
               return false;
             }
             if (!role._id) {
-              console.error('❌ Role without _id:', JSON.stringify(role));
+
               return false;
             }
             if (!role.name) {
-              console.error('❌ Role without name:', JSON.stringify(role));
+
               return false;
             }
             return true;
@@ -302,18 +287,14 @@ const TheaterUserDetails = () => {
               name: role.name,
               icon: roleIconsMap[role._id] || roleIconsMap[role.name?.toLowerCase().replace(/\s+/g, '_')] || '👤'
             };
-            console.log('✅ Created tab role object:', JSON.stringify(roleObj));
+
             return roleObj;
           });
         
-        console.log('🎭 Setting tab roles:', tabRolesData);
-        console.log('📊 Tab roles count:', tabRolesData.length);
-        console.log('🔍 Individual tabs:', tabRolesData.filter(r => r && r.name).map((r, i) => `${i+1}. ${r.name}`));
-        
+
         // ✅ Final validation before setting state
         if (tabRolesData.length === 0) {
-          console.error('❌ No valid tab roles created! activeRoles:', JSON.stringify(activeRoles));
-        }
+  }
         
         setTabRoles(tabRolesData);
         setForceRender(prev => prev + 1); // Force re-render
@@ -326,10 +307,9 @@ const TheaterUserDetails = () => {
         throw new Error(result.message || 'Failed to fetch roles');
       }
     } catch (error) {
-      console.error('❌ Error fetching roles:', error);
-      
+
       if (error.name === 'AbortError') {
-        console.log('⏱️ Role API request timed out');
+
         alert('Role loading timed out. Using basic roles for now. Please check your network connection.');
       }
       
@@ -372,14 +352,13 @@ const TheaterUserDetails = () => {
       if (result.success) {
         // ✅ FIX: Backend returns theater data under 'data' key (not 'theater')
         const theaterData = result.data || result.theater;
-        console.log('✅ Theater loaded successfully:', theaterData);
-        console.log('🎭 Theater name:', theaterData?.name);
+
         setTheater(theaterData);
       } else {
         throw new Error(result.message || 'Failed to fetch theater details');
       }
     } catch (error) {
-      console.error('Error fetching theater:', error);
+
       setError('Failed to load theater details');
     } finally {
       setLoading(false);
@@ -401,8 +380,7 @@ const TheaterUserDetails = () => {
         isActive: 'true'
       });
       
-      console.log('🔍 Fetching users from:', `${config.api.baseUrl}/theater-users?${params.toString()}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theater-users?${params.toString()}`, {
         method: 'GET',
         headers: {
@@ -417,19 +395,17 @@ const TheaterUserDetails = () => {
       }
 
       const result = await response.json();
-      console.log('✅ Users data received:', result);
-      
+
       if (result.success && result.data) {
         // Array-based response structure
         const users = result.data.users || [];
-        console.log('👥 Users loaded:', users.length);
-        console.log('🔢 First user has PIN:', users.length > 0 ? !!users[0].pin : false);
+
         setUsers(users);
       } else {
         throw new Error(result.message || 'Failed to fetch users');
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
+
       setError('Failed to load users');
     } finally {
       setLoadingUsers(false);
@@ -513,8 +489,7 @@ const TheaterUserDetails = () => {
       // Ensure we have a role selected
       if (!payload.role && availableRoles.length > 0) {
         payload.role = availableRoles[0]._id;
-        console.log('🎭 Auto-selected first available role:', availableRoles[0]);
-      }
+  }
       
       // Additional validation
       if (!payload.theaterId) {
@@ -527,17 +502,7 @@ const TheaterUserDetails = () => {
         return;
       }
       
-      console.log('🚀 Creating theater user with array-based structure');
-      console.log('🎭 Payload:', {
-        theaterId: payload.theaterId,
-        username: payload.username,
-        email: payload.email,
-        fullName: payload.fullName,
-        phoneNumber: payload.phoneNumber,
-        role: payload.role,
-        isActive: payload.isActive
-      });
-      
+
       const response = await fetch(`${config.api.baseUrl}/theater-users`, {
         method: 'POST',
         headers: {
@@ -547,46 +512,30 @@ const TheaterUserDetails = () => {
         body: JSON.stringify(payload)
       });
 
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response ok:', response.ok);
+
       const result = await response.json();
-      console.log('📥 Response result:', result);
-      console.log('📥 Result success:', result.success);
-      
+
       // ✅ FIX: Check both response.ok and result.success
       if (response.ok && result.success) {
-        console.log('✅✅✅ User created successfully!', result.data);
+
         setCreateConfirmModal({ show: false, userData: null });
         closeCreateUserModal();
         await fetchUsers(); // Refresh users list
         // Show success modal instead of alert
         setSuccessModal({ show: true, message: 'User created successfully!' });
       } else {
-        console.error('❌ Failed to create user:', result.message);
-        console.error('❌ Response ok:', response.ok);
-        console.error('❌ Result success:', result.success);
-        console.error('❌ Validation errors:', result.errors);
-        
+
         // Handle validation errors specifically
         if (result.errors && Array.isArray(result.errors)) {
-          console.log('🔍 Detailed validation errors:', result.errors);
+
           const fieldErrors = {};
           result.errors.forEach((error, index) => {
-            console.log(`🔍 Processing error ${index}:`, {
-              path: error.path,
-              param: error.param,
-              msg: error.msg,
-              message: error.message,
-              value: error.value,
-              location: error.location,
-              fullError: error
-            });
+
             if (error.path || error.param) {
               fieldErrors[error.path || error.param] = error.msg || error.message;
             }
           });
-          console.log('🔍 Mapped field errors:', fieldErrors);
-          
+
           // If no field errors were mapped, show general error
           if (Object.keys(fieldErrors).length === 0) {
             setCreateUserErrors({ submit: 'Validation failed. Please check all fields.' });
@@ -607,7 +556,7 @@ const TheaterUserDetails = () => {
         }
       }
     } catch (error) {
-      console.error('Error creating user:', error);
+
       setCreateUserErrors({ submit: 'Network error. Please try again.' });
     } finally {
       setLoadingUsers(false);
@@ -616,7 +565,7 @@ const TheaterUserDetails = () => {
 
   // Handle view user details - Open modal instead of navigate
   const handleViewUser = (user) => {
-    console.log('👁️ Viewing user:', user.username);
+
     setViewUserData(user);
     setShowViewUserModal(true);
   };
@@ -746,14 +695,14 @@ const TheaterUserDetails = () => {
       const result = await response.json();
       
       if (response.ok && result.success) {
-        console.log('✅ User updated successfully');
+
         setEditConfirmModal({ show: false, userData: null });
         closeEditUserModal();
         await fetchUsers();
         // Show success modal instead of alert
         setSuccessModal({ show: true, message: 'User updated successfully!' });
       } else {
-        console.error('❌ Failed to update user:', result.message);
+
         if (result.errors && Array.isArray(result.errors)) {
           const fieldErrors = {};
           result.errors.forEach(error => {
@@ -767,7 +716,7 @@ const TheaterUserDetails = () => {
         }
       }
     } catch (error) {
-      console.error('Error updating user:', error);
+
       setEditUserErrors({ submit: 'Network error. Please try again.' });
     } finally {
       setLoadingUsers(false);
@@ -805,7 +754,7 @@ const TheaterUserDetails = () => {
 
       const result = await response.json();
       if (result.success) {
-        console.log('✅ User deleted successfully');
+
         setDeleteConfirmModal({ show: false, userId: null, userName: '' });
         // Refresh users list
         await fetchUsers();
@@ -815,7 +764,7 @@ const TheaterUserDetails = () => {
         alert('Failed to delete user: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error deleting user:', error);
+
       alert('Failed to delete user. Please try again.');
     } finally {
       setLoadingUsers(false);
@@ -848,7 +797,7 @@ const TheaterUserDetails = () => {
 
       const result = await response.json();
       if (!result.success) {
-        console.error('❌ Failed to toggle status:', result.message);
+
         // Revert on failure
         setUsers(prevUsers => 
           prevUsers.map(user => 
@@ -857,10 +806,9 @@ const TheaterUserDetails = () => {
         );
         alert('Failed to update status: ' + result.message);
       } else {
-        console.log('✅ User status toggled successfully');
-      }
+  }
     } catch (error) {
-      console.error('Error toggling user status:', error);
+
       // Revert on error
       setUsers(prevUsers => 
         prevUsers.map(user => 
@@ -873,15 +821,12 @@ const TheaterUserDetails = () => {
 
   // Load data on component mount - PARALLEL loading for speed
   useEffect(() => {
-    console.log('🎬 Component mounted with theaterId:', theaterId);
-    
+
     // Clear any old generic cache that might interfere
     try {
       sessionStorage.removeItem('theater-roles-cache'); // Remove old generic cache
-      console.log('🗑️ Cleared old generic role cache');
-    } catch (error) {
-      console.log('Cache clear error:', error);
-    }
+  } catch (error) {
+  }
     
     // Load all data in parallel for faster loading
     Promise.allSettled([
@@ -889,14 +834,13 @@ const TheaterUserDetails = () => {
       fetchUsers(),
       fetchAvailableRoles()
     ]).then(() => {
-      console.log('✅ All initial data loaded');
-    });
+  });
   }, [fetchTheater, fetchUsers, fetchAvailableRoles, theaterId]);
 
   // ✅ Auto-select first role when tabRoles loads
   useEffect(() => {
     if (tabRoles.length > 0 && !selectedRole) {
-      console.log('🎯 Auto-selecting first role:', tabRoles[0]);
+
       setSelectedRole(tabRoles[0]);
     }
   }, [tabRoles, selectedRole]);
@@ -978,21 +922,19 @@ const TheaterUserDetails = () => {
           <div className="theater-user-settings-container">
             {/* Settings Tabs - EXACTLY like Settings page */}
             <div className="theater-user-settings-tabs" key={`tabs-${forceRender}`}>
-              {console.log('🖥️ Rendering tabs, tabRoles length:', tabRoles.length, 'Force render:', forceRender)}
-              {console.log('🖥️ tabRoles content:', JSON.stringify(tabRoles))}
               {tabRoles.length > 0 && tabRoles
                 .filter(role => {
                   // ✅ CRITICAL: Check role exists first before accessing properties
                   if (!role) {
-                    console.warn('⚠️ Found null/undefined role in tabRoles array');
+
                     return false;
                   }
                   if (!role.id) {
-                    console.warn('⚠️ Found role without id:', role);
+
                     return false;
                   }
                   if (!role.name) {
-                    console.warn('⚠️ Found role without name:', role);
+
                     return false;
                   }
                   return true;

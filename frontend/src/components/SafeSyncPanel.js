@@ -16,8 +16,7 @@ export const SafeSyncPanel = ({ theaterId, productTypeId }) => {
       setPreview(previewData);
       setShowPreview(true);
     } catch (error) {
-      console.error('Preview failed:', error);
-    }
+  }
   };
 
   const handleConfirmedSync = async () => {
@@ -34,8 +33,7 @@ export const SafeSyncPanel = ({ theaterId, productTypeId }) => {
         setShowPreview(false);
         setPreview(null);
       } catch (error) {
-        console.error('Sync failed:', error);
-      }
+  }
     }
   };
 

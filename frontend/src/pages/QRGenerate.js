@@ -21,7 +21,6 @@ const getCachedData = (key) => {
       localStorage.removeItem(key);
     }
   } catch (error) {
-    console.error('Cache read error:', error);
   }
   return null;
 };
@@ -31,7 +30,6 @@ const setCachedData = (key, data, ttl = 5 * 60 * 1000) => {
     const expiry = Date.now() + ttl;
     localStorage.setItem(key, JSON.stringify({ data, expiry }));
   } catch (error) {
-    console.error('Cache write error:', error);
   }
 };
 
@@ -140,13 +138,12 @@ const QRGenerate = React.memo(() => {
         // Cache the results
         setCachedData(cacheKey, theaterList, 5 * 60 * 1000); // 5 minutes
         
-        console.log('Loaded theaters:', theaterList.length);
-      } else {
+  } else {
         // Removed error modal - errors logged to console only
       }
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Theater fetch was aborted');
+
         return;
       }
       // Removed error modal - errors logged to console only
@@ -163,50 +160,44 @@ const QRGenerate = React.memo(() => {
       const cachedLogo = getCachedData(cacheKey);
       if (cachedLogo) {
         setDefaultLogoUrl(cachedLogo);
-        console.log('✅ Loaded default logo from cache:', cachedLogo);
+
         return;
       }
       
       const response = await fetch(config.helpers.getApiUrl('/settings/general'));
       const data = await response.json();
       
-      console.log('📥 Settings API response:', data);
-      
+
       if (data.success && data.data) {
         // Use qrCodeUrl first (for QR codes), then fallback to logoUrl
         const logoUrl = data.data.qrCodeUrl || data.data.logoUrl || '';
-        console.log('🖼️  Default QR logo URL:', logoUrl);
+
         setDefaultLogoUrl(logoUrl);
         if (logoUrl) {
           setCachedData(cacheKey, logoUrl, 10 * 60 * 1000); // 10 minutes
         }
       } else {
-        console.warn('⚠️  No settings data found in API response');
-      }
+  }
     } catch (error) {
-      console.error('❌ Error loading default logo:', error);
-    }
+  }
   }, []);
 
   const loadQRNames = useCallback(async (theaterId) => {
-    console.log('🎬 ==> loadQRNames CALLED with theaterId:', theaterId);
-    console.log('🕐 Timestamp:', new Date().toISOString());
-    
+
     if (!theaterId) {
-      console.log('❌ No theater ID provided, clearing QR names');
+
       setQrNames([]);
       setQrNamesLoading(false);
       return;
     }
     
     try {
-      console.log('⏳ Setting loading state to true');
+
       setQrNamesLoading(true);
       
       // Fetch available QR code names from qrcodenames collection
       const apiUrl = config.helpers.getApiUrl(`/qrcodenames?theaterId=${theaterId}&limit=100&_t=${Date.now()}`); // Cache buster
-      console.log('🌐 Full API URL:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         headers: {
           'Accept': 'application/json',
@@ -214,38 +205,27 @@ const QRGenerate = React.memo(() => {
         }
       });
       
-      console.log('📡 Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        url: response.url
-      });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('📊 Complete API Response:', JSON.stringify(data, null, 2));
-      
+
       if (data.success && data.data && data.data.qrCodeNames) {
-        console.log('✅ QR Names found:', data.data.qrCodeNames.length, data.data.qrCodeNames);
-        
+
         // Try to fetch already generated QR codes from singleqrcodes database for this theater (to filter duplicates)
         let existingQRNames = [];
-        console.log('🔍 About to fetch existing QR codes for theater:', theaterId);
-        
+
         try {
           const token = config.helpers.getAuthToken();
-          console.log('🔑 Auth token for single QR codes request:', token ? `Present (${token.substring(0, 20)}...)` : 'Missing');
-          
+
           if (!token) {
-            console.warn('⚠️ No authentication token available - cannot fetch existing QR codes, showing all QR names');
+
             existingQRNames = [];
           } else {
             const existingQRsUrl = config.helpers.getApiUrl(`/single-qrcodes/theater/${theaterId}?_t=${Date.now()}`); // Cache buster
-            console.log('🔍 Fetching existing single QR codes from:', existingQRsUrl);
-            
+
             const existingQRsResponse = await fetch(existingQRsUrl, {
               headers: {
                 'Accept': 'application/json',
@@ -254,35 +234,27 @@ const QRGenerate = React.memo(() => {
               }
             });
             
-            console.log('📡 Single QR codes API response status:', existingQRsResponse.status, existingQRsResponse.statusText);
-            
+
             if (existingQRsResponse.ok) {
               const existingQRsData = await existingQRsResponse.json();
-              console.log('📊 Existing Single QR Codes Response:', existingQRsData);
-              
+
               if (existingQRsData.success && existingQRsData.data && existingQRsData.data.qrCodes) {
                 // Extract unique QR names that already have generated QR codes in singleqrcodes
                 // This checks both single and screen type QR codes in the unified collection
                 existingQRNames = [...new Set(existingQRsData.data.qrCodes.map(qr => qr.name))]; // Using 'name' field from transformed response
-                console.log('🚫 Already generated QR names (from singleqrcodes - both single & screen types):', existingQRNames);
-                console.log('🔍 Raw API data for debugging:', existingQRsData.data.qrCodes);
-                console.log('🔍 Number of existing QR records found:', existingQRsData.data.qrCodes.length);
-              } else {
-                console.warn('⚠️ API responded OK but success=false or no data:', existingQRsData);
+  } else {
+
                 existingQRNames = [];
               }
             } else {
               const responseText = await existingQRsResponse.text();
-              console.warn('⚠️ Could not fetch existing single QR codes (status:', existingQRsResponse.status, ') - showing all QR names');
-              console.warn('⚠️ Response text:', responseText);
+
               existingQRNames = [];
             }
           }
         } catch (fetchError) {
           // Silently handle error - if we can't fetch existing QRs, just show all QR names
-          console.warn('⚠️ Error fetching existing single QR codes:', fetchError.message, '- showing all QR names');
-          console.warn('⚠️ This might be due to authentication issues or API errors');
-          
+
           // In case of error, set existingQRNames to empty array (showing all QR names)
           existingQRNames = [];
         }
@@ -291,44 +263,27 @@ const QRGenerate = React.memo(() => {
         const availableQRNames = data.data.qrCodeNames.filter(
           qrName => {
             const isAlreadyGenerated = existingQRNames.includes(qrName.qrName);
-            console.log(`🔍 Checking QR name "${qrName.qrName}": Already generated? ${isAlreadyGenerated}`);
+
             return !isAlreadyGenerated;
           }
         );
         
-        console.log('🔍 Validation Results:', {
-          totalQRNames: data.data.qrCodeNames.length,
-          totalQRNamesArray: data.data.qrCodeNames.map(qr => qr.qrName),
-          existingQRNamesCount: existingQRNames.length,
-          existingQRNamesArray: existingQRNames,
-          availableQRNamesCount: availableQRNames.length,
-          availableQRNamesArray: availableQRNames.map(qr => qr.qrName),
-          databaseSource: 'singleqrcodes'
-        });
-        
-        console.log('✅ Available QR Names (filtered by singleqrcodes):', availableQRNames.length, availableQRNames);
+
         setQrNames(availableQRNames);
-        console.log('✅ State updated - qrNames set to:', availableQRNames);
-        
+
         if (availableQRNames.length === 0 && data.data.qrCodeNames.length > 0) {
-          console.log('ℹ️ All QR names have already been generated in singleqrcodes for this theater');
-        } else if (existingQRNames.length === 0) {
-          console.log('ℹ️ No existing QR codes found in singleqrcodes - all QR names are available');
-        }
+  } else if (existingQRNames.length === 0) {
+  }
       } else {
-        console.log('⚠️ No QR names in response or success=false');
-        console.log('Response structure:', Object.keys(data));
-        console.log('Data.success:', data.success);
-        console.log('Data.data:', data.data);
-        console.log('Data.data.qrCodeNames:', data.data?.qrCodeNames);
+
         setQrNames([]);
       }
     } catch (error) {
-      console.error('❌ Error in loadQRNames:', error);
+
       setQrNames([]);
       // Removed error modal - errors logged to console only
     } finally {
-      console.log('🏁 Setting loading state to false');
+
       setQrNamesLoading(false);
     }
   }, []);
@@ -347,22 +302,10 @@ const QRGenerate = React.memo(() => {
       // Update logo URL if theater logo is selected
       if (formData.logoType === 'theater' && selectedTheater) {
         logoUrl = selectedTheater.media?.logo || selectedTheater.logo || selectedTheater.logoUrl || '';
-        console.log('Theater logo selection:', {
-          theaterName: selectedTheater.name,
-          logoType: formData.logoType,
-          mediaLogo: selectedTheater.media?.logo,
-          directLogo: selectedTheater.logo,
-          logoUrl: selectedTheater.logoUrl,
-          finalLogoUrl: logoUrl
-        });
-      }
+  }
       
       // Load QR names for the selected theater
-      console.log('🎭 Theater selected:', { 
-        theaterId: value, 
-        theaterName: selectedTheater?.name,
-        loadingQRNames: true 
-      });
+
       loadQRNames(value);
       
       setFormData(prev => ({
@@ -397,8 +340,7 @@ const QRGenerate = React.memo(() => {
     
     if (logoType === 'default') {
       logoUrl = defaultLogoUrl;
-      console.log('🎨 Using default logo:', logoUrl);
-    } else if (logoType === 'theater' && selectedTheater) {
+  } else if (logoType === 'theater' && selectedTheater) {
       // Check multiple possible logo locations in theater object
       logoUrl = selectedTheater.branding?.logoUrl 
         || selectedTheater.branding?.logo 
@@ -408,17 +350,7 @@ const QRGenerate = React.memo(() => {
         || selectedTheater.logoUrl 
         || '';
       
-      console.log('🎭 Theater logo lookup:', {
-        theaterName: selectedTheater.name,
-        brandingLogoUrl: selectedTheater.branding?.logoUrl,
-        brandingLogo: selectedTheater.branding?.logo,
-        documentsLogo: selectedTheater.documents?.logo,
-        mediaLogo: selectedTheater.media?.logo,
-        directLogo: selectedTheater.logo,
-        logoUrl: selectedTheater.logoUrl,
-        finalLogoUrl: logoUrl
-      });
-    }
+  }
     
     setFormData(prev => ({
       ...prev,
@@ -646,10 +578,9 @@ const QRGenerate = React.memo(() => {
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     
-    console.log('Form submission started with data:', formData);
-    
+
     if (!validateForm()) {
-      console.log('Form validation failed');
+
       return;
     }
     
@@ -675,15 +606,7 @@ const QRGenerate = React.memo(() => {
         return;
       }
       
-      console.log('Sending request to backend with:', formData);
-      
-      console.log('🔍 Form Data Debug:', {
-        theaterId: formData.theaterId,
-        logoType: formData.logoType,
-        logoUrl: formData.logoUrl,
-        defaultLogoUrl: defaultLogoUrl
-      });
-      
+
       // ✅ FIX: Use different endpoint for single vs screen QR codes
       const endpoint = formData.qrType === 'single' 
         ? '/single-qrcodes'  // New unified endpoint for single QR codes
@@ -714,8 +637,7 @@ const QRGenerate = React.memo(() => {
         };
       }
       
-      console.log('📤 Request Body being sent:', requestBody);
-      
+
       // Update progress for API call
       setGeneratingProgress(prev => ({ 
         ...prev, 
@@ -739,16 +661,9 @@ const QRGenerate = React.memo(() => {
         message: 'Processing server response...' 
       }));
       
-      console.log('Backend response:', data);
-      
+
       if (data.success) {
-        console.log('🔍 Debugging count extraction:', {
-          'data.count': data.count,
-          'data.data': data.data,
-          'data.data?.count': data.data?.count,
-          'typeof data.count': typeof data.count
-        });
-        
+
         const count = data.count || (data.data && data.data.count) || totalSeats;
         const message = formData.qrType === 'single' 
           ? 'Single QR code generated and saved successfully!'
@@ -767,9 +682,9 @@ const QRGenerate = React.memo(() => {
           
           // Reload QR names to update the dropdown (with delay to ensure DB update)
           if (formData.theaterId) {
-            console.log('🔄 Reloading QR names after successful generation');
+
             setTimeout(() => {
-              console.log('🔄 Executing delayed QR names reload...');
+
               loadQRNames(formData.theaterId);
             }, 500); // 500ms delay to ensure database is updated
           }
@@ -783,12 +698,12 @@ const QRGenerate = React.memo(() => {
           }, 2000);
         }, 1000);
       } else {
-        console.error('Backend returned error:', data);
+
         // Removed error modal - errors logged to console only
         setGenerating(false);
       }
     } catch (error) {
-      console.error('Error generating QR codes:', error);
+
       // Removed error modal - errors logged to console only
       setGenerating(false);
     }

@@ -1,13 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LazyImage from '../../components/LazyImage';
 import HowItWorksSlider from '../components/HowItWorksSliderNew';
 import PopularMenuCarousel from '../components/PopularMenuCarousel';
-import FAQAccordion from '../components/FAQAccordion';
+// import FAQAccordion from '../components/FAQAccordion';
 import config from '../../config';
-import '../css/HomePage.css';
-import '../css/HeroNew.css';
-import '../css/Responsive.css';
+import '../../styles/home/HomePage.css';
+import '../../styles/home/HeroNew.css';
+import '../../styles/home/Responsive.css';
 import { useCursor } from '../../hooks/useCursor';
 import heroVideo from '../images/Home-1.mp4';  // ✅ Import the video (correct filename)
 import scanQRVideo from '../images/Home-1.mp4';  // Video for Scan QR Code step
@@ -17,6 +17,35 @@ import scanQRImage from '../images/Scan QR Code.jpg';  // Image for Scan QR Code
 const HomePage = () => {
   // Add custom cursor effect
   useCursor();
+  
+  // Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  useEffect(() => {
+    // Close mobile menu when clicking outside
+    const handleClickOutside = (e) => {
+      if (isMobileMenuOpen && !e.target.closest('.navbar')) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    
+    // Prevent body scroll when menu is open
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     // Add scroll animations
@@ -51,11 +80,31 @@ const HomePage = () => {
                 <h2>{config.branding.companyName}</h2>
               </div>
             </div>
-            <div className="nav-links">
-              <a href="#features">Features</a>
-              <a href="#how-it-works">How It Works</a>
-              <a href="#benefits">Benefits</a>
-              <Link to="/login" className="btn-primary">Admin Login</Link>
+            
+            {/* Hamburger Menu Button - Mobile Only */}
+            <button 
+              className={`mobile-menu-toggle ${isMobileMenuOpen ? 'active' : ''}`}
+              onClick={toggleMobileMenu}
+              aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-navigation"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+
+            {/* Navigation Links */}
+            <div 
+              id="mobile-navigation"
+              className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}
+              role="navigation"
+              aria-label="Main navigation"
+            >
+              <a href="#features" onClick={() => setIsMobileMenuOpen(false)}>Features</a>
+              <a href="#how-it-works" onClick={() => setIsMobileMenuOpen(false)}>How It Works</a>
+              <a href="#benefits" onClick={() => setIsMobileMenuOpen(false)}>Benefits</a>
+              <Link to="/login" className="btn-primary" onClick={() => setIsMobileMenuOpen(false)}>Admin Login</Link>
             </div>
           </nav>
         </div>
@@ -82,37 +131,6 @@ const HomePage = () => {
                 Transform Your Theater Experience with
                 <span className="hero-highlight"> Smart QR Ordering</span>
               </h1>
-              <p className="hero-new-subtitle">
-                Eliminate queues, boost revenue, and delight your audience with seamless seat-side ordering. The future of theater canteen management is here.
-              </p>
-              <div className="hero-stats">
-                <div className="stat-item fade-up" style={{ animationDelay: '0.2s' }}>
-                  <div className="stat-number">80%</div>
-                  <div className="stat-label">Queue Reduction</div>
-                </div>
-                <div className="stat-item fade-up" style={{ animationDelay: '0.3s' }}>
-                  <div className="stat-number">35%</div>
-                  <div className="stat-label">Revenue Increase</div>
-                </div>
-                <div className="stat-item fade-up" style={{ animationDelay: '0.4s' }}>
-                  <div className="stat-number">500+</div>
-                  <div className="stat-label">Happy Theaters</div>
-                </div>
-              </div>
-              <div className="hero-new-buttons fade-up" style={{ animationDelay: '0.5s' }}>
-                <Link to="/login" className="btn-new-primary">
-                  <span>Start Free Trial</span>
-                  <svg className="btn-arrow" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M4 10H16M16 10L10 4M16 10L10 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </Link>
-                <a href="#how-it-works" className="btn-new-secondary">
-                  <svg className="btn-play" width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M6.5 4.5L15.5 10L6.5 15.5V4.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  <span>See How It Works</span>
-                </a>
-              </div>
             </div>
             <div className="hero-right slide-in-right">
               <div className="hero-visual">
@@ -154,12 +172,45 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
+            <div className="hero-bottom fade-up">
+              <p className="hero-new-subtitle">
+                Eliminate queues, boost revenue, and delight your audience with seamless seat-side ordering. The future of theater canteen management is here.
+              </p>
+              <div className="hero-stats">
+                <div className="stat-item fade-up" style={{ animationDelay: '0.2s' }}>
+                  <div className="stat-number">80%</div>
+                  <div className="stat-label">Queue Reduction</div>
+                </div>
+                <div className="stat-item fade-up" style={{ animationDelay: '0.3s' }}>
+                  <div className="stat-number">35%</div>
+                  <div className="stat-label">Revenue Increase</div>
+                </div>
+                <div className="stat-item fade-up" style={{ animationDelay: '0.4s' }}>
+                  <div className="stat-number">500+</div>
+                  <div className="stat-label">Happy Theaters</div>
+                </div>
+              </div>
+              <div className="hero-new-buttons fade-up" style={{ animationDelay: '0.5s' }}>
+                <Link to="/login" className="btn-new-primary">
+                  <span>Start Free Trial</span>
+                  <svg className="btn-arrow" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M4 10H16M16 10L10 4M16 10L10 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </Link>
+                <a href="#how-it-works" className="btn-new-secondary">
+                  <svg className="btn-play" width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M6.5 4.5L15.5 10L6.5 15.5V4.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span>See How It Works</span>
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* How It Works Section */}
-      {/* How It Works Section - Modern Slider */}
+      
       <HowItWorksSlider />
 
       {/* Features Section */}
@@ -223,7 +274,7 @@ const HomePage = () => {
       </section> */}
 
       {/* FAQ Section - New Accordion Design */}
-      <FAQAccordion />
+      {/* <FAQAccordion /> */}
 
 
       {/* Popular Theater Menu Items - New Circular Carousel Design */}

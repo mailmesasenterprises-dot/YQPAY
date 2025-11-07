@@ -18,7 +18,7 @@ const LoginPage = () => {
   const [pin, setPin] = useState(''); // 4-digit PIN
   const [pendingAuth, setPendingAuth] = useState(null); // Store pending authentication data
   const navigate = useNavigate();
-  const { login, isAuthenticated, userType, theaterId, rolePermissions, isLoading: authLoading } = useAuth();
+  const { login, logout, isAuthenticated, userType, theaterId, rolePermissions, isLoading: authLoading } = useAuth();
 
   // Helper function to get route from page ID
   const getRouteFromPageId = (pageId, theaterId) => {
@@ -49,11 +49,15 @@ const LoginPage = () => {
     return pageRouteMap[pageId] || null;
   };
 
+  // Set browser tab title
+  useEffect(() => {
+    document.title = 'Login - YQPayNow';
+  }, []);
+
   // ✅ REDIRECT LOGIC: Check if user is already authenticated
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      console.log('🔄 User already authenticated, redirecting...');
-      
+
       // Redirect based on user type
       if (userType === 'theater_user' || userType === 'theater_admin') {
         if (theaterId) {
@@ -68,14 +72,19 @@ const LoginPage = () => {
                 : getRouteFromPageId(firstPage.page, theaterId);
               
               if (firstRoute) {
-                console.log('🎯 Redirecting to first accessible page:', firstRoute);
                 navigate(firstRoute, { replace: true });
                 return;
               }
             }
           }
-          // Fallback to theater dashboard if no permissions found
-          navigate(`/theater-dashboard/${theaterId}`, { replace: true });
+          // Only theater_admin should fallback to dashboard, theater_user with no permissions should logout
+          if (userType === 'theater_admin') {
+            navigate(`/theater-dashboard/${theaterId}`, { replace: true });
+          } else {
+            // Theater user has no accessible pages - logout
+            logout();
+            setErrors({ general: 'You do not have access to any pages. Please contact your administrator.' });
+          }
         } else {
           // Fallback if theaterId is missing
           navigate('/dashboard', { replace: true });
@@ -85,7 +94,7 @@ const LoginPage = () => {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [isAuthenticated, userType, theaterId, rolePermissions, authLoading, navigate]);
+  }, [isAuthenticated, userType, theaterId, rolePermissions, authLoading, navigate, logout]);
 
   // Show loading while checking authentication status
   if (authLoading) {
@@ -141,7 +150,7 @@ const LoginPage = () => {
     setErrors({});
 
     try {
-      console.log('🔢 Validating PIN...');
+
       const response = await fetch(`${config.api.baseUrl}/auth/validate-pin`, {
         method: 'POST',
         headers: {
@@ -155,7 +164,6 @@ const LoginPage = () => {
       });
 
       const data = await response.json();
-      console.log('📥 PIN validation response:', data);
 
       if (response.ok && data.success) {
         const userData = data.user;
@@ -179,22 +187,22 @@ const LoginPage = () => {
               : getRouteFromPageId(firstPage.page, theaterId);
             
             if (firstRoute) {
-              console.log('🎯 Navigating to first accessible page:', firstRoute);
+
               navigate(firstRoute);
             } else {
-              console.error('❌ Could not determine route for page:', firstPage.page);
+
               setErrors({ pin: 'Navigation error. Contact administrator.' });
               return;
             }
           } else {
             // ❌ NO accessible pages - show error, don't navigate
-            console.error('❌ User has NO accessible pages - cannot login');
+
             setErrors({ pin: 'Your account has no page access. Contact administrator.' });
             return;
           }
         } else {
           // ❌ NO permissions defined - show error, don't navigate
-          console.error('❌ No role permissions found - cannot login');
+
           setErrors({ pin: 'No role permissions found. Contact administrator.' });
           return;
         }
@@ -202,7 +210,7 @@ const LoginPage = () => {
         setErrors({ pin: data.error || 'Invalid PIN. Please try again.' });
       }
     } catch (error) {
-      console.error('❌ PIN validation error:', error);
+
       setErrors({ pin: 'Unable to validate PIN. Please try again.' });
     } finally {
       setIsLoading(false);
@@ -235,15 +243,7 @@ const LoginPage = () => {
 
     try {
       // Real API call to backend authentication
-      console.log('🔍 Attempting login to:', `${config.api.baseUrl}/auth/login`);
-      console.log('📤 Request body:', {
-        ...(formData.username.includes('@') 
-          ? { email: formData.username }
-          : { username: formData.username }
-        ),
-        password: '***hidden***'
-      });
-      
+
       const response = await fetch(`${config.api.baseUrl}/auth/login`, {
         method: 'POST',
         headers: {
@@ -260,14 +260,13 @@ const LoginPage = () => {
         }),
       });
 
-      console.log('📥 Response status:', response.status);
+
       const data = await response.json();
-      console.log('📥 Response data:', data);
 
       if (response.ok && data.success) {
         // Check if PIN is required (theater users)
         if (data.isPinRequired) {
-          console.log('🔢 PIN required - showing PIN input');
+
           setPendingAuth(data.pendingAuth);
           setShowPinInput(true);
           setIsLoading(false);
@@ -298,24 +297,24 @@ const LoginPage = () => {
                 : getRouteFromPageId(firstPage.page, theaterId);
               
               if (firstRoute) {
-                console.log('🎯 Navigating to first accessible page:', firstRoute);
+
                 navigate(firstRoute);
               } else {
-                console.error('❌ Could not determine route for page:', firstPage.page);
+
                 setErrors({ password: 'Navigation error. Contact administrator.' });
                 setIsLoading(false);
                 return;
               }
             } else {
               // ❌ NO accessible pages - show error, don't navigate
-              console.error('❌ User has NO accessible pages - cannot login');
+
               setErrors({ password: 'Your account has no page access. Contact administrator.' });
               setIsLoading(false);
               return;
             }
           } else {
             // ❌ NO permissions defined - show error, don't navigate
-            console.error('❌ No role permissions found - cannot login');
+
             setErrors({ password: 'No role permissions found. Contact administrator.' });
             setIsLoading(false);
             return;
@@ -331,12 +330,7 @@ const LoginPage = () => {
         });
       }
     } catch (error) {
-      console.error('❌ Login error:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
+
       setErrors({ 
         general: 'Unable to connect to server. Please check your connection and try again.' 
       });

@@ -3,6 +3,7 @@
   display: flex;
   min-height: 100vh;
   background: var(--background-light);
+  position: relative;
 }
 
 /* Sidebar Styles */
@@ -292,6 +293,9 @@
   flex: 1;
   background: var(--background-light);
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
 }
 
 /* Main Content adjustment for expanded sidebar */
@@ -486,6 +490,9 @@ header[class*="header"],
 /* Dashboard Content */
 .dashboard-content {
   padding: 30px;
+  background: var(--background-light);
+  min-height: calc(100vh - 80px);
+  position: relative;
 }
 
 .content-header {

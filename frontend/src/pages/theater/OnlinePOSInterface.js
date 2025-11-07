@@ -4,6 +4,7 @@ import TheaterLayout from '../../components/theater/TheaterLayout';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import { getAuthToken, autoLogin } from '../../utils/authHelper';
+import { getImageSrc, cacheProductImages } from '../../utils/globalImageCache'; // 🚀 Instant image loading
 import ImageUpload from '../../components/ImageUpload';
 import config from '../../config';
 import '../../styles/TheaterList.css';
@@ -51,7 +52,7 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
     : originalPrice;
   const hasDiscount = discountPercentage > 0;
 
-  // Get product image
+  // Get product image WITH INSTANT CACHE CHECK
   const getProductImage = () => {
     let imageUrl = null;
     
@@ -65,7 +66,8 @@ const StaffProductCard = React.memo(({ product, onAddToCart, currentOrder }) => 
       imageUrl = product.productImage;
     }
     
-    return imageUrl;
+    // 🚀 INSTANT: Return cached base64 if available
+    return imageUrl ? getImageSrc(imageUrl) : null;
   };
 
   const imageUrl = getProductImage();
@@ -218,12 +220,7 @@ const OnlinePOSInterface = () => {
   const theaterId = routeTheaterId || (urlMatch ? urlMatch[1] : null);
   
   // Debug theater ID extraction
-  console.log('🎭 Theater ID Debug:');
-  console.log('  - URL pathname:', window.location.pathname);
-  console.log('  - Route theaterId:', routeTheaterId);
-  console.log('  - URL match:', urlMatch);
-  console.log('  - Final theaterId:', theaterId);
-  
+
   // IMMEDIATE CLEANUP - Remove any lingering UI elements from other pages
   useEffect(() => {
     const cleanup = () => {
@@ -269,12 +266,11 @@ const OnlinePOSInterface = () => {
       const savedCart = localStorage.getItem(`online_pos_cart_${theaterId}`);
       if (savedCart) {
         const cartItems = JSON.parse(savedCart);
-        console.log('🛒 Loaded saved online cart:', cartItems);
+
         return Array.isArray(cartItems) ? cartItems : [];
       }
     } catch (error) {
-      console.error('Error loading saved online cart:', error);
-    }
+  }
     return [];
   });
   
@@ -293,13 +289,13 @@ const OnlinePOSInterface = () => {
 
   // MOUNT EFFECT - Clear flash animation state on component mount
   useEffect(() => {
-    console.log('🔄 Component mounted - Resetting flash state');
+
     setNewOrderIds([]); // Clear any flash animations
     isInitialLoadRef.current = true; // Reset initial load flag
     hasLoadedOrdersRef.current = false; // Reset loaded flag
     
     return () => {
-      console.log('🔄 Component unmounting - Cleaning up');
+
       setNewOrderIds([]); // Clear on unmount too
       hasLoadedOrdersRef.current = false;
     };
@@ -333,10 +329,8 @@ const OnlinePOSInterface = () => {
     if (theaterId && currentOrder.length >= 0) {
       try {
         localStorage.setItem(`online_pos_cart_${theaterId}`, JSON.stringify(currentOrder));
-        console.log('💾 Online cart saved to localStorage:', currentOrder);
-      } catch (error) {
-        console.error('Error saving online cart to localStorage:', error);
-      }
+  } catch (error) {
+  }
     }
   }, [currentOrder, theaterId]);
 
@@ -352,8 +346,7 @@ const OnlinePOSInterface = () => {
         setOrderImages([]);
         
         if (location.state.orderNumber) {
-          console.log(`🎉 Order ${location.state.orderNumber} completed successfully`);
-        }
+  }
         
         // Trigger product refresh by updating a refresh flag
         setLoading(true);
@@ -446,10 +439,8 @@ const OnlinePOSInterface = () => {
     if (theaterId) {
       try {
         localStorage.removeItem(`online_pos_cart_${theaterId}`);
-        console.log('🗑️ Online cart cleared from localStorage');
-      } catch (error) {
-        console.error('Error clearing online cart from localStorage:', error);
-      }
+  } catch (error) {
+  }
     }
   }, [theaterId]);
 
@@ -469,10 +460,9 @@ const OnlinePOSInterface = () => {
 
   // Load categories from theater-categories API
   const loadCategories = useCallback(async () => {
-    console.log('🏷️ Starting to load categories for theater:', theaterId);
-    
+
     if (!theaterId) {
-      console.error('❌ No theater ID available for loading categories');
+
       setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
       return;
     }
@@ -480,10 +470,10 @@ const OnlinePOSInterface = () => {
     try {
       let authToken = getAuthToken();
       if (!authToken) {
-        console.log('🔑 No auth token found, attempting auto login...');
+
         authToken = await autoLogin();
         if (!authToken) {
-          console.error('❌ Failed to get auth token');
+
           return;
         }
       }
@@ -498,7 +488,7 @@ const OnlinePOSInterface = () => {
         }
       });
 
-      console.log('🏷️ Categories API response status:', categoriesResponse.status);
+
       if (categoriesResponse.ok) {
         const categoriesData = await categoriesResponse.json();
         
@@ -511,9 +501,7 @@ const OnlinePOSInterface = () => {
           // API returns categoryName field, not name
           const categoryNames = activeCategories.map(cat => cat.categoryName || cat.name);
           
-          console.log('🏷️ ORDER INTERFACE: Categories loaded:', categoryNames);
-          console.log('🏷️ ORDER INTERFACE: Category objects:', activeCategories);
-          
+
           const mapping = activeCategories.reduce((map, cat) => {
             const catName = cat.categoryName || cat.name;
             map[catName] = cat._id;
@@ -524,42 +512,31 @@ const OnlinePOSInterface = () => {
           setCategories(categoryNames);
           setCategoryMapping(mapping);
           
-          console.log('✅ Categories set in state:', categoryNames);
-          console.log('✅ Category mapping set:', mapping);
-          
+
           // Debug: Check products after categories are loaded
           setTimeout(() => {
-            console.log('🕐 DELAYED CHECK - Current products:', products.length);
-            console.log('🕐 DELAYED CHECK - Current categories:', categoryNames);
-            console.log('🕐 DELAYED CHECK - Current mapping:', mapping);
-            
+
             if (products.length > 0) {
-              console.log('🔍 PRODUCT-CATEGORY ANALYSIS:');
+
               products.forEach(product => {
-                console.log(`Product: "${product.name}"`);
-                console.log(`  - Category field: "${product.category}"`);
-                console.log(`  - Category type: ${typeof product.category}`);
-                console.log(`  - Matches any category name: ${categoryNames.includes(product.category)}`);
-                console.log(`  - Matches any category ID: ${Object.values(mapping).includes(product.category)}`);
-                console.log('---');
-              });
+  });
             }
           }, 1000);
         } else {
-          console.log('❌ Categories data success=false or no data:', categoriesData);
+
           // Set fallback categories
           setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
           setCategoryMapping({});
         }
       } else {
         const errorText = await categoriesResponse.text();
-        console.log('❌ Categories API failed:', categoriesResponse.status, errorText);
+
         // Set fallback categories
         setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
         setCategoryMapping({});
       }
     } catch (error) {
-      console.error('❌ Failed to load categories:', error);
+
       // Set fallback categories
       setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
       setCategoryMapping({});
@@ -578,8 +555,7 @@ const OnlinePOSInterface = () => {
       setLoading(true);
       setError('');
       
-      console.log('� Attempting to fetch products...');
-      
+
       // Check for auth token, auto-login if needed
       let authToken = getAuthToken();
       if (!authToken) {
@@ -599,8 +575,7 @@ const OnlinePOSInterface = () => {
 
       const baseUrl = `${config.api.baseUrl}/theater-products/${theaterId}?${params.toString()}`;
       
-      console.log('📡 Fetching from:', baseUrl);
-      
+
       const response = await fetch(baseUrl, {
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -614,13 +589,12 @@ const OnlinePOSInterface = () => {
            
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ API Error:', response.status, errorText);
+
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('✅ API Response received:', data);
-      
+
       // Process response data - mirror the working components' logic
       let theaterProducts = [];
       
@@ -629,24 +603,12 @@ const OnlinePOSInterface = () => {
         const allProducts = Array.isArray(data.data) ? data.data : (data.data?.products || []);
         theaterProducts = allProducts; // Show all products, but inactive ones will appear as "Out of Stock"
         
-        console.log('🍿 ORDER INTERFACE: Total products:', allProducts.length);
-        console.log('🍿 ORDER INTERFACE: Products to show:', theaterProducts.length);
-        console.log('🍿 ORDER INTERFACE: Sample product data:', {
-          name: allProducts[0]?.name,
-          isActive: allProducts[0]?.isActive,
-          isAvailable: allProducts[0]?.isAvailable,
-          stock: allProducts[0]?.inventory?.currentStock ?? allProducts[0]?.stockQuantity,
-          price: allProducts[0]?.pricing?.basePrice ?? allProducts[0]?.sellingPrice
-        });
-      } else {
-        console.error('🍿 ORDER INTERFACE: API returned success: false', data);
+  } else {
+
         throw new Error(data.message || 'Failed to load products');
       }
       
-      console.log('📦 SETTING PRODUCTS: isMounted:', isMountedRef.current);
-      console.log('📦 PRODUCTS TO SET:', theaterProducts);
-      console.log('📦 SAMPLE PRODUCT:', theaterProducts[0]);
-      
+
       // Ensure products is always an array with safe objects
       const safeProducts = Array.isArray(theaterProducts) ? theaterProducts.map((product, index) => {
         let assignedCategory = product.category;
@@ -666,8 +628,7 @@ const OnlinePOSInterface = () => {
             const categories = ['Snacks', 'Drinks', 'Beverages1'];
             assignedCategory = categories[index % categories.length];
           }
-          console.log(`🔧 ASSIGNED CATEGORY: "${product.name}" → "${assignedCategory}"`);
-        }
+  }
         
         return {
           ...product,
@@ -680,13 +641,15 @@ const OnlinePOSInterface = () => {
       }) : [];
       
       setProducts(safeProducts);
-      console.log('✅ ORDER INTERFACE: Safe products set in state:', safeProducts.length);
-      console.log('🏷️ PRODUCTS WITH CATEGORIES:', safeProducts.map(p => ({
-        name: p.name,
-        category: p.category,
-        originalCategory: theaterProducts.find(op => op._id === p._id)?.category
-      })));
-      
+
+      // 🎨 AUTO-CACHE ALL PRODUCT IMAGES (LIKE OFFLINE POS)
+      if (safeProducts.length > 0) {
+        console.log(`🎨 [OnlinePOSInterface] Auto-caching ${safeProducts.length} product images...`);
+        cacheProductImages(safeProducts).catch(err => {
+          console.error('Error caching product images:', err);
+        });
+      }
+
       // Check if products have null/undefined categories
       const productsWithoutCategory = safeProducts.filter(p => !p.category || p.category === 'Other');
       
@@ -694,28 +657,23 @@ const OnlinePOSInterface = () => {
       await loadCategories();
       
     } catch (err) {
-      console.error('❌ Error loading products:', err);
-      
+
       // Show clean empty interface instead of error
-      console.log('🎨 Showing clean empty interface due to error');
-      
+
       // Set empty products to show clean interface
       setProducts([]);
       setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']); // Show empty categories
       setError(''); // Clear error to show clean interface
       
-      console.log('✅ Clean empty interface loaded');
-    } finally {
-      console.log('🏁 FINALLY BLOCK: isMounted:', isMountedRef.current);
+  } finally {
+
       setLoading(false);
-      console.log('🏁 ORDER INTERFACE: Loading set to false (forced)');
-    }
+  }
   }, [theaterId]);
 
   // Load initial data - Load categories first, then products
   useEffect(() => {
-    console.log('🔥 USE EFFECT TRIGGERED! Theater ID:', theaterId);
-    
+
     // FORCE STATE CLEANUP on component mount
     setProducts([]);
     setCategories([]);
@@ -724,12 +682,10 @@ const OnlinePOSInterface = () => {
     setSearchTerm('');
     setError('');
     
-    console.log('🔄 State cleanup completed, theaterId:', theaterId);
-    
+
     // Set immediate fallback categories to ensure something shows
     setCategories(['SNACKS', 'BEVERAGES', 'COMBO DEALS', 'DESSERTS']);
-    console.log('🎯 Immediate fallback categories set');
-    
+
     if (theaterId) {
       // Add a small delay to prevent rate limiting
       const timer = setTimeout(() => {
@@ -758,10 +714,10 @@ const OnlinePOSInterface = () => {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         setAudioContext(ctx);
         setAudioEnabled(true);
-        console.log('🔊 Audio context initialized');
+
         return ctx;
       } catch (error) {
-        console.error('Failed to initialize audio context:', error);
+
         return null;
       }
     }
@@ -782,8 +738,7 @@ const OnlinePOSInterface = () => {
       // Resume audio context if suspended (required by browser policy)
       if (ctx.state === 'suspended') {
         await ctx.resume();
-        console.log('🔊 Audio context resumed');
-      }
+  }
 
       // Create and play beep sound
       const oscillator = ctx.createOscillator();
@@ -799,19 +754,15 @@ const OnlinePOSInterface = () => {
       oscillator.start(ctx.currentTime);
       oscillator.stop(ctx.currentTime + 0.5);
       
-      console.log('🔔 Beep sound played!');
-      
-    } catch (error) {
-      console.error('🔇 Audio playback failed:', error);
-      
+  } catch (error) {
+
       // Fallback: Try HTML5 Audio with data URL
       try {
         const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBjiR1+zGeiwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmQlBg==');
         audio.volume = 0.3;
         audio.play();
-        console.log('🔔 Fallback beep played!');
-      } catch (fallbackError) {  
-        console.error('🔇 Fallback audio also failed:', fallbackError);
+  } catch (fallbackError) {  
+
         // Visual notification as final fallback
         document.title = '🔔 NEW ORDER! - ' + (document.title.replace('🔔 NEW ORDER! - ', ''));
         setTimeout(() => {
@@ -836,77 +787,57 @@ const OnlinePOSInterface = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.orders) {
-          console.log(`📱 Loaded ${data.orders.length} customer orders`);
-          
-          // Debug: Log order data to see qrName and seat values
-          data.orders.forEach((order, index) => {
-            if (index < 2) { // Only log first 2 orders to avoid clutter
-              console.log(`🔍 Order ${index + 1} data:`, {
-                orderNumber: order.orderNumber,
-                qrName: order.qrName,
-                seat: order.seat,
-                screenName: order.screenName,
-                tableNumber: order.tableNumber
-              });
-            }
-          });
+
+          // Filter to show ONLY online orders (customer orders with qrName or seat)
+          // Exclude kiosk orders (which don't have qrName or seat)
+          const onlineOnlyOrders = data.orders.filter(order => 
+            (order.qrName && order.qrName.trim() !== '') || 
+            (order.seat && order.seat.trim() !== '')
+          );
+
+          // Debug: Log filtered order count
+          console.log(`📱 [OnlinePOS] Filtered ${onlineOnlyOrders.length} online orders from ${data.orders.length} total orders`);
           
           // Check for new orders
           setOnlineOrders(prevOrders => {
-            console.log('🔍 Checking orders:', {
-              isInitialLoad: isInitialLoadRef.current,
-              hasLoadedBefore: hasLoadedOrdersRef.current,
-              prevOrdersCount: prevOrders.length,
-              newOrdersCount: data.orders.length,
-              currentNewOrderIds: newOrderIds.length
-            });
-            
+
             // Skip notifications if this is the first time loading orders
             // This covers: page refresh, initial navigation, and component mount
             if (!hasLoadedOrdersRef.current) {
-              console.log('📥 First load detected - skipping all animations and beeps');
+
               hasLoadedOrdersRef.current = true;
               isInitialLoadRef.current = false;
-              return data.orders;
+              return onlineOnlyOrders;
             }
             
             // For subsequent loads, check for genuinely new orders
             const prevOrderIds = prevOrders.map(order => order._id);
-            const newOrders = data.orders.filter(order => !prevOrderIds.includes(order._id));
+            const newOrders = onlineOnlyOrders.filter(order => !prevOrderIds.includes(order._id));
             
-            console.log('🔍 New orders check:', {
-              prevOrderIds: prevOrderIds.length,
-              newOrdersFound: newOrders.length,
-              newOrderNumbers: newOrders.map(o => o.orderNumber)
-            });
-            
+
             if (newOrders.length > 0) {
-              console.log(`🔔 ${newOrders.length} new order(s) received!`);
-              console.log('🔊 Audio enabled:', audioEnabled);
-              console.log('🔊 Attempting to play beep sound...');
-              
+
               // Play beep sound for new orders
               playBeepSound();
               
               // Mark new orders for flashing
               const newIds = newOrders.map(order => order._id);
-              console.log('✨ Setting flash for order IDs:', newIds);
+
               setNewOrderIds(newIds);
               
               // Remove flashing after 5 seconds
               setTimeout(() => {
-                console.log('⏰ Clearing flash animation after 5s');
+
                 setNewOrderIds([]);
               }, 5000);
             }
             
-            return data.orders;
+            return onlineOnlyOrders;
           });
         }
       }
     } catch (error) {
-      console.error('Error fetching online orders:', error);
-    } finally {
+  } finally {
       setLoadingOrders(false);
     }
   }, [theaterId, playBeepSound]);
@@ -920,7 +851,7 @@ const OnlinePOSInterface = () => {
 
     // Only reset flags if theater actually changed (not on first mount)
     if (prevTheaterIdRef.current !== null && prevTheaterIdRef.current !== theaterId) {
-      console.log('🔄 Theater changed, resetting load flags');
+
       isInitialLoadRef.current = true;
       hasLoadedOrdersRef.current = false;
     }
@@ -1003,8 +934,7 @@ const OnlinePOSInterface = () => {
         // Match by category ID
         const match = categoryIdStr === selectedCategoryIdStr;
         
-        console.log(`Product "${product.name}": categoryId="${categoryIdStr}" vs selected="${selectedCategoryIdStr}" => ${match ? '✅' : '❌'}`);
-        
+
         return match;
       });
     }
@@ -1045,14 +975,13 @@ const OnlinePOSInterface = () => {
       // Store in sessionStorage for ViewCart page
       sessionStorage.setItem('cartData', JSON.stringify(cartData));
       
-      console.log('📦 Navigating to view-cart with data:', cartData);
-      
+
       // Navigate to view cart page
       navigate(`/view-cart/${theaterId}`, {
         state: cartData
       });
     } catch (error) {
-      console.error('❌ Navigation error:', error);
+
       // Fallback to window.location
       sessionStorage.setItem('cartData', JSON.stringify(cartData));
       window.location.href = `/view-cart/${theaterId}`;
@@ -1137,9 +1066,12 @@ const OnlinePOSInterface = () => {
           {/* Left Order Panel - Order Queue */}
           <div className="pos-order-section">
             <div className="pos-order-header" style={{backgroundColor: '#6B0E9B', background: '#6B0E9B', color: 'white'}}>
-              <h2 className="pos-order-title" style={{color: 'white', margin: 0}}>
-                Customer Orders ({onlineOrders.length})
-              </h2>
+              <div>
+                <h2 className="pos-order-title" style={{color: 'white', margin: 0}}>
+                  Online Orders ({onlineOrders.length})
+                </h2>
+                
+              </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {!audioEnabled && (
                   <button 
@@ -1165,21 +1097,19 @@ const OnlinePOSInterface = () => {
             <div className="pos-order-content" style={{ padding: '16px', maxHeight: '600px', overflowY: 'auto' }}>
               {onlineOrders.length === 0 ? (
                 <div className="pos-empty-order">
-                  <div className="empty-order-icon">�</div>
-                  <h3>No Customer Orders</h3>
-                  <p>QR code orders will appear here.</p>
+                  <div className="empty-order-icon">📱</div>
+                  <h3>No Online Orders</h3>
+                  <p>Customer orders from QR codes will appear here.</p>
+                  <p style={{ fontSize: '12px', color: '#999', marginTop: '8px' }}>
+                    (Kiosk orders are excluded)
+                  </p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {onlineOrders.map((order, index) => {
                     const shouldFlash = newOrderIds.includes(order._id);
                     if (index === 0) {
-                      console.log('🎨 Rendering first order:', {
-                        orderId: order._id,
-                        shouldFlash,
-                        newOrderIds: newOrderIds
-                      });
-                    }
+  }
                     
                     return (
                       <div 

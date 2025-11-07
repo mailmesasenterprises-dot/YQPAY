@@ -34,7 +34,6 @@ const authenticateToken = (req, res, next) => {
           });
         }
       } catch (error) {
-        console.log('⚠️ Error checking theater status during auth:', error.message);
         // Continue with auth - don't block on database errors
       }
     }
@@ -72,13 +71,6 @@ const requireRole = (roles) => {
 
     // ✅ FIX: Check both 'role' and 'userType' fields
     const userRole = req.user.role || req.user.userType;
-    
-    console.log('🔐 requireRole check:', {
-      requiredRoles: roles,
-      userRole: userRole,
-      tokenData: req.user
-    });
-
     if (!roles.includes(userRole)) {
       return res.status(403).json({ 
         error: 'Insufficient permissions',
@@ -96,7 +88,12 @@ const requireRole = (roles) => {
 
 // Theater ownership middleware (ensure user can only access their theater data)
 const requireTheaterAccess = async (req, res, next) => {
+  console.log('🔐 requireTheaterAccess middleware - checking access');
+  console.log('👤 User:', req.user ? { userId: req.user.userId, role: req.user.role, userType: req.user.userType, theaterId: req.user.theaterId } : 'No user');
+  console.log('🎯 Requested Theater:', req.params.theaterId || req.body.theaterId);
+  
   if (!req.user) {
+    console.error('❌ No user in request');
     return res.status(401).json({ 
       error: 'Authentication required',
       code: 'AUTH_REQUIRED'
@@ -104,54 +101,56 @@ const requireTheaterAccess = async (req, res, next) => {
   }
 
   const requestedTheaterId = req.params.theaterId || req.body.theaterId;
-  
-  console.log('🔐 requireTheaterAccess check:');
-  console.log('   User role:', req.user.role);
-  console.log('   User userType:', req.user.userType);
-  console.log('   User theater:', req.user.theater);
-  console.log('   User theaterId:', req.user.theaterId);
-  console.log('   Requested theaterId:', requestedTheaterId);
-  
   // Super admin or admin can access all theaters
   if (req.user.role === 'super_admin' || req.user.role === 'admin' || req.user.userType === 'admin') {
-    console.log('   ✅ Access granted: Admin');
+    console.log('✅ Admin access granted');
     return next();
   }
 
   // ✅ NEW: Check if theater is active before granting access
   const Theater = require('../models/Theater');
   try {
+    console.log('🔍 Checking theater status:', requestedTheaterId);
     const theater = await Theater.findById(requestedTheaterId);
-    if (!theater || !theater.isActive) {
-      console.log('   ❌ Access denied: Theater is inactive or not found');
+    if (!theater) {
+      console.error('❌ Theater not found:', requestedTheaterId);
+      return res.status(404).json({
+        error: 'Theater not found',
+        code: 'THEATER_NOT_FOUND'
+      });
+    }
+    if (!theater.isActive) {
+      console.error('❌ Theater is inactive:', requestedTheaterId);
       return res.status(403).json({
         error: 'Theater is currently inactive',
         code: 'THEATER_INACTIVE'
       });
     }
+    console.log('✅ Theater is active');
   } catch (error) {
-    console.log('   ❌ Error checking theater status:', error.message);
+    console.error('❌ Error checking theater:', error.message);
     return res.status(500).json({
       error: 'Unable to verify theater status',
-      code: 'THEATER_CHECK_ERROR'
+      code: 'THEATER_CHECK_ERROR',
+      details: error.message
     });
   }
 
   // Manager role can access their own theater
   if (req.user.role === 'Manager' && String(req.user.theaterId) === String(requestedTheaterId)) {
-    console.log('   ✅ Access granted: Manager with matching theater');
+    console.log('✅ Manager access granted');
     return next();
   }
 
   // Theater admin can only access their own theater
   if (req.user.role === 'theater_admin' && String(req.user.theaterId) === String(requestedTheaterId)) {
-    console.log('   ✅ Access granted: Theater Admin with matching theater');
+    console.log('✅ Theater admin access granted');
     return next();
   }
 
   // Theater staff can only access their own theater
   if (req.user.role === 'theater_staff' && String(req.user.theaterId) === String(requestedTheaterId)) {
-    console.log('   ✅ Access granted: Theater Staff with matching theater');
+    console.log('✅ Theater staff access granted');
     return next();
   }
 
@@ -159,13 +158,12 @@ const requireTheaterAccess = async (req, res, next) => {
   if (req.user.userType === 'theater_user') {
     const userTheater = req.user.theater || req.user.theaterId;
     if (String(userTheater) === String(requestedTheaterId)) {
-      console.log('   ✅ Access granted: Theater User with matching theater');
+      console.log('✅ Theater user access granted');
       return next();
     }
   }
-
-  console.log('   ❌ Access denied: No matching conditions');
-  console.log('   💡 Hint: User role/userType:', req.user.role || req.user.userType);
+  
+  console.error('❌ Access denied - user does not have permission for this theater');
   return res.status(403).json({
     error: 'Access denied to this theater',
     code: 'THEATER_ACCESS_DENIED'
@@ -185,7 +183,6 @@ const requirePageAccess = (pageName) => {
 
     // Super admin has access to everything
     if (req.user.role === 'super_admin' || req.user.userType === 'super_admin') {
-      console.log('✅ Super admin - full access granted');
       return next();
     }
 
@@ -197,7 +194,6 @@ const requirePageAccess = (pageName) => {
           .findOne({ _id: new mongoose.Types.ObjectId(req.user.userId) });
 
         if (!theaterUser || !theaterUser.role) {
-          console.log('❌ Theater user has no role assigned');
           return res.status(403).json({
             error: 'No role assigned',
             code: 'NO_ROLE_ASSIGNED'
@@ -213,7 +209,6 @@ const requirePageAccess = (pageName) => {
             });
 
           if (!role) {
-            console.log('❌ Role not found or inactive');
             return res.status(403).json({
               error: 'Role not found',
               code: 'ROLE_NOT_FOUND'
@@ -226,10 +221,8 @@ const requirePageAccess = (pageName) => {
           );
 
           if (hasAccess) {
-            console.log(`✅ Page access granted: ${pageName} for role: ${role.name}`);
             return next();
           } else {
-            console.log(`❌ Page access denied: ${pageName} for role: ${role.name}`);
             return res.status(403).json({
               error: 'Access denied to this page',
               code: 'PAGE_ACCESS_DENIED',
@@ -266,7 +259,6 @@ const requireTheaterAdminRole = async (req, res, next) => {
 
   // Super admin has full access
   if (req.user.role === 'super_admin' || req.user.userType === 'super_admin') {
-    console.log('✅ Super admin - full access granted');
     return next();
   }
 
@@ -296,10 +288,8 @@ const requireTheaterAdminRole = async (req, res, next) => {
 
     // Check if it's Theater Admin role (default role or named "Theater Admin")
     if (role.isDefault === true || role.name === 'Theater Admin') {
-      console.log(`✅ Theater Admin access granted: ${role.name}`);
       return next();
     } else {
-      console.log(`❌ Not Theater Admin: ${role.name}`);
       return res.status(403).json({
         error: 'Only Theater Admin can access this resource',
         code: 'THEATER_ADMIN_REQUIRED',

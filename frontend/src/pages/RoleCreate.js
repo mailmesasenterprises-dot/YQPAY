@@ -170,8 +170,7 @@ const RoleCreate = () => {
     
     try {
       setTheaterLoading(true);
-      console.log('🎭 Loading theater data for theaterId:', theaterId);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
         method: 'GET',
         headers: {
@@ -181,26 +180,23 @@ const RoleCreate = () => {
         }
       });
       
-      console.log('🎭 Theater API response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch theater data: ${response.status}`);
       }
       
       const result = await response.json();
-      console.log('🎭 Theater API response data:', result);
-      
+
       if (result.success) {
         // Backend returns theater data under 'theater' key, not 'data'
         const theaterData = result.theater || result.data;
-        console.log('✅ Theater loaded successfully:', theaterData);
-        console.log('🎭 Theater name:', theaterData?.name);
+
         setTheater(theaterData);
       } else {
         throw new Error(result.message || 'Failed to load theater');
       }
     } catch (error) {
-      console.error('Error loading theater:', error);
+
       setError('Failed to load theater details');
     } finally {
       setTheaterLoading(false);
@@ -210,8 +206,7 @@ const RoleCreate = () => {
   // Toggle role active status
   const toggleRoleStatus = async (roleId, currentStatus) => {
     try {
-      console.log('🔄 Toggling role status:', { roleId, currentStatus, newStatus: !currentStatus });
-      
+
       const response = await fetch(`${config.api.baseUrl}/roles/${roleId}`, {
         method: 'PUT',
         headers: {
@@ -221,17 +216,15 @@ const RoleCreate = () => {
         body: JSON.stringify({ isActive: !currentStatus })
       });
 
-      console.log('📡 Response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('❌ Error response:', errorData);
+
         throw new Error(errorData.message || 'Failed to update role status');
       }
 
       const result = await response.json();
-      console.log('✅ Success response:', result);
-      
+
       if (result.success) {
         // Update local roles state
         setRoles(prevRoles => 
@@ -257,7 +250,7 @@ const RoleCreate = () => {
         throw new Error(result.message || 'Failed to update role status');
       }
     } catch (error) {
-      console.error('❌ Error updating role status:', error);
+
       showError(`Failed to update role status: ${error.message}`);
       // Reload data to revert UI if update failed
       await loadRoleData();
@@ -300,8 +293,7 @@ const RoleCreate = () => {
       // PERFORMANCE OPTIMIZATION: Add cache headers but bust cache when needed
       const baseUrl = `${config.api.baseUrl}/roles?${params.toString()}`;
       
-      console.log('🌐 Fetching role data from:', baseUrl);
-      
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -353,10 +345,10 @@ const RoleCreate = () => {
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('QR Management request was cancelled');
+
         return;
       }
-      console.error('Error loading QR management data:', error);
+
       setError('Failed to load QR management data');
     } finally {
       setLoading(false);
@@ -416,8 +408,7 @@ const RoleCreate = () => {
 
   const handleSubmitRole = async (isEdit = false) => {
     try {
-      console.log(isEdit ? '📝 Updating role...' : '➕ Creating new role...');
-      
+
       const token = config.helpers.getAuthToken();
       if (!token) {
         showError('Authentication required. Please login again.');
@@ -435,9 +426,7 @@ const RoleCreate = () => {
         ...(theaterId && { theaterId: theaterId }) // Add theaterId field for array-based structure
       };
       
-      console.log('📤 Request:', method, url);
-      console.log('📄 Data:', roleData);
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -447,11 +436,10 @@ const RoleCreate = () => {
         body: JSON.stringify(roleData)
       });
       
-      console.log('📡 Response:', response.status);
-      
+
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Role saved successfully:', result);
+
         setShowCreateModal(false);
         setShowEditModal(false);
         loadRoleData(); // Refresh the list
@@ -462,19 +450,18 @@ const RoleCreate = () => {
         );
       } else {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Error response:', response.status, errorData);
+
         throw new Error(errorData.error || `Failed to save role: ${response.status}`);
       }
     } catch (error) {
-      console.error('❌ Error saving role:', error);
+
       showError && showError(`Failed to save role: ${error.message}`);
     }
   };
 
   const handleDeleteRole = async () => {
     try {
-      console.log('🗑️ Deleting role:', selectedRole._id);
-      
+
       const token = config.helpers.getAuthToken();
       if (!token) {
         showError('Authentication required. Please login again.');
@@ -489,10 +476,9 @@ const RoleCreate = () => {
         }
       });
       
-      console.log('📡 DELETE response:', response.status);
-      
+
       if (response.ok) {
-        console.log('✅ Role permanently deleted successfully');
+
         setShowDeleteModal(false);
         setSelectedRole(null);
         loadRoleData(); // Refresh the list
@@ -502,7 +488,7 @@ const RoleCreate = () => {
         throw new Error(errorData.error || `Failed to delete role: ${response.status}`);
       }
     } catch (error) {
-      console.error('❌ Error deleting role:', error);
+
       showError && showError(`Failed to delete role: ${error.message}`);
     }
   };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSyncUtility } from '../hooks/useSyncUtility';
-import './SyncPanel.css';
+import '../styles/components/SyncPanel.css';
 
 /**
  * Reusable Sync Panel Component
@@ -39,8 +39,7 @@ export const SyncPanel = ({
       const result = await quickSync({ theaterId, productTypeId });
       alert(result.message);
     } catch (error) {
-      console.error('Quick sync failed:', error);
-    }
+  }
   };
 
   const handleVerify = async () => {
@@ -49,8 +48,7 @@ export const SyncPanel = ({
       setLastReport(report);
       setShowReport(true);
     } catch (error) {
-      console.error('Verification failed:', error);
-    }
+  }
   };
 
   const handleAutoFix = async () => {
@@ -58,8 +56,7 @@ export const SyncPanel = ({
       const result = await autoFixAll({ theaterId, productTypeId });
       alert(`Fixed ${result.fixesApplied} inconsistencies`);
     } catch (error) {
-      console.error('Auto-fix failed:', error);
-    }
+  }
   };
 
   const handleSyncProductType = async () => {
@@ -72,8 +69,7 @@ export const SyncPanel = ({
       const result = await syncProductType(productTypeId);
       alert(`Synced ${result.productsUpdated} products for ${result.productTypeName}`);
     } catch (error) {
-      console.error('ProductType sync failed:', error);
-    }
+  }
   };
 
   if (compact) {

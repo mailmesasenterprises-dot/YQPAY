@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './NestedOrderHistory.css';
+import '../styles/components/NestedOrderHistory.css';
 
 const NestedOrderHistory = () => {
   const [theaterData, setTheaterData] = useState(null);
@@ -29,13 +29,10 @@ const NestedOrderHistory = () => {
       if (response.ok) {
         const data = await response.json();
         setStats(data.data);
-        console.log('📊 Theater stats loaded:', data.data);
-      } else {
-        console.error('Failed to fetch theater stats');
-      }
+  } else {
+  }
     } catch (error) {
-      console.error('Error fetching theater stats:', error);
-    } finally {
+  } finally {
       setLoading(false);
     }
   };
@@ -78,11 +75,9 @@ const NestedOrderHistory = () => {
           setOrders(allOrders);
         }
       } else {
-        console.error('Failed to fetch nested orders');
-      }
+  }
     } catch (error) {
-      console.error('Error fetching nested orders:', error);
-    } finally {
+  } finally {
       setLoading(false);
     }
   };

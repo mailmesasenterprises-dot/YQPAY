@@ -24,7 +24,6 @@ async function getProductById(productId, theaterId = null) {
         );
         
         if (product) {
-          console.log('✅ Found product in NEW array structure');
           return product;
         }
       }
@@ -35,11 +34,8 @@ async function getProductById(productId, theaterId = null) {
     const product = await Product.findById(productObjectId).lean();
     
     if (product) {
-      console.log('⚠️  Found product in OLD individual document structure');
       return product;
     }
-    
-    console.log('❌ Product not found in either structure');
     return null;
     
   } catch (error) {
@@ -79,7 +75,6 @@ async function updateProductStock(productId, theaterId, stockUpdate) {
       );
       
       if (result.modifiedCount > 0) {
-        console.log('✅ Updated product stock in NEW array structure');
         return true;
       }
     }
@@ -101,11 +96,8 @@ async function updateProductStock(productId, theaterId, stockUpdate) {
     );
     
     if (result) {
-      console.log('⚠️  Updated product stock in OLD individual document structure');
       return true;
     }
-    
-    console.log('❌ Failed to update product stock');
     return false;
     
   } catch (error) {

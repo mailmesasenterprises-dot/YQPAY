@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
+import { getImageSrc } from '../../utils/globalImageCache'; // 🚀 Instant image loading
 import './../../styles/customer/CustomerCart.css';
 
 const CustomerCart = () => {
@@ -35,8 +36,7 @@ const CustomerCart = () => {
     const itemGstType = item.gstType || item.pricing?.gstType || 'EXCLUDE';
     const discountPercentage = parseFloat(item.discountPercentage || item.pricing?.discountPercentage) || 0;
     
-    console.log(`🔍 Item: ${item.name}, GST Type: ${itemGstType}, Tax Rate: ${taxRate}%, Discount: ${discountPercentage}%`);
-    
+
     // Step 1: Apply discount to original price
     const discountAmount = discountPercentage > 0 
       ? (originalPrice * qty) * (discountPercentage / 100)
@@ -53,14 +53,12 @@ const CustomerCart = () => {
       itemSubtotal = discountedPrice / (1 + (taxRate / 100));
       itemTax = discountedPrice - itemSubtotal;
       itemTotal = discountedPrice; // Same as discounted price since GST is included
-      console.log(`📊 GST INCLUDE - Base: ₹${itemSubtotal.toFixed(2)}, Tax: ₹${itemTax.toFixed(2)}, Total: ₹${itemTotal.toFixed(2)}`);
-    } else {
+  } else {
       // GST EXCLUDE - calculate GST on discounted price
       itemSubtotal = discountedPrice;
       itemTax = discountedPrice * (taxRate / 100);
       itemTotal = discountedPrice + itemTax;
-      console.log(`📊 GST EXCLUDE - Subtotal: ₹${itemSubtotal.toFixed(2)}, Tax: ₹${itemTax.toFixed(2)}, Total: ₹${itemTotal.toFixed(2)}`);
-    }
+  }
     
     // Track unique GST types
     const updatedGstTypes = [...acc.gstTypes];
@@ -220,9 +218,10 @@ const CustomerCart = () => {
             <div key={item._id || index} className="cart-item">
               <div className="cart-item-image-container">
                 <img 
-                  src={item.image || '/placeholder-product.png'} 
+                  src={getImageSrc(item.image || '/placeholder-product.png')} 
                   alt={item.name}
                   className="cart-item-image"
+                  loading="eager"
                   onError={(e) => {
                     e.target.src = '/placeholder-product.png';
                   }}

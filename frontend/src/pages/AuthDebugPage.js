@@ -13,8 +13,7 @@ const AuthDebugPage = () => {
       
       // Check for existing token
       let authToken = getAuthToken();
-      console.log('Existing token:', authToken);
-      
+
       if (!authToken) {
         setAuthStatus('No token found, attempting login...');
         authToken = await autoLogin();

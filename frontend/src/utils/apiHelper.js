@@ -136,8 +136,7 @@ export const getAuthHeaders = () => {
 const handleAuthResponse = async (response) => {
   // Handle 401 Unauthorized - token expired or invalid
   if (response.status === 401) {
-    console.warn('⚠️ API: 401 Unauthorized - Token expired, logging out');
-    
+
     // Clear all authentication data
     localStorage.removeItem('authToken');
     localStorage.removeItem('user');

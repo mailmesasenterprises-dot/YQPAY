@@ -68,8 +68,7 @@ const RolesList = () => {
         setTheater(result.data);
       }
     } catch (error) {
-      console.error('Error fetching theater:', error);
-    }
+  }
   }, [theaterId]);
 
   // Fetch roles
@@ -96,8 +95,7 @@ const RolesList = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
       
-      console.log('🔍 Fetching roles from:', `${config.api.baseUrl}/roles?${params.toString()}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/roles?${params.toString()}`, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -111,8 +109,7 @@ const RolesList = () => {
       }
       
       const result = await response.json();
-      console.log('✅ Roles data received:', result);
-      
+
       if (result.success && result.data) {
         setRoles(result.data.roles || []);
         const paginationData = result.data.pagination || {};
@@ -127,10 +124,10 @@ const RolesList = () => {
       
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Request was cancelled');
+
         return;
       }
-      console.error('Error fetching roles:', error);
+
       setError('Failed to load roles');
     } finally {
       setLoading(false);
@@ -178,7 +175,7 @@ const RolesList = () => {
         alert(result.message || result.error || 'Failed to delete role');
       }
     } catch (error) {
-      console.error('Delete role error:', error);
+
       alert('Failed to delete role');
     } finally {
       setConfirmModal({ show: false, roleId: null, roleName: '' });

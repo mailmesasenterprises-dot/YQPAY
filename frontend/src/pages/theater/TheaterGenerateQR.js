@@ -10,6 +10,84 @@ import config from '../../config';
 import '../../styles/TheaterGenerateQR.css';
 import '../../styles/TheaterList.css';
 
+// QR Code Preview Component with Logo Overlay
+const QRCodePreview = React.memo(({ data, logoUrl, size = 200 }) => {
+  const canvasRef = useRef(null);
+  
+  useEffect(() => {
+    if (!canvasRef.current || !data) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Import QRCode dynamically
+    import('qrcode').then(QRCode => {
+      // Generate QR code with black color
+      QRCode.toCanvas(canvas, data, {
+        width: size,
+        margin: 2,
+        color: {
+          dark: '#000000',  // Black QR code
+          light: '#FFFFFF'
+        },
+        errorCorrectionLevel: 'H'
+      }, (error) => {
+        if (error) {
+          console.error('QR Code generation error:', error);
+          return;
+        }
+        
+        // Note: Logo overlay is skipped in preview due to CORS restrictions
+        // The actual generated QR code from backend WILL include the logo
+        if (logoUrl) {
+          console.log('ℹ️ Logo will be added by backend during generation');
+          
+          // Add visual indicator that logo will be included
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.beginPath();
+          ctx.arc(size / 2, size / 2, size * 0.15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          
+          // Add "LOGO" text in center
+          ctx.save();
+          ctx.font = 'bold 14px Arial';
+          ctx.fillStyle = '#8B5CF6';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('LOGO', size / 2, size / 2 - 5);
+          ctx.font = '10px Arial';
+          ctx.fillText('INCLUDED', size / 2, size / 2 + 8);
+          ctx.restore();
+        }
+      });
+    });
+  }, [data, logoUrl, size]);
+  
+  if (!data) {
+    return (
+      <div style={{
+        width: size,
+        height: size,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        border: '2px dashed #ccc',
+        borderRadius: '8px',
+        color: '#999',
+        fontSize: '14px'
+      }}>
+        No QR data
+      </div>
+    );
+  }
+  
+  return <canvas ref={canvasRef} style={{ borderRadius: '8px' }} />;
+});
+
+QRCodePreview.displayName = 'QRCodePreview';
+
 const TheaterGenerateQR = () => {
   const navigate = useNavigate();
   const { theaterId } = useParams();
@@ -48,7 +126,7 @@ const TheaterGenerateQR = () => {
   // Validate theater access
   useEffect(() => {
     if (userType === 'theater_user' && userTheaterId && theaterId !== userTheaterId) {
-      console.error('Theater access denied: User can only access their own theater');
+
       return;
     }
   }, [theaterId, userTheaterId, userType]);
@@ -69,7 +147,7 @@ const TheaterGenerateQR = () => {
   const loadDefaultLogo = useCallback(async () => {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-      const response = await fetch(`${config.api.baseUrl}/settings`, {
+      const response = await fetch(`${config.api.baseUrl}/settings/general`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -78,12 +156,15 @@ const TheaterGenerateQR = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {
-          setDefaultLogoUrl(data.data.defaultQRLogo || '');
+          // Use qrCodeUrl (correct field name) or logoUrl as fallback
+          const logoUrl = data.data.qrCodeUrl || data.data.logoUrl || '';
+          console.log('🎨 Loaded Default Logo URL:', logoUrl);
+          setDefaultLogoUrl(logoUrl);
         }
       }
     } catch (error) {
-      console.error('Error loading default logo:', error);
-    }
+      console.error('❌ Error loading default logo:', error);
+  }
   }, []);
 
   const loadTheaterLogo = useCallback(async () => {
@@ -99,13 +180,32 @@ const TheaterGenerateQR = () => {
         const data = await response.json();
         if (data.success && data.data) {
           const theater = data.data;
-          const logoUrl = theater.media?.logo || theater.logo || theater.logoUrl || '';
+          
+          // Check multiple possible logo locations (matching Admin page)
+          const logoUrl = theater.branding?.logoUrl 
+            || theater.branding?.logo 
+            || theater.documents?.logo 
+            || theater.media?.logo 
+            || theater.logo 
+            || theater.logoUrl 
+            || '';
+            
+          console.log('🎨 Loaded Theater Logo URL:', logoUrl);
+          console.log('🏛️ Theater data (all logo fields):', { 
+            'branding.logoUrl': theater.branding?.logoUrl,
+            'branding.logo': theater.branding?.logo,
+            'documents.logo': theater.documents?.logo,
+            'media.logo': theater.media?.logo,
+            'logo': theater.logo,
+            'logoUrl': theater.logoUrl,
+            'finalLogo': logoUrl
+          });
           setTheaterLogoUrl(logoUrl);
         }
       }
     } catch (error) {
-      console.error('Error loading theater logo:', error);
-    }
+      console.error('❌ Error loading theater logo:', error);
+  }
   }, [theaterId]);
 
   const loadQRNames = useCallback(async () => {
@@ -145,17 +245,14 @@ const TheaterGenerateQR = () => {
           
           if (existingQRsResponse.ok) {
             const existingQRsData = await existingQRsResponse.json();
-            console.log('📊 Theater Generate QR - Existing Single QR Codes Response:', existingQRsData);
-            
+
             if (existingQRsData.success && existingQRsData.data && existingQRsData.data.qrCodes) {
               // Extract unique QR names that already have generated QR codes in singleqrcodes
               existingQRNames = [...new Set(existingQRsData.data.qrCodes.map(qr => qr.name))];
-              console.log('🚫 Theater Generate QR - Already generated QR names:', existingQRNames);
-              console.log('🔍 Theater Generate QR - Number of existing QR records:', existingQRsData.data.qrCodes.length);
-            }
+  }
           }
         } catch (fetchError) {
-          console.warn('Could not fetch existing QR codes:', fetchError);
+
           existingQRNames = [];
         }
         
@@ -164,13 +261,13 @@ const TheaterGenerateQR = () => {
           qrName => !existingQRNames.includes(qrName.qrName)
         );
         
-        console.log('✅ Theater Generate QR - Available QR Names (filtered):', availableQRNames.length, availableQRNames);
+
         setQrNames(availableQRNames);
       } else {
         setQrNames([]);
       }
     } catch (error) {
-      console.error('Error loading QR names:', error);
+
       setQrNames([]);
     } finally {
       setQrNamesLoading(false);
@@ -204,12 +301,39 @@ const TheaterGenerateQR = () => {
       logoUrl = theaterLogoUrl;
     }
     
+    console.log('🔄 Logo Type Changed:', {
+      selectedLogoType: logoType,
+      resultingLogoUrl: logoUrl,
+      defaultLogoUrl,
+      theaterLogoUrl
+    });
+    
     setFormData(prev => ({
       ...prev,
       logoType,
       logoUrl
     }));
   }, [defaultLogoUrl, theaterLogoUrl]);
+
+  // Auto-update logoUrl when defaultLogoUrl or theaterLogoUrl changes
+  useEffect(() => {
+    // Only auto-update if logoUrl is empty and a logoType is selected
+    if (formData.logoType && !formData.logoUrl) {
+      if (formData.logoType === 'default' && defaultLogoUrl) {
+        console.log('🔄 Auto-setting default logo URL:', defaultLogoUrl);
+        setFormData(prev => ({
+          ...prev,
+          logoUrl: defaultLogoUrl
+        }));
+      } else if (formData.logoType === 'theater' && theaterLogoUrl) {
+        console.log('🔄 Auto-setting theater logo URL:', theaterLogoUrl);
+        setFormData(prev => ({
+          ...prev,
+          logoUrl: theaterLogoUrl
+        }));
+      }
+    }
+  }, [defaultLogoUrl, theaterLogoUrl, formData.logoType, formData.logoUrl]);
 
   const handleQRTypeChange = useCallback((qrType) => {
     setFormData(prev => ({
@@ -309,48 +433,96 @@ const TheaterGenerateQR = () => {
   }, []);
 
   const validateForm = useCallback(() => {
+    console.log('🔍 Validating form:', formData);
+    
     if (!formData.logoType) {
+      console.log('❌ Logo type missing');
       showError('Please select a logo type');
       return false;
     }
     
     if (!formData.qrType) {
+      console.log('❌ QR type missing');
       showError('Please select QR code type');
       return false;
     }
     
     if (!formData.name) {
+      console.log('❌ QR name missing');
       showError('Please select QR code name');
       return false;
     }
     
     if (!formData.seatClass) {
+      console.log('❌ Seat class missing');
       showError('Seat class is required');
       return false;
     }
     
     if (formData.qrType === 'screen' && (!formData.selectedSeats || formData.selectedSeats.length === 0)) {
+      console.log('❌ No seats selected for screen type');
       showError('Please select at least one seat for screen type QR codes');
       return false;
     }
     
+    console.log('✅ All validations passed');
     return true;
   }, [formData, showError]);
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     
+    console.log('========================================');
+    console.log('🚀 FORM SUBMITTED!');
+    console.log('========================================');
+    console.log('📝 Form Data:', JSON.stringify(formData, null, 2));
+    console.log('🎭 Theater ID:', theaterId);
+    console.log('🖼️ Default Logo URL:', defaultLogoUrl);
+    console.log('🏛️ Theater Logo URL:', theaterLogoUrl);
+    console.log('========================================');
+    
     if (!validateForm()) {
+      console.log('❌ VALIDATION FAILED - Stopping submission');
       return;
     }
     
+    console.log('✅ VALIDATION PASSED - Starting generation...');
+    
     try {
       setGenerating(true);
+      console.log('🔄 Generating state set to TRUE');
       
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      console.log('🔑 Token found:', token ? 'YES' : 'NO');
       
       // Prepare request body based on QR type
       let requestBody;
+      
+      // Ensure logoUrl is properly set based on logoType
+      const finalLogoType = formData.logoType || 'default';
+      const finalLogoUrl = formData.logoUrl || (finalLogoType === 'theater' ? theaterLogoUrl : defaultLogoUrl);
+      
+      console.log('🎨 QR Generation - Logo Details:', {
+        logoType: finalLogoType,
+        logoUrl: finalLogoUrl,
+        formDataLogoUrl: formData.logoUrl,
+        formDataLogoType: formData.logoType,
+        defaultLogoUrl,
+        theaterLogoUrl
+      });
+
+      // DEBUG: Alert to verify logo URL
+      if (!finalLogoUrl) {
+        alert('⚠️ WARNING: Logo URL is EMPTY!\n\n' + 
+              'logoType: ' + finalLogoType + '\n' +
+              'defaultLogoUrl: ' + defaultLogoUrl + '\n' +
+              'theaterLogoUrl: ' + theaterLogoUrl + '\n' +
+              'formData.logoUrl: ' + formData.logoUrl);
+      } else {
+        console.log('✅ Logo URL is set:', finalLogoUrl);
+        console.log('🚀 Sending to backend - Logo Type:', finalLogoType, 'Logo URL:', finalLogoUrl);
+      }
+      
       if (formData.qrType === 'single') {
         // For single QR codes
         requestBody = {
@@ -358,8 +530,8 @@ const TheaterGenerateQR = () => {
           qrType: 'single',
           qrName: formData.name,
           seatClass: formData.seatClass,
-          logoUrl: formData.logoUrl,
-          logoType: formData.logoType
+          logoUrl: finalLogoUrl,
+          logoType: finalLogoType
         };
       } else {
         // For screen QR codes
@@ -369,8 +541,8 @@ const TheaterGenerateQR = () => {
           qrName: formData.name,
           seatClass: formData.seatClass,
           seats: formData.selectedSeats,
-          logoUrl: formData.logoUrl,
-          logoType: formData.logoType
+          logoUrl: finalLogoUrl,
+          logoType: finalLogoType
         };
       }
       
@@ -435,18 +607,18 @@ const TheaterGenerateQR = () => {
           
           // Redirect to QR Management page after successful generation
           setTimeout(() => {
-            navigate(`/theater-qr-management/${theaterId}`);
+            navigate(`/theater-qr-management/${theaterId}`, { state: { reload: true } });
           }, 1500); // Wait 1.5 seconds to show success message
         }, 1000);
       } else {
         throw new Error(data.message || 'Failed to generate QR codes');
       }
     } catch (error) {
-      console.error('Error generating QR codes:', error);
+
       showError(error.message || 'Failed to generate QR codes');
       setGenerating(false);
     }
-  }, [formData, theaterId, validateForm, loadQRNames, showSuccess, showError]);
+  }, [formData, theaterId, validateForm, loadQRNames, showSuccess, showError, defaultLogoUrl, theaterLogoUrl, navigate, setGeneratingProgress]);
 
   return (
     <ErrorBoundary>
@@ -496,6 +668,68 @@ const TheaterGenerateQR = () => {
                     <p className="form-help-text">
                       Theater has no logo. Please upload a logo or use default logo.
                     </p>
+                  )}
+                  
+                  {/* Logo Preview */}
+                  {formData.logoType && formData.logoUrl && (
+                    <div style={{
+                      marginTop: '15px',
+                      padding: '15px',
+                      border: '2px solid #8B5CF6',
+                      borderRadius: '8px',
+                      backgroundColor: '#F9F5FF',
+                      textAlign: 'center'
+                    }}>
+                      <p style={{
+                        margin: '0 0 10px 0',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        color: '#6B21A8',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        Selected Logo Preview
+                      </p>
+                      <div style={{
+                        display: 'inline-block',
+                        padding: '10px',
+                        backgroundColor: 'white',
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                      }}>
+                        <img
+                          src={formData.logoUrl}
+                          alt={`${formData.logoType} logo`}
+                          style={{
+                            maxWidth: '150px',
+                            maxHeight: '150px',
+                            width: 'auto',
+                            height: 'auto',
+                            objectFit: 'contain',
+                            display: 'block'
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <div style={{
+                          display: 'none',
+                          color: '#DC2626',
+                          fontSize: '12px',
+                          padding: '20px'
+                        }}>
+                          Failed to load logo image
+                        </div>
+                      </div>
+                      <p style={{
+                        margin: '10px 0 0 0',
+                        fontSize: '11px',
+                        color: '#6B7280'
+                      }}>
+                        {formData.logoType === 'default' ? 'Default Logo' : 'Theater Logo'}
+                      </p>
+                    </div>
                   )}
                 </div>
 
@@ -704,6 +938,44 @@ const TheaterGenerateQR = () => {
               </div>
             </div>
 
+            {/* QR Code Preview Section */}
+            {formData.logoUrl && formData.name && (
+              <div className="form-section" style={{ marginTop: '20px' }}>
+                <div className="section-header">
+                  <div className="section-indicator"></div>
+                  <h2>QR Code Preview</h2>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '20px',
+                  background: '#f9fafb',
+                  borderRadius: '8px'
+                }}>
+                  <p style={{ 
+                    marginBottom: '15px', 
+                    color: '#6b7280',
+                    fontSize: '14px' 
+                  }}>
+                    Preview of QR code with selected logo
+                  </p>
+                  <QRCodePreview 
+                    data={`https://yqpaynow.com/menu/${theaterId}?qrName=${encodeURIComponent(formData.name)}`}
+                    logoUrl={formData.logoUrl}
+                    size={200}
+                  />
+                  <p style={{
+                    marginTop: '10px',
+                    fontSize: '12px',
+                    color: '#9ca3af'
+                  }}>
+                    {formData.logoType === 'default' ? 'Using default logo' : 'Using theater logo'} • Black QR code
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <div className="form-actions">
               <button 
@@ -718,68 +990,77 @@ const TheaterGenerateQR = () => {
                 type="submit" 
                 className="submit-btn"
                 disabled={generating}
+                onClick={() => console.log('🔘 Generate button clicked!')}
               >
                 {generating ? `Generating... ${generatingProgress.current}/${generatingProgress.total}` : 'Generate QR Codes'}
               </button>
             </div>
           </form>
 
-          {/* Progress Modal - Enhanced */}
+          {/* QR Generation Loading Overlay - Advanced UI (matching Admin page) */}
           {generating && (
-            <div className="modal-overlay">
-              <div className="progress-modal">
-                <h3>Generating QR Codes</h3>
-                
-                {/* QR Icon */}
-                <div className="qr-icon-container">
-                  <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3,11H11V3H3M5,5H9V9H5M13,3V11H21V3M19,9H15V5H19M3,21H11V13H3M5,15H9V19H5M17,13H15V15H13V17H15V19H17V17H19V15H17M19,21H21V19H19M13,21H15V19H13M17,17H19V13H17V17Z"/>
-                  </svg>
-                </div>
-
-                {/* Progress Spinner */}
-                <div className="progress-spinner">
-                  <div className="spinner"></div>
-                </div>
-
-                {/* Progress Message */}
-                <p>{generatingProgress.message || 'Sending request to server...'}</p>
-                <p>{generatingProgress.current} of {generatingProgress.total} completed</p>
-                
-                {/* Progress Bar */}
-                <div className="progress-bar">
-                  <div 
-                    className="progress-fill" 
-                    style={{width: `${generatingProgress.total > 0 ? (generatingProgress.current / generatingProgress.total) * 100 : 0}%`}}
-                  ></div>
-                </div>
-                <p style={{textAlign: 'center', marginTop: '8px', fontSize: '0.9rem', color: 'var(--primary-color)'}}>
-                  {generatingProgress.total > 0 ? Math.round((generatingProgress.current / generatingProgress.total) * 100) : 0}%
-                </p>
-
-                {/* Generation Details */}
-                <div className="qr-generation-details">
-                  <div className="detail-row">
-                    <span className="detail-label">📊 QR Codes</span>
-                    <span className="detail-value">{generatingProgress.current}/{generatingProgress.total}</span>
+            <div className="qr-generation-overlay">
+              <div className="qr-generation-modal">
+                <div className="qr-generation-header">
+                  <h3>Generating QR Codes</h3>
+                  <div className="qr-generation-spinner">
+                    <div className="spinner-circle"></div>
                   </div>
-                  {formData.selectedSeats && formData.selectedSeats.length > 0 && (
-                    <div className="selected-seats-preview">
-                      <span className="detail-label">Selected Seats:</span>
-                      <div className="seats-grid">
-                        {formData.selectedSeats.map(seat => (
-                          <span key={seat} className="seat-chip">{seat}</span>
-                        ))}
+                </div>
+                
+                <div className="qr-generation-content">
+                  <div className="progress-info">
+                    <div className="progress-message">{generatingProgress.message || 'Sending request to server...'}</div>
+                    {generatingProgress.total > 1 && (
+                      <div className="progress-counter">
+                        {generatingProgress.current} of {generatingProgress.total} completed
+                      </div>
+                    )}
+                  </div>
+                  
+                  {generatingProgress.total > 1 ? (
+                    <div className="progress-bar-container">
+                      <div className="progress-bar-wrapper">
+                        <div className="progress-bar">
+                          <div 
+                            className="progress-bar-fill"
+                            style={{ 
+                              width: `${(generatingProgress.current / generatingProgress.total) * 100}%` 
+                            }}
+                          >
+                            <div className="progress-bar-shine"></div>
+                          </div>
+                        </div>
+                        <div className="progress-percentage-overlay">
+                          {Math.round((generatingProgress.current / generatingProgress.total) * 100)}%
+                        </div>
+                      </div>
+                      <div className="progress-stats">
+                        <span className="progress-current">{generatingProgress.current}/{generatingProgress.total} QR Codes</span>
+                        <span className="progress-speed">Generating...</span>
                       </div>
                     </div>
+                  ) : (
+                    <div className="simple-loading">
+                      <div className="simple-progress-bar">
+                        <div className="simple-progress-fill"></div>
+                      </div>
+                      <div className="loading-text">Creating QR code...</div>
+                    </div>
                   )}
-                  <div className="detail-row">
-                    <span className="detail-label">Theater:</span>
-                    <span className="detail-value">YQ PAY NOW</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Seat Class:</span>
-                    <span className="detail-value">{formData.seatClass}</span>
+                  
+                  <div className="generating-details">
+                    {formData.selectedSeats && formData.selectedSeats.length > 0 && (
+                      <div className="seats-info">
+                        <strong>Selected Seats:</strong> {formData.selectedSeats.join(', ')}
+                      </div>
+                    )}
+                    <div className="theater-info">
+                      <strong>Theater:</strong> YQ PAY NOW
+                    </div>
+                    <div className="class-info">
+                      <strong>Seat Class:</strong> {formData.seatClass}
+                    </div>
                   </div>
                 </div>
               </div>

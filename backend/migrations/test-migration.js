@@ -4,10 +4,6 @@ const TheaterUserModel = require('../models/TheaterUserModel');
 const TheaterUserArray = require('../models/TheaterUserArray');
 const Theater = require('../models/Theater');
 require('dotenv').config();
-
-console.log('🧪 Theater User Migration Test Suite');
-console.log('====================================');
-
 class MigrationTester {
   constructor() {
     this.testResults = {
@@ -22,8 +18,6 @@ class MigrationTester {
    */
   logTest(name, passed, details = '') {
     const status = passed ? '✅ PASS' : '❌ FAIL';
-    console.log(`${status} ${name}`);
-    if (details) console.log(`   ${details}`);
     
     this.testResults.tests.push({ name, passed, details });
     if (passed) {
@@ -80,8 +74,6 @@ class MigrationTester {
    */
   async createSampleData() {
     try {
-      console.log('\n📝 Creating sample test data...');
-
       // Create test theater if it doesn't exist
       let testTheater = await Theater.findOne({ name: 'Test Theater Migration' });
       if (!testTheater) {
@@ -149,8 +141,6 @@ class MigrationTester {
    */
   async testMigration(testTheater) {
     try {
-      console.log('\n🔄 Testing migration process...');
-
       const migration = new TheaterUserMigration();
 
       // Test backup creation
@@ -178,8 +168,6 @@ class MigrationTester {
    */
   async testDataIntegrity(testTheater) {
     try {
-      console.log('\n🔍 Testing data integrity...');
-
       // Count original users
       const originalCount = await TheaterUserModel.countDocuments({ theater: testTheater._id });
 
@@ -211,8 +199,6 @@ class MigrationTester {
    */
   async testArrayOperations(testTheater) {
     try {
-      console.log('\n⚙️ Testing array operations...');
-
       const arrayDoc = await TheaterUserArray.findOne({ theater: testTheater._id });
       if (!arrayDoc) {
         this.logTest('Array Operations', false, 'No array document found');
@@ -262,8 +248,6 @@ class MigrationTester {
    */
   async testRollback(backupPath, testTheater) {
     try {
-      console.log('\n↩️ Testing rollback functionality...');
-
       const migration = new TheaterUserMigration();
       await migration.rollback(backupPath);
 
@@ -287,18 +271,13 @@ class MigrationTester {
    */
   async cleanup(testTheater) {
     try {
-      console.log('\n🧹 Cleaning up test data...');
-
       // Remove test users
       await TheaterUserModel.deleteMany({ theater: testTheater._id });
       await TheaterUserArray.deleteMany({ theater: testTheater._id });
       
       // Remove test theater
       await Theater.deleteOne({ _id: testTheater._id });
-
-      console.log('✅ Test data cleaned up');
     } catch (error) {
-      console.log('❌ Cleanup failed:', error.message);
     }
   }
 
@@ -306,8 +285,6 @@ class MigrationTester {
    * Run complete test suite
    */
   async runTests() {
-    console.log('🚀 Starting migration test suite...\n');
-
     try {
       // Basic tests
       await this.testDatabaseConnection();
@@ -316,7 +293,6 @@ class MigrationTester {
       // Create sample data
       const sampleData = await this.createSampleData();
       if (!sampleData) {
-        console.log('❌ Failed to create sample data, aborting tests');
         return;
       }
 
@@ -339,20 +315,15 @@ class MigrationTester {
       console.error('❌ Test suite failed:', error);
     } finally {
       // Print summary
-      console.log('\n📊 Test Summary:');
-      console.log(`✅ Passed: ${this.testResults.passed}`);
-      console.log(`❌ Failed: ${this.testResults.failed}`);
-      console.log(`📋 Total: ${this.testResults.tests.length}`);
-      
       if (this.testResults.failed > 0) {
-        console.log('\n❌ Failed Tests:');
         this.testResults.tests
           .filter(t => !t.passed)
-          .forEach(t => console.log(`   - ${t.name}: ${t.details}`));
+          .forEach(t => {
+            // Removed console.log for clean output
+          });
       }
 
       const overallSuccess = this.testResults.failed === 0;
-      console.log(`\n${overallSuccess ? '✅' : '❌'} Overall: ${overallSuccess ? 'PASS' : 'FAIL'}`);
     }
   }
 }
@@ -364,7 +335,6 @@ if (require.main === module) {
       // Connect to MongoDB
       if (!mongoose.connection.readyState) {
         await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/theater_canteen_db');
-        console.log('✅ Connected to MongoDB for testing');
       }
 
       const tester = new MigrationTester();

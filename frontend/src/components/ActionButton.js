@@ -123,7 +123,7 @@ const ActionButtons = ({ children, className = '', ...props }) => {
   const forceStyles = {
     display: 'flex',
     flexDirection: 'row',
-    gap: '8px',
+    gap: '4px',
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'nowrap'

@@ -49,10 +49,7 @@ router.get('/general', [optionalAuth], async (req, res) => {
           taxRate: generalConfig.taxRate || 18,
           serviceChargeRate: generalConfig.serviceChargeRate || 0
         };
-        
-        console.log('✅ Loaded general settings from database:', settings);
       } else {
-        console.log('⚠️ No general settings found in database, using defaults');
         // Return default global settings if nothing found
         settings = {
           applicationName: 'Theater Canteen System',
@@ -139,9 +136,6 @@ router.post('/general', [optionalAuth], async (req, res) => {
         updatedConfig[key] = value;
       }
     }
-
-    console.log('🔄 Updating general settings:', updatedConfig);
-
     // Update or create the settings document
     const result = await db.collection('settings').findOneAndUpdate(
       { type: 'general' },
@@ -159,9 +153,6 @@ router.post('/general', [optionalAuth], async (req, res) => {
         returnDocument: 'after'
       }
     );
-
-    console.log('✅ Settings updated successfully');
-
     res.json({
       success: true,
       message: 'Settings updated successfully',
@@ -184,16 +175,12 @@ router.post('/general', [optionalAuth], async (req, res) => {
  */
 router.get('/firebase', [authenticateToken], async (req, res) => {
   try {
-    console.log('📥 Getting Firebase configuration...');
-
     const mongoose = require('mongoose');
     const db = mongoose.connection.db;
 
     // Get Firebase configuration from settings collection
     const settingsDoc = await db.collection('settings').findOne({ type: 'firebase' });
     const config = settingsDoc?.firebaseConfig || {};
-
-    console.log('✅ Firebase config retrieved:', Object.keys(config).length, 'fields');
 
     res.json({
       success: true,
@@ -215,16 +202,11 @@ router.get('/firebase', [authenticateToken], async (req, res) => {
  */
 router.get('/gcs', [authenticateToken], async (req, res) => {
   try {
-    console.log('📥 Getting GCS configuration...');
-
     const mongoose = require('mongoose');
     const db = mongoose.connection.db;
 
     const settingsDoc = await db.collection('settings').findOne({ type: 'gcs' });
     const config = settingsDoc?.gcsConfig || {};
-
-    console.log('✅ GCS config retrieved');
-
     res.json({
       success: true,
       data: { config }
@@ -245,16 +227,11 @@ router.get('/gcs', [authenticateToken], async (req, res) => {
  */
 router.get('/mongodb', [authenticateToken], async (req, res) => {
   try {
-    console.log('📥 Getting MongoDB configuration...');
-
     const mongoose = require('mongoose');
     const db = mongoose.connection.db;
 
     const settingsDoc = await db.collection('settings').findOne({ type: 'mongodb' });
     const config = settingsDoc?.mongodbConfig || {};
-
-    console.log('✅ MongoDB config retrieved');
-
     res.json({
       success: true,
       data: { config }
@@ -281,27 +258,14 @@ router.get('/sms', [authenticateToken], async (req, res) => {
     // Get SMS configuration from database
     const settingsDoc = await db.collection('settings').findOne({ type: 'sms' });
 
-    console.log('🔍 GET /sms - EXTREME DEBUG');
-    console.log('1️⃣ settingsDoc exists:', !!settingsDoc);
-    console.log('2️⃣ smsConfig exists:', !!settingsDoc?.smsConfig);
-    console.log('3️⃣ msg91SenderId RAW:', settingsDoc?.smsConfig?.msg91SenderId);
-    console.log('4️⃣ msg91SenderId type:', typeof settingsDoc?.smsConfig?.msg91SenderId);
-    console.log('5️⃣ msg91SenderId length:', settingsDoc?.smsConfig?.msg91SenderId?.length);
-    console.log('6️⃣ msg91SenderId JSON:', JSON.stringify(settingsDoc?.smsConfig?.msg91SenderId));
-    console.log('7️⃣ Full smsConfig:', JSON.stringify(settingsDoc?.smsConfig));
 
     if (settingsDoc && settingsDoc.smsConfig) {
       const smsConfig = settingsDoc.smsConfig;
-      console.log('8️⃣ BEFORE sending - msg91SenderId:', smsConfig.msg91SenderId);
-      
       const responseData = {
         success: true,
         data: smsConfig
       };
-      
-      console.log('9️⃣ RESPONSE data.msg91SenderId:', responseData.data.msg91SenderId);
-      console.log('� RESPONSE JSON:', JSON.stringify(responseData));
-      
+
       res.json(responseData);
     } else {
       // Return default configuration
@@ -363,8 +327,7 @@ router.get('/image/logo', async (req, res) => {
     
     if (settingsDoc && settingsDoc.generalConfig && settingsDoc.generalConfig.logoUrl) {
       const logoUrl = settingsDoc.generalConfig.logoUrl;
-      console.log('🎨 Serving logo from:', logoUrl.substring(0, 100) + '...');
-      
+
       try {
         // Fetch image from GCS (or other URL)
         const imageResponse = await axios.get(logoUrl, {
@@ -388,15 +351,12 @@ router.get('/image/logo', async (req, res) => {
         
         // Send the image buffer
         res.send(Buffer.from(imageResponse.data));
-        console.log('✅ Logo served successfully with CORS headers');
-        
       } catch (proxyError) {
         console.error('❌ Error fetching logo from URL:', proxyError.message);
         // Return 404 instead of error
         res.status(404).send('Logo not found or unavailable');
       }
     } else {
-      console.log('⚠️ No logo URL found in settings');
       // Return 404 for no logo
       res.status(404).send('Logo not configured');
     }
@@ -423,9 +383,6 @@ router.post('/sms', [authenticateToken], async (req, res) => {
       maxRetries,
       enabled
     } = req.body;
-
-    console.log('🔄 Saving SMS configuration...', req.body);
-
     const mongoose = require('mongoose');
     const db = mongoose.connection.db;
 
@@ -447,9 +404,6 @@ router.post('/sms', [authenticateToken], async (req, res) => {
       ...(maxRetries !== undefined && { maxRetries }),
       ...(enabled !== undefined && { enabled })
     };
-
-    console.log('💾 Merged SMS config:', smsConfig);
-
     // Update or create the SMS settings document using direct MongoDB
     const result = await db.collection('settings').findOneAndUpdate(
       { type: 'sms' },
@@ -464,9 +418,6 @@ router.post('/sms', [authenticateToken], async (req, res) => {
         returnDocument: 'after'
       }
     );
-
-    console.log('✅ SMS configuration saved successfully');
-
     res.json({
       success: true,
       message: 'SMS configuration saved successfully',
@@ -498,9 +449,6 @@ router.post('/firebase', [authenticateToken], async (req, res) => {
       appId,
       measurementId
     } = req.body;
-
-    console.log('🔄 Saving Firebase configuration...');
-
     const mongoose = require('mongoose');
     const db = mongoose.connection.db;
 
@@ -519,9 +467,6 @@ router.post('/firebase', [authenticateToken], async (req, res) => {
       ...(appId !== undefined && { appId }),
       ...(measurementId !== undefined && { measurementId })
     };
-
-    console.log('💾 Saving Firebase config to database');
-
     // Update or create the Firebase settings document
     await db.collection('settings').findOneAndUpdate(
       { type: 'firebase' },
@@ -536,9 +481,6 @@ router.post('/firebase', [authenticateToken], async (req, res) => {
         returnDocument: 'after'
       }
     );
-
-    console.log('✅ Firebase configuration saved successfully');
-
     res.json({
       success: true,
       message: 'Firebase configuration saved successfully',
@@ -569,9 +511,6 @@ router.post('/test-firebase', [authenticateToken], async (req, res) => {
       messagingSenderId,
       appId
     } = req.body;
-
-    console.log('🔥 Testing Firebase connection...');
-
     // Validate required fields
     if (!apiKey || !projectId || !storageBucket) {
       return res.status(400).json({
@@ -611,8 +550,6 @@ router.post('/test-firebase', [authenticateToken], async (req, res) => {
       if (data.error) {
         const errorCode = data.error.message;
         if (errorCode.includes('INVALID_ID_TOKEN') || errorCode.includes('INVALID_ARGUMENT')) {
-          console.log('✅ Firebase API key is valid and reachable');
-          
           return res.json({
             success: true,
             message: 'Firebase connection successful!',
@@ -634,7 +571,6 @@ router.post('/test-firebase', [authenticateToken], async (req, res) => {
       }
       
       // Unexpected response but API is reachable
-      console.log('✅ Firebase API is reachable');
       return res.json({
         success: true,
         message: 'Firebase connection successful!',
@@ -678,9 +614,6 @@ router.post('/mongodb', [authenticateToken], async (req, res) => {
       socketTimeoutMS,
       connectTimeoutMS
     } = req.body;
-
-    console.log('🔄 Saving MongoDB configuration...');
-
     const mongoose = require('mongoose');
     const db = mongoose.connection.db;
 
@@ -709,9 +642,6 @@ router.post('/mongodb', [authenticateToken], async (req, res) => {
         returnDocument: 'after'
       }
     );
-
-    console.log('✅ MongoDB configuration saved successfully');
-
     res.json({
       success: true,
       message: 'MongoDB configuration saved successfully',
@@ -739,9 +669,6 @@ router.post('/gcs', [authenticateToken], async (req, res) => {
       bucketName,
       credentials
     } = req.body;
-
-    console.log('🔄 Saving GCS configuration...');
-
     const mongoose = require('mongoose');
     const db = mongoose.connection.db;
 
@@ -768,9 +695,6 @@ router.post('/gcs', [authenticateToken], async (req, res) => {
         returnDocument: 'after'
       }
     );
-
-    console.log('✅ GCS configuration saved successfully');
-
     res.json({
       success: true,
       message: 'GCS configuration saved successfully',

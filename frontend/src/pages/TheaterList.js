@@ -7,18 +7,29 @@ import { ActionButton, ActionButtons } from '../components/ActionButton';
 import Pagination from '../components/Pagination';
 import { useModal } from '../contexts/ModalContext';
 import { clearTheaterCache, addCacheBuster } from '../utils/cacheManager';
+import { getImageSrc } from '../utils/globalImageCache'; // 🚀 Instant image loading
+import InstantImage from '../components/InstantImage';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import '../styles/TheaterList.css';
 import '../styles/QRManagementPage.css';
 
-// Lazy Loading Image Component
+// Lazy Loading Image Component WITH INSTANT CACHE
 const LazyImage = React.memo(({ src, alt, className, style, fallback = '/placeholder-theater.png' }) => {
-  const [imageSrc, setImageSrc] = useState(fallback);
-  const [isLoading, setIsLoading] = useState(true);
+  // 🚀 INSTANT: Check cache first synchronously
+  const cachedSrc = src ? getImageSrc(src) : fallback;
+  const [imageSrc, setImageSrc] = useState(cachedSrc || fallback);
+  const [isLoading, setIsLoading] = useState(!cachedSrc);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef(null);
 
   useEffect(() => {
+    // If already cached, no need for lazy loading
+    if (cachedSrc) {
+      setImageSrc(cachedSrc);
+      setIsLoading(false);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
@@ -45,7 +56,7 @@ const LazyImage = React.memo(({ src, alt, className, style, fallback = '/placeho
     }
 
     return () => observer.disconnect();
-  }, [src, fallback]);
+  }, [src, fallback, cachedSrc]);
 
   return (
     <div className="lazy-image-container" style={style}>
@@ -270,7 +281,7 @@ const TheaterList = () => {
 
   // Clear any cached data on component mount
   useEffect(() => {
-    console.log('🚀 TheaterList component mounted - clearing all caches');
+
     clearTheaterCache();
   }, []);
 
@@ -310,9 +321,7 @@ const TheaterList = () => {
       const baseUrl = `${config.api.baseUrl}/theaters?${params.toString()}`;
       const cacheBustedUrl = addCacheBuster(baseUrl);
       
-      console.log('🌐 Fetching theaters from:', cacheBustedUrl);
-      console.log('🔧 FIXED API URL - Using config.api.baseUrl:', config.api.baseUrl);
-      
+
       const response = await fetch(cacheBustedUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -341,10 +350,10 @@ const TheaterList = () => {
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('Request was cancelled');
+
         return;
       }
-      console.error('Error fetching theaters:', error);
+
       setError('Failed to load theaters');
     } finally {
       setLoading(false);
@@ -354,10 +363,7 @@ const TheaterList = () => {
   const handleDelete = useCallback(async (theaterId) => {
     try {
       const token = config.helpers.getAuthToken();
-      console.log('🔐 Delete Debug - Token exists:', !!token);
-      console.log('🎯 Delete Debug - Theater ID:', theaterId);
-      console.log('🌐 Delete Debug - API URL:', `${config.api.baseUrl}/theaters/${theaterId}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
         method: 'DELETE',
         headers: {
@@ -366,12 +372,10 @@ const TheaterList = () => {
         }
       });
 
-      console.log('📡 Delete Debug - Response status:', response.status);
-      console.log('📡 Delete Debug - Response ok:', response.ok);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Delete Debug - Error response:', errorText);
+
         throw new Error(`Failed to delete theater: ${response.status} ${errorText}`);
       }
 
@@ -382,7 +386,7 @@ const TheaterList = () => {
       );
       
       // CACHE INVALIDATION: Clear ALL theater-related cache aggressively
-      console.log('🧹 Clearing cache after theater deletion');
+
       clearTheaterCache();
       
       // Close modal and show success message
@@ -392,17 +396,15 @@ const TheaterList = () => {
       // Optional: Background refresh to ensure server consistency (no await to avoid blocking)
       setTimeout(() => {
         fetchTheaters().catch(error => {
-          console.warn('Background refresh after delete failed:', error);
-        });
+  });
       }, 100); // Small delay to ensure cache is cleared
     } catch (error) {
-      console.error('Error deleting theater:', error);
+
       modal.showError('Failed to delete theater');
     }
   }, [modal]);
 
-  const handleEditClick = useCallback((theater) => {
-    console.log('Theater data:', theater); // Debug log
+  const handleEditClick = useCallback((theater) => { // Debug log
     setEditFormData({
       theaterName: theater.name || '',
       ownerName: theater.ownerDetails?.name || '',
@@ -512,7 +514,7 @@ const TheaterList = () => {
       link.click();
       document.body.removeChild(link);
     } catch (error) {
-      console.error('Error downloading file:', error);
+
       modal.showError('Failed to download file');
     }
   }, [modal]);
@@ -546,7 +548,7 @@ const TheaterList = () => {
       
       return result.fileUrl || result.url;
     } catch (error) {
-      console.error(`Error uploading ${fileType}:`, error);
+
       setUploadProgress(prev => ({ ...prev, [fileType]: null }));
       throw error;
     }
@@ -574,9 +576,7 @@ const TheaterList = () => {
         if (uploadFiles[fileType]) {
           formData.append(fileType, uploadFiles[fileType]);
         }
-      }
-
-      console.log('Sending update with FormData'); // Debug log
+      } // Debug log
 
       const response = await fetch(`${config.api.baseUrl}/theaters/${editModal.theater._id}`, {
         method: 'PUT',
@@ -585,22 +585,18 @@ const TheaterList = () => {
           ...config.helpers.getAuthToken() ? { 'Authorization': `Bearer ${config.helpers.getAuthToken()}` } : {}
         },
         body: formData
-      });
-
-      console.log('Response status:', response.status); // Debug log
+      }); // Debug log
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('API Error:', errorData);
+
         throw new Error('Failed to update theater');
       }
 
-      const responseData = await response.json();
-      console.log('API Response:', responseData); // Debug log
+      const responseData = await response.json(); // Debug log
       
       // Handle different response formats
-      const updatedTheater = responseData.data || responseData;
-      console.log('Updated theater data:', updatedTheater); // Debug log
+      const updatedTheater = responseData.data || responseData; // Debug log
       
       // First, update the local state immediately for instant feedback
       setTheaters(prevTheaters => 
@@ -633,11 +629,11 @@ const TheaterList = () => {
       
       // Optional: Background refresh for data consistency (no await to avoid blocking)
       fetchTheaters().catch(error => {
-        console.warn('Background refresh failed:', error);
+
         // No user-facing error since local update already succeeded
       });
     } catch (error) {
-      console.error('Error updating theater:', error);
+
       modal.showError('Failed to update theater');
     }
   };
@@ -660,7 +656,7 @@ const TheaterList = () => {
       // Refresh the current page to get updated data
       fetchTheaters();
     } catch (error) {
-      console.error('Error updating theater status:', error);
+
       modal.showError('Failed to update theater status');
     }
   };
@@ -996,8 +992,7 @@ const TheaterList = () => {
                         <ActionButtons>
                           <ActionButton 
                             type="view"
-                            onClick={() => {
-                              console.log('View theater data:', theater); // Debug log
+                            onClick={() => { // Debug log
                               handleViewClick(theater);
                             }}
                             title="View Theater Details"
@@ -1184,10 +1179,11 @@ const TheaterList = () => {
                     <div className="form-group">
                       <label>Theater Logo</label>
                       <div className="logo-preview-container">
-                        <img 
+                        <InstantImage 
                           src={viewModal.theater.documents?.logo || viewModal.theater.branding?.logo || viewModal.theater.branding?.logoUrl} 
                           alt="Theater Logo" 
                           className="theater-logo-preview"
+                          loading="eager"
                           style={{width: '120px', height: '120px', objectFit: 'contain', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px'}}
                         />
                       </div>
@@ -1205,10 +1201,11 @@ const TheaterList = () => {
                         <div className="document-item">
                           <label>Theater Photo</label>
                           <div className="document-preview">
-                            <img 
+                            <InstantImage 
                               src={viewModal.theater.documents.theaterPhoto} 
                               alt="Theater Photo"
                               className="document-image"
+                              loading="eager"
                               onError={(e) => {
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'block';
@@ -1235,10 +1232,11 @@ const TheaterList = () => {
                         <div className="document-item">
                           <label>Theater Logo</label>
                           <div className="document-preview">
-                            <img 
+                            <InstantImage 
                               src={viewModal.theater.documents?.logo || viewModal.theater.branding?.logo || viewModal.theater.branding?.logoUrl} 
                               alt="Theater Logo"
                               className="document-image"
+                              loading="eager"
                               onError={(e) => {
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'block';
@@ -1265,7 +1263,7 @@ const TheaterList = () => {
                         <div className="document-item">
                           <label>Aadhar Card</label>
                           <div className="document-preview">
-                            <img 
+                            <InstantImage 
                               src={viewModal.theater.documents.aadharCard} 
                               alt="Aadhar Card"
                               className="document-image"
@@ -1295,7 +1293,7 @@ const TheaterList = () => {
                         <div className="document-item">
                           <label>PAN Card</label>
                           <div className="document-preview">
-                            <img 
+                            <InstantImage 
                               src={viewModal.theater.documents.panCard} 
                               alt="PAN Card"
                               className="document-image"
@@ -1328,7 +1326,7 @@ const TheaterList = () => {
                         <div className="document-item">
                           <label>GST Certificate</label>
                           <div className="document-preview">
-                            <img 
+                            <InstantImage 
                               src={viewModal.theater.documents.gstCertificate} 
                               alt="GST Certificate"
                               className="document-image"
@@ -1361,7 +1359,7 @@ const TheaterList = () => {
                         <div className="document-item">
                           <label>FSSAI Certificate</label>
                           <div className="document-preview">
-                            <img 
+                            <InstantImage 
                               src={viewModal.theater.documents.fssaiCertificate} 
                               alt="FSSAI Certificate"
                               className="document-image"
@@ -1394,7 +1392,7 @@ const TheaterList = () => {
                         <div className="document-item">
                           <label>Agreement Copy</label>
                           <div className="document-preview">
-                            <img 
+                            <InstantImage 
                               src={viewModal.theater.documents.agreementCopy} 
                               alt="Agreement Copy"
                               className="document-image"
@@ -1567,7 +1565,7 @@ const TheaterList = () => {
                       <div className="upload-preview-section">
                         {uploadFiles.theaterPhoto ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={URL.createObjectURL(uploadFiles.theaterPhoto)} 
                               alt="Theater Photo"
                               className="preview-image"
@@ -1588,7 +1586,7 @@ const TheaterList = () => {
                           </div>
                         ) : editModal.theater?.documents?.theaterPhoto ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={editModal.theater.documents.theaterPhoto} 
                               alt="Theater Photo"
                               className="preview-image"
@@ -1637,7 +1635,7 @@ const TheaterList = () => {
                       <div className="upload-preview-section">
                         {uploadFiles.logo ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={URL.createObjectURL(uploadFiles.logo)} 
                               alt="Theater Logo"
                               className="preview-image"
@@ -1658,7 +1656,7 @@ const TheaterList = () => {
                           </div>
                         ) : (editModal.theater?.documents?.logo || editModal.theater?.branding?.logo || editModal.theater?.branding?.logoUrl) ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl} 
                               alt="Theater Logo"
                               className="preview-image"
@@ -1707,7 +1705,7 @@ const TheaterList = () => {
                       <div className="upload-preview-section">
                         {uploadFiles.aadharCard ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={URL.createObjectURL(uploadFiles.aadharCard)} 
                               alt="Aadhar Card"
                               className="preview-image"
@@ -1728,7 +1726,7 @@ const TheaterList = () => {
                           </div>
                         ) : editModal.theater?.documents?.aadharCard ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={editModal.theater.documents.aadharCard} 
                               alt="Aadhar Card"
                               className="preview-image"
@@ -1777,7 +1775,7 @@ const TheaterList = () => {
                       <div className="upload-preview-section">
                         {uploadFiles.panCard ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={URL.createObjectURL(uploadFiles.panCard)} 
                               alt="PAN Card"
                               className="preview-image"
@@ -1798,7 +1796,7 @@ const TheaterList = () => {
                           </div>
                         ) : editModal.theater?.documents?.panCard ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={editModal.theater.documents.panCard} 
                               alt="PAN Card"
                               className="preview-image"
@@ -1847,7 +1845,7 @@ const TheaterList = () => {
                       <div className="upload-preview-section">
                         {uploadFiles.gstCertificate ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={URL.createObjectURL(uploadFiles.gstCertificate)} 
                               alt="GST Certificate"
                               className="preview-image"
@@ -1868,7 +1866,7 @@ const TheaterList = () => {
                           </div>
                         ) : editModal.theater?.documents?.gstCertificate ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={editModal.theater.documents.gstCertificate} 
                               alt="GST Certificate"
                               className="preview-image"
@@ -1917,7 +1915,7 @@ const TheaterList = () => {
                       <div className="upload-preview-section">
                         {uploadFiles.fssaiCertificate ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={URL.createObjectURL(uploadFiles.fssaiCertificate)} 
                               alt="FSSAI Certificate"
                               className="preview-image"
@@ -1938,7 +1936,7 @@ const TheaterList = () => {
                           </div>
                         ) : editModal.theater?.documents?.fssaiCertificate ? (
                           <div className="current-file-preview">
-                            <img 
+                            <InstantImage 
                               src={editModal.theater.documents.fssaiCertificate} 
                               alt="FSSAI Certificate"
                               className="preview-image"
@@ -2004,7 +2002,7 @@ const TheaterList = () => {
                               </div>
                             ) : (
                               <>
-                                <img 
+                                <InstantImage 
                                   src={URL.createObjectURL(uploadFiles.agreementCopy)} 
                                   alt="Agreement Copy"
                                   className="preview-image"
@@ -2044,7 +2042,7 @@ const TheaterList = () => {
                               </div>
                             ) : (
                               <>
-                                <img 
+                                <InstantImage 
                                   src={editModal.theater.documents.agreementCopy} 
                                   alt="Agreement Copy"
                                   className="preview-image"

@@ -183,8 +183,7 @@ const RoleManagementList = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
       
-      console.log('🌐 Fetching theaters for role management from:', `${config.api.baseUrl}/theaters?${params.toString()}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theaters?${params.toString()}`, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -202,7 +201,7 @@ const RoleManagementList = () => {
       
       // Update state with active theaters only
       const activeTheaters = result.data || [];
-      console.log('🎭 Theater data received:', activeTheaters);
+
       setTheaters(activeTheaters);
       
       // Update pagination
@@ -213,10 +212,10 @@ const RoleManagementList = () => {
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('Request was cancelled');
+
         return;
       }
-      console.error('Error fetching theaters for role management:', error);
+
       setError('Failed to load theaters for role management');
     } finally {
       setLoading(false);

@@ -90,8 +90,7 @@ const HeaderButton = React.memo(({ theaterId }) => {
 
 const AddProduct = React.memo(() => {
   // 🔥🔥🔥 SIMPLE TEST - IF YOU DON'T SEE THIS, FILE NOT LOADING 🔥🔥🔥
-  console.log('🔥🔥🔥 AddProduct.js FILE IS LOADING - TIMESTAMP:', new Date().toISOString());
-  
+
   const { theaterId: urlTheaterId } = useParams();
   const { theaterId: authTheaterId, userType, user, isLoading: authLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -105,22 +104,12 @@ const AddProduct = React.memo(() => {
   if (!effectiveTheaterId && user) {
     if (user.assignedTheater) {
       effectiveTheaterId = user.assignedTheater._id || user.assignedTheater;
-      console.log('🔍 Found theater ID in user.assignedTheater:', effectiveTheaterId);
-    } else if (user.theater) {
+  } else if (user.theater) {
       effectiveTheaterId = user.theater._id || user.theater;
-      console.log('🔍 Found theater ID in user.theater:', effectiveTheaterId);
-    }
+  }
   }
   
-  console.log('🎭 AddProduct - Theater ID Resolution:', {
-    urlTheaterId,
-    authTheaterId,
-    effectiveTheaterId,
-    userType,
-    userTheater: user?.theater?._id,
-    assignedTheater: user?.assignedTheater?._id
-  });
-  
+
   const theaterId = effectiveTheaterId;
 
 
@@ -153,6 +142,7 @@ const AddProduct = React.memo(() => {
     // Basic Information
     name: '',
     category: '',
+    kioskType: '',
     quantity: '',
     description: '',
     productCode: '',
@@ -189,6 +179,10 @@ const AddProduct = React.memo(() => {
   // Categories dropdown state
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+
+  // Kiosk Types dropdown state
+  const [kioskTypes, setKioskTypes] = useState([]);
+  const [loadingKioskTypes, setLoadingKioskTypes] = useState(false);
 
   // Existing products state - to filter dropdown
   const [existingProducts, setExistingProducts] = useState([]);
@@ -229,9 +223,6 @@ const AddProduct = React.memo(() => {
 
   // Load initial data on component mount
   useEffect(() => {
-    // 🔥🔥🔥 IMPOSSIBLE TO MISS TEST 🔥🔥🔥
-    console.log('%c🔥🔥🔥 useEffect RUNNING - PAGE LOADED 🔥🔥🔥', 'background: red; color: white; font-size: 20px; padding: 10px;');
-    
     // SIMPLIFIED: Just check if we have theater ID and try to load
     if (!theaterId) {
       return;
@@ -259,16 +250,15 @@ const AddProduct = React.memo(() => {
       try {
         // Step 1: Load existing products first and get the array
         const existingProductsArray = await loadExistingProducts();
-        console.log('✅ Existing products loaded:', existingProductsArray.length);
-        
+
         // Step 2: Load product names with the existing products array for filtering
         await loadProductNames(existingProductsArray);
         
-        // Step 3: Load categories in parallel (doesn't depend on filtering)
+        // Step 3: Load categories and kiosk types in parallel (doesn't depend on filtering)
         loadCategories();
+        loadKioskTypes();
       } catch (error) {
-        console.error('Error loading initial data:', error);
-      }
+  }
     };
     
     loadInitialData();
@@ -288,50 +278,39 @@ const AddProduct = React.memo(() => {
   const loadExistingProducts = useCallback(async () => {
     if (!theaterId) return [];
 
-    console.log('🚀 loadExistingProducts CALLED for theaterId:', theaterId);
 
     try {
       const timestamp = Date.now();
       const response = await fetch(config.helpers.getApiUrl(`/theater-products/${theaterId}?limit=100&_t=${timestamp}`));
 
       if (!response.ok) {
-        console.error('Failed to fetch existing products:', response.status);
+
         return [];
       }
 
       const data = await response.json();
-      console.log('📦 Raw API response for existing products:', data);
-      
+
       if (data.success && data.data?.products) {
         const products = data.data.products;
         setExistingProducts(products);
-        console.log('✅ Loaded existing products:', products.length);
-        console.log('🔍 Existing products details:');
+
         products.forEach((p, index) => {
-          console.log(`  ${index + 1}. Name: "${p.name}", SKU: "${p.sku}", Quantity: ${p.inventory?.currentStock}`);
-        });
+  });
         return products; // Return the products array
       }
-      console.warn('⚠️ No products found in response');
+
       return [];
     } catch (error) {
-      console.error('❌ Error loading existing products:', error);
+
       return [];
     }
   }, [theaterId]);
 
   // Function to load active product names for dropdown (ALWAYS FRESH DATA)
   const loadProductNames = useCallback(async (existingProductsArray = null) => {
-    console.log('🚨🚨🚨 loadProductNames STARTING - TIMESTAMP:', new Date().toISOString());
-    
+
     if (!theaterId) return;
 
-    console.log('🎯 ===========================================');
-    console.log('🎯 loadProductNames CALLED');
-    console.log('🎯 Theater ID:', theaterId);
-    console.log('🎯 existingProductsArray param:', existingProductsArray);
-    console.log('🎯 existingProducts state:', existingProducts);
-    console.log('🎯 ===========================================');
 
     setLoadingProductNames(true);
 
@@ -341,21 +320,18 @@ const AddProduct = React.memo(() => {
       const response = await fetch(config.helpers.getApiUrl(`/theater-product-types/${theaterId}?_t=${timestamp}`));
 
       if (!response.ok) {
-        console.error('Failed to fetch product names:', response.status);
+
         throw new Error(`Failed to fetch product names: ${response.status}`);
       }
 
       const data = await response.json();
       
-      console.log('🔍 API Response:', data);
-      console.log('🔍 Raw API data.data:', data.data);
-      
+
       // FIXED: Backend returns data directly as array, not data.data.productTypes
       if (data.success && data.data) {
-        console.log('🔍 ProductTypes from API (BEFORE filtering):');
+
         data.data.forEach((pt, index) => {
-          console.log(`  ${index + 1}. Name: "${pt.productName}", Code: "${pt.productCode}", Quantity: ${pt.quantity}, IsActive: ${pt.isActive}`);
-        });
+  });
         
         let activeProductNames = data.data
           .filter(type => type.isActive && type.productName && type.productName.trim())
@@ -370,48 +346,37 @@ const AddProduct = React.memo(() => {
         // Filter out product names that are already added
         // SIMPLE RULE: If a product with the same name and code exists, don't show it in dropdown
         const productsToCheck = existingProductsArray || existingProducts;
-        console.log('🔍 Filtering against existing products:', productsToCheck.length);
-        console.log('🔍 Existing product names:');
+
         productsToCheck.forEach((p, index) => {
-          console.log(`  ${index + 1}. "${p.name}" (SKU: "${p.sku}")`);
-        });
+  });
         
-        console.log('\n🔍 Starting filtering process:');
+
         activeProductNames = activeProductNames.filter(productType => {
-          console.log(`\n  Checking ProductType: "${productType.name}" (Code: "${productType.code}")`);
-          
+
           // Check if this ProductType already exists in the product list
           const isAlreadyAdded = productsToCheck.some(existingProduct => {
             // Case-insensitive comparison for name and code
             const nameMatch = existingProduct.name.toLowerCase().trim() === productType.name.toLowerCase().trim();
             const codeMatch = (existingProduct.sku || '').toLowerCase().trim() === (productType.code || '').toLowerCase().trim();
             
-            console.log(`    vs Existing: "${existingProduct.name}" (SKU: "${existingProduct.sku}")`);
-            console.log(`      Name match: ${nameMatch} ("${existingProduct.name.toLowerCase().trim()}" === "${productType.name.toLowerCase().trim()}")`);
-            console.log(`      Code match: ${codeMatch} ("${(existingProduct.sku || '').toLowerCase().trim()}" === "${(productType.code || '').toLowerCase().trim()}")`);
-            
+
             // Product exists if BOTH name AND code match
             const isDuplicate = nameMatch && codeMatch;
             
             if (isDuplicate) {
-              console.log(`    ✅ MATCH FOUND! This is a duplicate.`);
-            }
+  }
             
             return isDuplicate;
           });
           
           if (isAlreadyAdded) {
-            console.log(`  🚫 FILTERING OUT "${productType.name}" - already exists`);
-          } else {
-            console.log(`  ✅ KEEPING "${productType.name}" - not a duplicate`);
-          }
+  } else {
+  }
           
           return !isAlreadyAdded;
         });
         
-        console.log('🔍 Product Names After Filtering:', activeProductNames.length);
-        console.log('🔍 QUANTITY DEBUG - Product Names Loaded:', activeProductNames);
-        
+
         // Expose to window for debugging
         window.productNamesDebug = activeProductNames;
         
@@ -438,14 +403,13 @@ const AddProduct = React.memo(() => {
       const response = await fetch(config.helpers.getApiUrl(`/theater-categories/${theaterId}?limit=100&_t=${timestamp}`));
 
       if (!response.ok) {
-        console.error('Failed to fetch categories:', response.status);
+
         throw new Error(`Failed to fetch categories: ${response.status}`);
       }
 
       const data = await response.json();
       
-      console.log('🔍 Categories API Response:', data);
-      
+
       // FIXED: Backend returns data.categories (nested structure)
       if (data.success && data.data?.categories) {
         const activeCategories = data.data.categories
@@ -464,6 +428,41 @@ const AddProduct = React.memo(() => {
       setCategories([]);
     } finally {
       setLoadingCategories(false);
+    }
+  }, [theaterId]);
+
+  // Function to load active kiosk types for dropdown
+  const loadKioskTypes = useCallback(async () => {
+    if (!theaterId) return;
+
+    setLoadingKioskTypes(true);
+
+    try {
+      const timestamp = Date.now();
+      const response = await fetch(config.helpers.getApiUrl(`/theater-kiosk-types/${theaterId}?limit=100&_t=${timestamp}`));
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch kiosk types: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.data?.kioskTypes) {
+        const activeKioskTypes = data.data.kioskTypes
+          .filter(kt => kt.isActive && kt.name && kt.name.trim())
+          .map(kt => ({
+            id: kt._id,
+            name: kt.name.trim()
+          }));
+        
+        setKioskTypes(activeKioskTypes);
+      } else {
+        setKioskTypes([]);
+      }
+    } catch (error) {
+      setKioskTypes([]);
+    } finally {
+      setLoadingKioskTypes(false);
     }
   }, [theaterId]);
 
@@ -515,12 +514,6 @@ const AddProduct = React.memo(() => {
     const validFieldsCount = fieldValidation.filter(f => !f.isEmpty && f.isValid).length;
 
     // Show detailed field status for debugging
-    console.log('🔍 Form Validation Status:', {
-      fieldValidation,
-      hasAllRequired,
-      actualErrorCount,
-      validFieldsCount
-    });
 
     return {
       isValid: hasAllRequired && actualErrorCount === 0,
@@ -633,19 +626,13 @@ const AddProduct = React.memo(() => {
         const mockEvent = {
           target: { name: 'name', value: testProductName, type: 'text' }
         };
-        console.log('Simulating handleInputChange with:', mockEvent);
+
         handleInputChange(mockEvent);
       }
     };
 
     window.inspectCurrentState = () => {
-      console.log('\n🔍 CURRENT STATE INSPECTION:');
-      console.log('formData:', formData);
-      console.log('isQuantityDisabled:', isQuantityDisabled);
-      console.log('isProductCodeDisabled:', isProductCodeDisabled);
-      console.log('productNames:', productNames);
-      console.log('errors:', errors);
-    };
+  };
 
     // Clear specific field error when user starts typing
     if (errors[name]) {
@@ -853,8 +840,7 @@ const AddProduct = React.memo(() => {
   
       // Return the GCS public URL instead of local path
       return data.data.publicUrl;
-
-    } catch (error) {
+  } catch (error) {
       setUploadProgress(prev => ({ ...prev, [fieldName]: -1 }));
 
       // Show user-friendly error message
@@ -893,12 +879,10 @@ const AddProduct = React.memo(() => {
       if (isImageFromProductType && productImage) {
         // Use auto-filled image from ProductType
         finalImageUrl = productImage;
-        console.log('🖼️ Using auto-filled image:', finalImageUrl);
-      } else if (files.productImage) {
+  } else if (files.productImage) {
         // Upload new image file
         finalImageUrl = await uploadFile(files.productImage, 'productImage');
-        console.log('🖼️ Using uploaded image:', finalImageUrl);
-      }
+  }
 
       // Find the selected ProductType to get its ID for proper referencing
       const selectedProduct = productNames.find(product => product.name === formData.name);
@@ -947,10 +931,6 @@ const AddProduct = React.memo(() => {
         }
       }
 
-      console.log('🔗 Sending Product Data:', JSON.stringify(productData, null, 2));
-      console.log('🔗 ProductType ID:', selectedProduct ? selectedProduct.id : 'NO REFERENCE');
-      console.log('🔗 Category ID:', selectedCategory.id);
-
 
       // Submit product data with abort controller
       abortControllerRef.current = new AbortController();
@@ -976,6 +956,7 @@ const AddProduct = React.memo(() => {
       setFormData({
         name: '',
         category: '',
+        kioskType: '',
         quantity: '',
         description: '',
         productCode: '',
@@ -1004,8 +985,7 @@ const AddProduct = React.memo(() => {
         show: true, 
         message: 'Product added successfully!' 
       });
-
-    } catch (error) {
+  } catch (error) {
       if (error.name === 'AbortError') {
         return;
       }
@@ -1029,19 +1009,19 @@ const AddProduct = React.memo(() => {
     if (hasChanges) {
       setUnsavedChangesModal({ show: true });
     } else {
-      navigate(`/theater-dashboard/${theaterId}`);
+      navigate(`/theater-products/${theaterId}`);
     }
   }, [formData, files, navigate, theaterId]);
 
   // Professional Modal Handlers - Following Delete Modal Pattern
   const handleConfirmUnsavedChanges = useCallback(() => {
     setUnsavedChangesModal({ show: false });
-    navigate(`/theater-dashboard/${theaterId}`);
+    navigate(`/theater-products/${theaterId}`);
   }, [navigate, theaterId]);
 
   const handleSuccessModalClose = useCallback(() => {
     setSuccessModal({ show: false, message: '' });
-    navigate(`/theater-dashboard/${theaterId}`);
+    navigate(`/theater-products/${theaterId}`);
   }, [navigate, theaterId]);
 
   const headerButton = <HeaderButton theaterId={theaterId} />;
@@ -1088,7 +1068,7 @@ const AddProduct = React.memo(() => {
                     <button
                       type="button"
                       onClick={async () => {
-                        console.log('🔄 Refreshing product data...');
+
                         setRefreshStatus('Refreshing...');
                         try {
                           const existingProductsArray = await loadExistingProducts(); // Load existing products first
@@ -1179,6 +1159,36 @@ const AddProduct = React.memo(() => {
                     {categories.map((category) => (
                       <option key={category.id} value={category.name}>
                         {category.name} {category.description ? `- ${category.description}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="kioskType">Kiosk Type</label>
+                  <select
+                    id="kioskType"
+                    name="kioskType"
+                    value={formData.kioskType}
+                    onChange={handleInputChange}
+                    className="form-control"
+                    style={{
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'none',
+                      backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '20px',
+                      paddingRight: '45px'
+                    }}
+                  >
+                    <option value="">
+                      {loadingKioskTypes ? 'Loading kiosk types...' : 'Select kiosk type...'}
+                    </option>
+                    {kioskTypes.map((kioskType) => (
+                      <option key={kioskType.id} value={kioskType.id}>
+                        {kioskType.name}
                       </option>
                     ))}
                   </select>
@@ -1309,13 +1319,14 @@ const AddProduct = React.memo(() => {
 
 
                 <div className="form-group">
-                  <label htmlFor="gstType">GST Type</label>
+                  <label htmlFor="gstType">GST Type *</label>
                   <select
                     id="gstType"
                     name="gstType"
                     value={formData.gstType}
                     onChange={handleInputChange}
                     className="form-control"
+                    required
                     style={{
                       appearance: 'none',
                       WebkitAppearance: 'none',
@@ -1334,7 +1345,7 @@ const AddProduct = React.memo(() => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="taxRate">Tax Rate (%)</label>
+                  <label htmlFor="taxRate">Tax Rate (%) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1346,6 +1357,7 @@ const AddProduct = React.memo(() => {
                     onChange={handleInputChange}
                     className="form-control"
                     placeholder="Enter tax rate percentage"
+                    required
                   />
                 </div>
 
@@ -1461,7 +1473,7 @@ const AddProduct = React.memo(() => {
                         objectFit: 'cover'
                       }}
                       onError={(e) => {
-                        console.error('🖼️ Auto-filled image failed to load:', productImage);
+
                         e.target.style.display = 'none';
                       }}
                     />

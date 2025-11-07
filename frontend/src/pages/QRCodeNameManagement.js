@@ -162,12 +162,10 @@ const QRCodeNameManagement = () => {
     
     try {
       setTheaterLoading(true);
-      console.log('🎭 Loading theater data for theaterId:', theaterId);
-      
+
       // Use config.helpers.getApiUrl to get the correct backend URL
       const apiUrl = config.helpers.getApiUrl(`/theaters/${theaterId}`);
-      console.log('🌐 Theater API URL:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
@@ -177,26 +175,23 @@ const QRCodeNameManagement = () => {
         }
       });
       
-      console.log('🎭 Theater API response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch theater data: ${response.status}`);
       }
       
       const result = await response.json();
-      console.log('🎭 Theater API response data:', result);
-      
+
       if (result.success) {
         // Backend returns theater data under 'theater' key, not 'data'
         const theaterData = result.theater || result.data;
-        console.log('✅ Theater loaded successfully:', theaterData);
-        console.log('🎭 Theater name:', theaterData?.name);
+
         setTheater(theaterData);
       } else {
         throw new Error(result.message || 'Failed to load theater');
       }
     } catch (error) {
-      console.error('Error loading theater:', error);
+
       setError('Failed to load theater details');
     } finally {
       setTheaterLoading(false);
@@ -225,8 +220,7 @@ const QRCodeNameManagement = () => {
       // Add theater filter if theaterId is present
       if (theaterId) {
         params.append('theaterId', theaterId);
-        console.log('🔍 Fetching QR names for theater ID:', theaterId);
-      }
+  }
       
       if (debouncedSearchTerm.trim()) {
         params.append('q', debouncedSearchTerm.trim());
@@ -234,9 +228,7 @@ const QRCodeNameManagement = () => {
       
       // PERFORMANCE OPTIMIZATION: Use config helper to get full API URL
       const apiUrl = config.helpers.getApiUrl(`/qrcodenames?${params.toString()}`);
-      console.log('🌐 API URL:', apiUrl);
-      
-      
+
       const response = await fetch(apiUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -247,19 +239,17 @@ const QRCodeNameManagement = () => {
         }
       });
       
-      console.log('📡 Response status:', response.status);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch QR code name data');
       }
       
       const data = await response.json();
-      console.log('📊 QR Names API Response:', data);
-      
+
       if (data.success) {
         // PERFORMANCE OPTIMIZATION: Direct state update without expensive comparison
         const newData = data.data?.qrCodeNames || [];
-        console.log('📋 QR Names found:', newData.length);
+
         setQRCodeNames(newData);
         
         // PERFORMANCE OPTIMIZATION: Batch pagination state updates
@@ -283,10 +273,10 @@ const QRCodeNameManagement = () => {
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('QR code name request was cancelled');
+
         return;
       }
-      console.error('❌ QR Names API Error:', error);
+
       setError('Failed to load QR code name data');
     } finally {
       setLoading(false);
@@ -354,7 +344,7 @@ const QRCodeNameManagement = () => {
       // Show simple delete modal instead of confirm dialog
       setDeleteModal({ show: true, qrCodeName });
     } catch (error) {
-      console.error('❌ Delete error:', error);
+
       showError('Failed to prepare delete action. Please try again.');
     }
   };
@@ -364,10 +354,7 @@ const QRCodeNameManagement = () => {
       const token = config.helpers.getAuthToken();
       const qrCodeName = deleteModal.qrCodeName;
 
-      console.log('🗑️ Deleting QR Code Name:', qrCodeName._id);
-      console.log('🔗 DELETE URL:', `${config.api.baseUrl}/qrcodenames/${qrCodeName._id}?permanent=true`);
-      console.log('🔑 Token:', token ? 'Present' : 'Missing');
-      
+
       const response = await fetch(`${config.api.baseUrl}/qrcodenames/${qrCodeName._id}?permanent=true`, {
         method: 'DELETE',
         headers: {
@@ -376,18 +363,16 @@ const QRCodeNameManagement = () => {
         }
       });
       
-      console.log('📡 DELETE response:', response.status, response.statusText);
-      
+
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Delete successful:', data);
+
         setDeleteModal({ show: false, qrCodeName: null });
         showSuccess('QR Code Name deleted successfully!');
         loadQRCodeNameData(); // Refresh the list
       } else {
         const errorData = await response.json();
-        console.error('❌ Delete failed:', errorData);
-        
+
         // Enhanced error handling for array-based operations
         if (errorData.message && errorData.message.includes('Theater QR names not found')) {
           showError('Theater not found. Please refresh the page and try again.');
@@ -399,7 +384,7 @@ const QRCodeNameManagement = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Delete error:', error);
+
       showError('Failed to delete QR code name. Please try again.');
     }
   };
@@ -412,8 +397,7 @@ const QRCodeNameManagement = () => {
         return;
       }
 
-      console.log(isEdit ? '📝 Updating QR Code Name' : '➕ Creating QR Code Name');
-      
+
         if (!theaterId && !isEdit) {
           showError('Theater ID is required for creating QR code names. Please navigate from the theater list.');
           return;
@@ -433,9 +417,7 @@ const QRCodeNameManagement = () => {
         ...(theaterId && { theaterId }) // Add theater field if theaterId exists
       };
       
-      console.log('📤 Request URL:', url);
-      console.log('📄 Data:', qrCodeNameData);
-      
+
       const response = await fetch(url, {
         method,
         headers: {
@@ -445,13 +427,10 @@ const QRCodeNameManagement = () => {
         body: JSON.stringify(qrCodeNameData)
       });
       
-      console.log('📡 Response:', response.status);
-      console.log('📡 Response Headers:', response.headers);
-      console.log('📡 Response URL:', response.url);
-      
+
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Success:', result);
+
         showSuccess(isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!');
         setShowCreateModal(false);
         setShowEditModal(false);
@@ -464,11 +443,7 @@ const QRCodeNameManagement = () => {
         });
       } else {
         const errorData = await response.json().catch(() => ({ message: 'No error details available' }));
-        console.error('❌ Save failed - Status:', response.status);
-        console.error('❌ Save failed - Status Text:', response.statusText);
-        console.error('❌ Save failed - Error Data:', errorData);
-        console.error('❌ Save failed - Response URL:', response.url);
-        
+
         // Enhanced error handling for array-based operations
         if (errorData.message && errorData.message.includes('Theater QR names not found')) {
           showError('Theater not found. Please refresh the page and try again.');
@@ -481,11 +456,7 @@ const QRCodeNameManagement = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Exception during CRUD operation:');
-      console.error('❌ Error Type:', error.name);
-      console.error('❌ Error Message:', error.message);
-      console.error('❌ Error Stack:', error.stack);
-      console.error('❌ Full Error Object:', error);
+
       showError('An error occurred while saving the QR Code Name. Check console for details.');
     }
   };

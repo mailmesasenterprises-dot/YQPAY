@@ -19,13 +19,32 @@ const stockDetailSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // NEW: Day-by-day tracking
+  carryForward: {
+    type: Number,
+    default: 0,
+    comment: 'Opening balance from previous day'
+  },
+  expiredOldStock: {
+    type: Number,
+    default: 0,
+    comment: 'Stock from previous days that expired today'
+  },
   usedStock: {
     type: Number,
     default: 0
   },
+  // NEW: Track when stock was used (for month-based filtering)
+  usageHistory: [{
+    year: Number,
+    month: Number,
+    quantity: Number,
+    orderDate: Date
+  }],
   expiredStock: {
     type: Number,
-    default: 0
+    default: 0,
+    comment: 'Today added stock that expired'
   },
   damageStock: {
     type: Number,
@@ -33,7 +52,8 @@ const stockDetailSchema = new mongoose.Schema({
   },
   balance: {
     type: Number,
-    required: true
+    required: true,
+    comment: 'Closing balance for this day'
   },
   expireDate: Date,
   batchNumber: String,
@@ -96,6 +116,11 @@ const monthlyStockSchema = new mongoose.Schema({
   },
   // Expired stock from carry forward (previous months' stock that expired this month)
   expiredCarryForwardStock: {
+    type: Number,
+    default: 0
+  },
+  // NEW: Used stock from carry forward (previous months' stock that was sold this month)
+  usedCarryForwardStock: {
     type: Number,
     default: 0
   },
@@ -200,14 +225,12 @@ monthlyStockSchema.statics.getOrCreateMonthlyDoc = async function(theaterId, pro
     // ✅ FIX: Update carryForward if it has changed and document has no entries yet
     // This handles the case where previous month's data was added after this month's document was created
     if (doc.stockDetails.length === 0 && doc.carryForward !== carryForward) {
-      console.log(`📝 Updating carryForward for ${month} ${year}: ${doc.carryForward} → ${carryForward}`);
       doc.carryForward = carryForward;
       doc.closingBalance = carryForward;
       await doc.save();
     }
     // ✅ FIX: If document has entries, recalculate all balances if carryForward changed
     else if (doc.stockDetails.length > 0 && doc.carryForward !== carryForward) {
-      console.log(`🔄 Recalculating balances for ${month} ${year}: carryForward changed from ${doc.carryForward} to ${carryForward}`);
       doc.carryForward = carryForward;
       
       // Recalculate all entry balances from the beginning

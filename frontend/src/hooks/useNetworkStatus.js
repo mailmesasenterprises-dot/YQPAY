@@ -13,13 +13,13 @@ export const useNetworkStatus = () => {
   // Check if the browser reports being online
   useEffect(() => {
     const handleOnline = () => {
-      console.log('🌐 Browser detected: ONLINE');
+
       setIsOnline(true);
       checkApiAvailability(); // Verify API when coming back online
     };
 
     const handleOffline = () => {
-      console.log('🌐 Browser detected: OFFLINE');
+
       setIsOnline(false);
       setIsApiAvailable(false);
     };
@@ -47,7 +47,6 @@ export const useNetworkStatus = () => {
 
       // Use the dynamic config.api.baseUrl which auto-detects the hostname
       const apiUrl = `${config.api.baseUrl}/settings/general`;
-      console.log('🔌 Checking API availability at:', apiUrl);
 
       const response = await fetch(apiUrl, {
         method: 'HEAD', // Use HEAD to minimize data transfer
@@ -61,10 +60,10 @@ export const useNetworkStatus = () => {
       setIsApiAvailable(available);
       setLastChecked(new Date());
       
-      console.log('🔌 API availability check:', available ? 'AVAILABLE ✅' : 'UNAVAILABLE ❌');
+
       return available;
     } catch (error) {
-      console.warn('🔌 API availability check failed:', error.message);
+
       setIsApiAvailable(false);
       setLastChecked(new Date());
       return false;

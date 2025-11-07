@@ -91,7 +91,6 @@ const AddProductWithSync = () => {
       </div>
     );
   };
-
   return <WithFullPanel />;
 };
 
@@ -119,7 +118,7 @@ fetch('/api/sync/product-type/product-type-id-here', {
 // 4. Get sync status
 fetch('/api/sync/status')
   .then(res => res.json())
-  .then(data => console.log('Sync Status:', data));
+  .then(data => );
 
 // Server-side usage in your Node.js routes:
 const SyncUtility = require('../utils/syncUtility');

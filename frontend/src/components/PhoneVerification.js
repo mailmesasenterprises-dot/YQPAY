@@ -46,13 +46,12 @@ const PhoneVerification = ({
         
         // Show OTP in development mode
         if (result.data && result.data.otpId && process.env.NODE_ENV !== 'production') {
-          console.log('Development OTP sent for:', phone);
-        }
+  }
       } else {
         setError(result.message || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('Error sending OTP:', error);
+
       setError(error.message || 'Failed to send OTP. Please try again.');
     } finally {
       setIsLoading(false);
@@ -82,7 +81,7 @@ const PhoneVerification = ({
         }
       }
     } catch (error) {
-      console.error('Error verifying OTP:', error);
+
       const errorMessage = error.message || 'Failed to verify OTP. Please try again.';
       setError(errorMessage);
       if (otpRef.current) {
@@ -108,13 +107,12 @@ const PhoneVerification = ({
         
         // Show OTP in development mode
         if (result.data && process.env.NODE_ENV !== 'production') {
-          console.log('Development OTP resent for:', phoneNumber);
-        }
+  }
       } else {
         setError(result.message || 'Failed to resend OTP');
       }
     } catch (error) {
-      console.error('Error resending OTP:', error);
+
       setError(error.message || 'Failed to resend OTP. Please try again.');
     } finally {
       setIsLoading(false);

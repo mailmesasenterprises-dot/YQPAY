@@ -1,7 +1,4 @@
 const mongoose = require('mongoose');
-
-console.log('🔧 Loading Order model...');
-
 const orderSchema = new mongoose.Schema({
   orderNumber: {
     type: String,
@@ -161,11 +158,8 @@ orderSchema.index({ 'timestamps.placedAt': -1 });
 
 // Generate order number before saving
 orderSchema.pre('save', async function(next) {
-  console.log('🚀 PRE-SAVE HOOK CALLED! isNew:', this.isNew, 'orderNumber:', this.orderNumber);
-  
   try {
     if (this.isNew && !this.orderNumber) {
-      console.log('🔢 Generating orderNumber...');
       const now = new Date();
       const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
       
@@ -183,9 +177,7 @@ orderSchema.pre('save', async function(next) {
       });
       
       this.orderNumber = `ORD-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
-      console.log('📝 Generated orderNumber:', this.orderNumber);
     } else {
-      console.log('⏭️ Skipping orderNumber generation. isNew:', this.isNew, 'existing orderNumber:', this.orderNumber);
     }
     
     this.updatedAt = new Date();
@@ -217,8 +209,6 @@ orderSchema.pre('save', function(next) {
   
   next();
 });
-
-console.log('✅ Order schema pre-save hooks registered (orderNumber generation + pricing calculation)');
 
 // Update status method
 orderSchema.methods.updateStatus = function(newStatus) {
@@ -293,6 +283,4 @@ orderSchema.set('toJSON', {
     return ret;
   }
 });
-
-console.log('📦 Exporting Order model...');
 module.exports = mongoose.model('Order', orderSchema);

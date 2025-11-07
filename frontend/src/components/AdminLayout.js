@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import config from '../config';
@@ -37,6 +37,11 @@ const AdminLayout = ({ children, pageTitle = 'Dashboard', currentPage = 'dashboa
     city: 'Bengaluru',
     country: 'India'
   });
+
+  // Update browser tab title for admin pages
+  useEffect(() => {
+    document.title = `${pageTitle} - YQPayNow Admin`;
+  }, [pageTitle]);
 
   return (
     <div className={`dashboard-container ${sidebarOpen ? 'sidebar-open' : ''}`}>

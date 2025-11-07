@@ -171,8 +171,7 @@ const TheaterUserManagement = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
       
-      console.log('🌐 Fetching active theaters from:', `${config.api.baseUrl}/theaters?${params.toString()}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theaters?${params.toString()}`, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -200,10 +199,10 @@ const TheaterUserManagement = () => {
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('Request was cancelled');
+
         return;
       }
-      console.error('Error fetching active theaters:', error);
+
       setError('Failed to load active theaters');
     } finally {
       setLoading(false);
@@ -325,7 +324,7 @@ const TheaterUserManagement = () => {
       await fetchTheaters();
       
     } catch (error) {
-      console.error('Error updating password:', error);
+
       setConfirmModal({
         show: true,
         type: 'error',

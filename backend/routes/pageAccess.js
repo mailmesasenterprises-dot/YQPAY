@@ -18,16 +18,10 @@ router.get('/', [authenticateToken], async (req, res) => {
     if (isActive !== undefined && isActive !== '') {
       query.isActive = isActive === 'true';
     }
-
-    console.log('📡 GET /page-access query:', query);
-
     const pages = await PageAccess.find(query)
       .populate('parentPage', 'pageName displayName')
       .sort({ category: 1, menuOrder: 1 })
       .limit(parseInt(limit));
-
-    console.log('📡 GET /page-access found:', pages.length, 'pages');
-
     res.json({
       success: true,
       data: pages
@@ -66,17 +60,11 @@ router.post('/', [
         code: 'PAGE_NAME_REQUIRED'
       });
     }
-
-    console.log('📝 POST /page-access - Creating/Updating:', page, pageName);
-
     const pageAccess = await PageAccess.findOneAndUpdate(
       { page },
       req.body,
       { new: true, upsert: true, runValidators: false }
     );
-
-    console.log('✅ Page access saved:', pageAccess._id);
-
     res.json({
       success: true,
       message: 'Page access updated successfully',
@@ -242,21 +230,14 @@ router.delete('/by-page/:page', [
 ], async (req, res) => {
   try {
     const { page } = req.params;
-    
-    console.log('🗑️  DELETE /page-access/by-page/' + page);
-    
     const pageAccess = await PageAccess.findOneAndDelete({ page });
 
     if (!pageAccess) {
-      console.log('❌ Page not found:', page);
       return res.status(404).json({
         error: 'Page access configuration not found',
         code: 'PAGE_ACCESS_NOT_FOUND'
       });
     }
-
-    console.log('✅ Page access deleted:', pageAccess.pageName);
-
     res.json({
       success: true,
       message: 'Page access deleted successfully',

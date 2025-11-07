@@ -69,8 +69,7 @@ const OptimizedImage = ({
       
       img.onerror = () => {
         setHasError(true);
-        console.warn(`Failed to load image: ${src}`);
-      };
+  };
       
       // Use optimized source
       img.src = getOptimizedSrc(src, 800);

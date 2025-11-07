@@ -313,7 +313,6 @@ theaterUserArraySchema.methods.addUser = async function(userData) {
   let pin = userData.pin;
   if (!pin) {
     pin = await this.constructor.generateUniquePin();
-    console.log('🔢 Auto-generated unique PIN:', pin);
   }
   
   // Add new user with auto-generated sortOrder and PIN

@@ -102,13 +102,10 @@ const PageAccessManagement = () => {
         }
       });
       
-      console.log('📡 Load page access response:', response.status);
-      console.log('📡 Theater ID:', theaterId);
-      
+
       if (response.ok) {
         const data = await response.json();
-        console.log('📄 Page access data received:', data);
-        
+
         if (data.success && data.data) {
           // ✅ FIX: Backend returns data.data.pageAccessList as array for theater-specific query
           let existingPages = [];
@@ -116,25 +113,21 @@ const PageAccessManagement = () => {
           if (data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
             // Theater-specific response: data.data.pageAccessList
             existingPages = data.data.pageAccessList;
-            console.log('📄 Theater-specific pages found:', existingPages.length);
-          } else if (Array.isArray(data.data)) {
+  } else if (Array.isArray(data.data)) {
             // Global response: data.data (array directly)
             existingPages = data.data;
-            console.log('📄 Global pages found:', existingPages.length);
-          }
+  }
           
-          console.log('📄 Processing existing pages:', existingPages);
-          
+
           const toggleStates = {};
           
           existingPages.forEach(pageAccess => {
-            console.log(`📄 Setting toggle for ${pageAccess.page} = ${pageAccess.isActive}`);
+
             toggleStates[pageAccess.page] = pageAccess.isActive;
           });
           
           setPageToggleStates(toggleStates);
-          console.log('📄 Toggle states set:', toggleStates);
-          
+
           // Update summary counts
           const activeCount = existingPages.filter(p => p.isActive).length;
           const inactiveCount = existingPages.filter(p => !p.isActive).length;
@@ -144,13 +137,12 @@ const PageAccessManagement = () => {
             totalPageAccess: theaterAdminPages.length
           });
           
-          console.log('📊 Summary updated - Active:', activeCount, 'Inactive:', inactiveCount);
-          
+
           return true; // Successfully loaded
         }
       }
     } catch (error) {
-      console.error('❌ Error loading page access:', error);
+
       // If backend is not available, initialize with empty states
       setPageToggleStates({});
       return false; // Failed to load
@@ -178,8 +170,7 @@ const PageAccessManagement = () => {
         setTheater(data.success ? data.data : data);
       }
     } catch (error) {
-      console.error('Failed to fetch theater:', error);
-    } finally {
+  } finally {
       setTheaterLoading(false);
     }
   }, [theaterId]);
@@ -197,19 +188,17 @@ const PageAccessManagement = () => {
       // Try to load existing page access states (don't block on this)
       loadExistingPageAccess().then(backendAvailable => {
         if (!backendAvailable) {
-          console.log('📄 Backend not available, showing pages in offline mode');
-        }
+  }
       }).catch(err => {
-        console.log('📄 Error loading backend data:', err);
-      });
+  });
       
     } catch (error) {
-      console.error('Error loading page data:', error);
+
       // Even if there's an error, still show the theater admin pages
       setFrontendPages(theaterAdminPages);
     } finally {
       // Always set loading to false
-      console.log('📄 Setting loading to false');
+
       if (isMountedRef.current) {
         setLoading(false);
       }
@@ -226,18 +215,15 @@ const PageAccessManagement = () => {
     ];
     
     setActiveRoles(staticRoles);
-    console.log('📄 Loaded static roles:', staticRoles);
   }, []);
 
   // Handle page toggle - POST to backend when toggled ON, DELETE when toggled OFF
   const handlePageToggleChange = useCallback(async (page, isEnabled) => {
     try {
-      console.log(`📄 Toggling page: ${page.pageName} to ${isEnabled ? 'ON' : 'OFF'}`);
-      
+
       // ✅ FIX: Get authentication token
       const token = config.helpers.getAuthToken();
-      console.log('🔐 Auth token exists:', !!token);
-      
+
       if (!token) {
         showError('Authentication required. Please login again.');
         return;
@@ -262,7 +248,6 @@ const PageAccessManagement = () => {
           })
         });
 
-        console.log('📡 POST Response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
@@ -317,8 +302,7 @@ const PageAccessManagement = () => {
           return;
         }
         
-        console.log(`🗑️ Deleting page with ID: ${pageToDelete._id}`);
-        
+
         // Now delete by ID
         const response = await fetch(`${config.api.baseUrl}/page-access/${pageToDelete._id}`, {
           method: 'DELETE',
@@ -327,7 +311,6 @@ const PageAccessManagement = () => {
           }
         });
 
-        console.log('📡 DELETE Response status:', response.status);
 
         if (response.ok) {
           setPageToggleStates(prev => ({
@@ -343,8 +326,7 @@ const PageAccessManagement = () => {
         }
       }
     } catch (error) {
-      console.error('❌ Error toggling page access:', error);
-      
+
       // If backend is not available, allow local toggle but show warning
       if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
         setPageToggleStates(prev => ({
@@ -389,12 +371,10 @@ const PageAccessManagement = () => {
 
   // Create new page access configuration
   const handleCreateNewPageAccess = () => {
-    console.log('📄 Creating new page access - activeRoles count:', activeRoles.length);
-    console.log('📄 Frontend pages count:', frontendPages.length);
-    
+
     // Ensure roles are loaded before opening modal
     if (activeRoles.length === 0) {
-      console.log('📄 Loading active roles...');
+
       loadActiveRoles();
     }
     
@@ -476,7 +456,6 @@ const PageAccessManagement = () => {
         })
       });
 
-      console.log('📡 Batch POST Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
@@ -507,7 +486,7 @@ const PageAccessManagement = () => {
         throw new Error(errorData.error || `Failed to save page access configuration`);
       }
     } catch (error) {
-      console.error('❌ Error saving page access:', error);
+
       showError(`Failed to save page access: ${error.message}`);
     } finally {
       setLoading(false);
@@ -539,7 +518,6 @@ const PageAccessManagement = () => {
         }
       });
 
-      console.log('📡 DELETE Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
@@ -555,7 +533,7 @@ const PageAccessManagement = () => {
         throw new Error(errorData.error || 'Failed to delete page access');
       }
     } catch (error) {
-      console.error('❌ Error deleting page access:', error);
+
       showError(`Failed to delete page access: ${error.message}`);
     } finally {
       setLoading(false);

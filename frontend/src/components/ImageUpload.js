@@ -87,7 +87,7 @@ const ImageUpload = ({
         }
       }
     } catch (error) {
-      console.error('Upload error:', error);
+
       alert('Upload failed. Please try again.');
     } finally {
       setUploading(false);

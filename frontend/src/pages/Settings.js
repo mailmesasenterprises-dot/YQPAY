@@ -24,7 +24,6 @@ const getCachedData = (key) => {
       localStorage.removeItem(key);
     }
   } catch (error) {
-    console.error('Cache read error:', error);
   }
   return null;
 };
@@ -34,7 +33,6 @@ const setCachedData = (key, data, ttl = 5 * 60 * 1000) => {
     const expiry = Date.now() + ttl;
     localStorage.setItem(key, JSON.stringify({ data, expiry }));
   } catch (error) {
-    console.error('Cache write error:', error);
   }
 };
 
@@ -211,7 +209,7 @@ const Settings = React.memo(() => {
       }));
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Firebase test was aborted');
+
         return;
       }
       setConnectionStatus(prev => ({
@@ -241,7 +239,7 @@ const Settings = React.memo(() => {
       }));
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('MongoDB test was aborted');
+
         return;
       }
       setConnectionStatus(prev => ({
@@ -271,7 +269,7 @@ const Settings = React.memo(() => {
       }));
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('GCS test was aborted');
+
         return;
       }
       setConnectionStatus(prev => ({
@@ -363,39 +361,34 @@ const Settings = React.memo(() => {
         }
 
         // Load SMS config
-        console.log('🔍 Loading SMS configuration...');
+
         const smsResponse = await apiGet('/settings/sms');
-        console.log('📡 SMS Response Status:', smsResponse.status, smsResponse.ok);
+
         if (smsResponse.ok) {
           const smsData = await smsResponse.json();
-          console.log('📦 SMS Raw Response:', smsData);
+
           const config = smsData.data || {};
-          console.log('📋 SMS Config to merge:', config);
+
           if (config && Object.keys(config).length > 0) {
-            console.log('✅ Merging SMS config into state...');
+
             setSmsConfig(prevConfig => {
               const merged = { ...prevConfig, ...config };
-              console.log('🔄 Previous SMS Config:', prevConfig);
-              console.log('🆕 Merged SMS Config:', merged);
+
               return merged;
             });
           } else {
-            console.log('⚠️ No SMS config data to merge');
-          }
+  }
         } else {
-          console.log('❌ SMS config request failed:', smsResponse.status);
-        }
+  }
 
         // Load General settings
         const generalResponse = await apiGet('/settings/general');
         if (generalResponse.ok) {
           const generalData = await generalResponse.json();
-          console.log('📡 General settings API response:', generalData);
-          
+
           // ✅ FIX: Updated response format - data directly without nested config
           const config = generalData.data || {};
-          console.log('📋 Parsed general settings:', config);
-          
+
           if (config && Object.keys(config).length > 0) {
             updateSettings(config);
             
@@ -416,8 +409,7 @@ const Settings = React.memo(() => {
         // Note: We'll cache this after each individual config is loaded above
         
       } catch (error) {
-        console.error('Error loading configurations:', error);
-      }
+  }
     };
 
     loadConfigurations();
@@ -446,13 +438,13 @@ const Settings = React.memo(() => {
   }, []);
 
   const handleSMSChange = useCallback((field, value) => {
-    console.log(`📝 SMS Change - Field: ${field}, Value:`, value);
+
     setSmsConfig(prev => {
       const updated = {
         ...prev,
         [field]: value
       };
-      console.log('🔄 Updated SMS Config:', updated);
+
       return updated;
     });
   }, []);
@@ -464,8 +456,7 @@ const Settings = React.memo(() => {
 
   // Test SMS connection by sending actual OTP
   const testSMSConnection = async () => {
-    console.log('🧪 Testing SMS Connection by sending OTP...');
-    
+
     if (!smsConfig.testPhoneNumber) {
       showError('Please enter a test phone number first');
       return;
@@ -477,7 +468,7 @@ const Settings = React.memo(() => {
     }
     
     const fullPhoneNumber = '+91' + smsConfig.testPhoneNumber;
-    console.log('📤 Sending test OTP to:', fullPhoneNumber);
+
     setLoading(true);
     
     try {
@@ -487,17 +478,15 @@ const Settings = React.memo(() => {
       const max = Math.pow(10, otpLength) - 1;
       const testOTP = Math.floor(min + Math.random() * (max - min + 1)).toString();
       
-      console.log('🔢 Generated OTP:', testOTP, `(${otpLength} digits)`);
-      
+
       const response = await apiPost('/sms/send-test-otp', {
         phoneNumber: fullPhoneNumber,
         otp: testOTP
       });
       
-      console.log('📡 Test SMS Response Status:', response.status);
+
       const result = await response.json();
-      console.log('📦 Test SMS Result:', result);
-      
+
       setConnectionStatus(prev => ({
         ...prev,
         sms: result.success ? 'connected' : 'error'
@@ -509,7 +498,7 @@ const Settings = React.memo(() => {
         showError(result.message || 'Failed to send OTP');
       }
     } catch (error) {
-      console.error('❌ Test SMS Error:', error);
+
       setConnectionStatus(prev => ({
         ...prev,
         sms: 'error'
@@ -586,25 +575,20 @@ const Settings = React.memo(() => {
       formData.append('folderSubtype', 'logos');
 
       // Try Google Cloud Storage upload first
-      console.log('Attempting GCS upload...');
+
       const response = await apiUpload('/upload/image', formData);
       
-      console.log('Upload response status:', response.status);
-      console.log('Upload response headers:', response.headers);
 
       if (response.ok) {
-        const result = await response.json();
-        console.log('Upload result:', result); // Debug log
+        const result = await response.json(); // Debug log
         
         // Extract signed URL from nested response structure
         const signedUrl = result.data?.data?.publicUrl || result.data?.publicUrl || result.publicUrl;
         
         if (!signedUrl) {
-          console.error('No signed URL found in response:', result);
+
           throw new Error('Upload successful but no URL returned');
-        }
-        
-        console.log('Extracted signed URL:', signedUrl); // Debug log
+        } // Debug log
         
         // Create a simple favicon URL that points to our image proxy
         const faviconUrl = getApiUrl('/settings/image/logo');
@@ -613,17 +597,13 @@ const Settings = React.memo(() => {
         updateSettings({ logoUrl: signedUrl });
         
         // Save the logo URL to the database
-        const saveResponse = await apiPost('/settings/general', { ...generalSettings, logoUrl: signedUrl });
-        
-        console.log('Save response status:', saveResponse.status); // Debug log
+        const saveResponse = await apiPost('/settings/general', { ...generalSettings, logoUrl: signedUrl }); // Debug log
         
         if (!saveResponse.ok) {
           const errorText = await saveResponse.text();
-          console.error('Save error:', errorText);
+
           throw new Error('Failed to save logo URL to database: ' + errorText);
-        }
-        
-        console.log('Logo URL saved to database successfully'); // Debug log
+        } // Debug log
         
         // Update favicon immediately with the simple proxy URL
         updateFavicon(faviconUrl);
@@ -631,19 +611,16 @@ const Settings = React.memo(() => {
         showSuccess('Logo uploaded successfully to Google Cloud Storage! 🎉');
       } else {
         const errorData = await response.json();
-        console.error('GCS Upload failed:', errorData);
-        
+
         // If GCS is not configured, try local upload as fallback
         if (errorData.error === 'GCS_NOT_CONFIGURED') {
-          console.log('GCS not configured, attempting local upload fallback...');
-          
+
           try {
             const localResponse = await apiUpload('/upload-local/image', formData);
             
             if (localResponse.ok) {
               const localResult = await localResponse.json();
-              console.log('Local upload result:', localResult);
-              
+
               const localUrl = localResult.data?.publicUrl || localResult.data?.url || localResult.publicUrl || localResult.url;
               
               if (localUrl) {
@@ -655,12 +632,11 @@ const Settings = React.memo(() => {
                 
                 if (!saveResponse.ok) {
                   const errorText = await saveResponse.text();
-                  console.error('Save error:', errorText);
+
                   throw new Error('Failed to save logo URL to database: ' + errorText);
                 }
                 
-                console.log('Local logo URL saved successfully');
-                
+
                 // Update favicon with local URL
                 updateFavicon(localUrl);
                 
@@ -674,7 +650,7 @@ const Settings = React.memo(() => {
               throw new Error(localErrorData.message || 'Local upload failed');
             }
           } catch (localError) {
-            console.error('Local upload also failed:', localError);
+
             throw new Error('Both GCS and local upload failed. Please check your configuration.');
           }
         } else {
@@ -682,7 +658,7 @@ const Settings = React.memo(() => {
         }
       }
     } catch (error) {
-      console.error('Error uploading logo:', error);
+
       showError('Error uploading logo: ' + error.message);
     } finally {
       setLoading(false);
@@ -719,18 +695,15 @@ const Settings = React.memo(() => {
       const response = await apiUpload('/upload/image', formData);
 
       if (response.ok) {
-        const result = await response.json();
-        console.log('QR Upload result:', result); // Debug log
+        const result = await response.json(); // Debug log
         
         // Extract signed URL from nested response structure
         const signedUrl = result.data?.data?.publicUrl || result.data?.publicUrl || result.publicUrl;
         
         if (!signedUrl) {
-          console.error('No signed URL found in QR upload response:', result);
+
           throw new Error('Upload successful but no URL returned');
-        }
-        
-        console.log('Extracted QR signed URL:', signedUrl); // Debug log
+        } // Debug log
         
         // Update general settings with the signed URL (for storage reference)
         updateSettings({ qrCodeUrl: signedUrl });
@@ -738,17 +711,13 @@ const Settings = React.memo(() => {
         // Save the QR code URL to the database
         const saveResponse = await apiPost('/settings/general', 
           { ...generalSettings, qrCodeUrl: signedUrl }
-        );
-        
-        console.log('QR Save response status:', saveResponse.status); // Debug log
+        ); // Debug log
         
         if (!saveResponse.ok) {
           const errorText = await saveResponse.text();
-          console.error('QR Save error:', errorText);
+
           throw new Error('Failed to save QR code URL to database: ' + errorText);
-        }
-        
-        console.log('QR code URL saved to database successfully'); // Debug log
+        } // Debug log
         
         showSuccess('QR code uploaded successfully to Google Cloud Storage! 🎉');
       } else {
@@ -756,7 +725,7 @@ const Settings = React.memo(() => {
         throw new Error(errorData.message || 'Failed to upload QR code');
       }
     } catch (error) {
-      console.error('Error uploading QR code:', error);
+
       showError('Error uploading QR code: ' + error.message);
     } finally {
       setLoading(false);
@@ -786,7 +755,7 @@ const Settings = React.memo(() => {
         throw new Error('Failed to save general settings');
       }
     } catch (error) {
-      console.error('Error saving general settings:', error);
+
       showError('Error saving general settings: ' + error.message);
     } finally {
       setLoading(false);
@@ -1575,7 +1544,7 @@ const Settings = React.memo(() => {
                       maxSize={20 * 1024 * 1024} // 20MB for logos
                       acceptedTypes={['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/ico', 'image/x-icon']}
                       onSuccess={async (result) => {
-                        console.log('✅ Logo uploaded successfully:', result);
+
                         const signedUrl = result.signedUrl;
                         
                         // Update local state
@@ -1589,8 +1558,7 @@ const Settings = React.memo(() => {
                           });
                           
                           if (saveResponse.ok) {
-                            console.log('✅ Logo URL saved to database');
-                            
+
                             // Update favicon with retry mechanism using full URL
                             const faviconUrl = getApiUrl('/settings/image/logo');
                             setTimeout(() => updateFavicon(faviconUrl), 500);
@@ -1602,12 +1570,12 @@ const Settings = React.memo(() => {
                             throw new Error('Failed to save logo URL to database');
                           }
                         } catch (error) {
-                          console.error('❌ Error saving logo URL:', error);
+
                           showError('Logo uploaded but failed to save to database: ' + error.message);
                         }
                       }}
                       onError={(error) => {
-                        console.error('❌ Logo upload failed:', error);
+
                         showError('Logo upload failed: ' + error);
                       }}
                     />
@@ -1658,7 +1626,7 @@ const Settings = React.memo(() => {
                       maxSize={30 * 1024 * 1024} // 30MB for QR codes
                       acceptedTypes={['image/png', 'image/jpeg', 'image/jpg', 'image/gif']}
                       onSuccess={async (result) => {
-                        console.log('✅ QR Code uploaded successfully:', result);
+
                         const signedUrl = result.signedUrl;
                         
                         // Update local state
@@ -1672,18 +1640,18 @@ const Settings = React.memo(() => {
                           });
                           
                           if (saveResponse.ok) {
-                            console.log('✅ QR Code URL saved to database');
+
                             showSuccess('QR Code uploaded and saved successfully!');
                           } else {
                             throw new Error('Failed to save QR code URL to database');
                           }
                         } catch (error) {
-                          console.error('❌ Error saving QR code URL:', error);
+
                           showError('QR Code uploaded but failed to save to database: ' + error.message);
                         }
                       }}
                       onError={(error) => {
-                        console.error('❌ QR Code upload failed:', error);
+
                         showError('QR Code upload failed: ' + error);
                       }}
                     />

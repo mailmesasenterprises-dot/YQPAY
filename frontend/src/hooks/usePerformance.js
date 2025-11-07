@@ -29,8 +29,7 @@ export const usePerformance = () => {
     
     // Log performance to console in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('Performance Metrics:', performanceMetrics);
-    }
+  }
   }, []);
 
   return performanceMetrics;

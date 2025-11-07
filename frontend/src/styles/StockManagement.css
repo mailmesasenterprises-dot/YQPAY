@@ -112,6 +112,27 @@
   margin-bottom: 4px;
 }
 
+/* Clickable Date Cell */
+.date-cell.clickable-date {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.date-cell.clickable-date:hover {
+  background-color: #F3F4F6;
+  transform: scale(1.02);
+}
+
+.date-cell.clickable-date:hover .entry-date {
+  color: #8B5CF6;
+  text-decoration: underline;
+}
+
+.date-cell.clickable-date:active {
+  transform: scale(0.98);
+  background-color: #E5E7EB;
+}
+
 /* Expire Date Cell */
 .expire-date-cell {
   font-size: 14px;

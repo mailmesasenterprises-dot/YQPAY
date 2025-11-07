@@ -630,6 +630,30 @@
   .tadmin-orders-table th,
   .tadmin-orders-table td {
     padding: 12px 16px;
+    font-size: 0.85rem;
+  }
+
+  /* Theater Admin Orders Table Mobile Optimization */
+  .tadmin-orders-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tadmin-orders-table {
+    min-width: 700px;
+  }
+
+  /* Make status badges smaller on mobile */
+  .tadmin-status-badge {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* Optimize text sizes for mobile */
+  .tadmin-order-id,
+  .tadmin-order-customer,
+  .tadmin-order-amount {
+    font-size: 0.8rem;
   }
   
   .tadmin-widget-header {
@@ -637,6 +661,79 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+}
+
+/* Mobile Small - 480px breakpoint */
+@media (max-width: 480px) {
+  .tadmin-hero-title {
+    font-size: 1.25rem;
+  }
+  
+  .tadmin-hero-banner {
+    padding: 20px 16px;
+  }
+  
+  .tadmin-stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .tadmin-orders-table th,
+  .tadmin-orders-table td {
+    padding: 8px 12px;
+    font-size: 0.75rem;
+  }
+
+  /* Ultra compact table for small mobile */
+  .tadmin-orders-table {
+    min-width: 600px;
+  }
+
+  /* Extra small status badges */
+  .tadmin-status-badge {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+  }
+
+  /* Ultra compact text */
+  .tadmin-order-id,
+  .tadmin-order-customer,
+  .tadmin-order-amount {
+    font-size: 0.75rem;
+  }
+  
+  .tadmin-widget-header {
+    padding: 16px;
+  }
+  
+  .tadmin-stat-card {
+    padding: 16px;
+  }
+}
+
+/* Mobile Extra Small - 360px breakpoint */
+@media (max-width: 360px) {
+  .tadmin-hero-title {
+    font-size: 1.1rem;
+  }
+  
+  .tadmin-hero-banner {
+    padding: 16px 12px;
+  }
+  
+  .tadmin-orders-table {
+    min-width: 550px;
+  }
+  
+  .tadmin-orders-table th,
+  .tadmin-orders-table td {
+    padding: 6px 8px;
+    font-size: 0.7rem;
+  }
+  
+  .tadmin-status-badge {
+    padding: 2px 6px;
+    font-size: 0.65rem;
   }
 }
 

@@ -32,14 +32,14 @@ export const autoLogin = async () => {
       const token = data.token;
       if (token) {
         setAuthToken(token);
-        console.log('✅ Auto-login successful');
+
         return token;
       }
     }
     
     throw new Error('Login failed');
   } catch (error) {
-    console.error('❌ Auto-login failed:', error);
+
     return null;
   }
 };

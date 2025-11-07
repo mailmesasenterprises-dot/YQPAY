@@ -216,8 +216,7 @@ roleArraySchema.statics.findOrCreateByTheater = async function(theaterId) {
  * Instance method to add a new role
  */
 roleArraySchema.methods.addRole = async function(roleData) {
-  console.log('🔍 addRole method called with:', JSON.stringify(roleData, null, 2));
-  
+
   // Check if role name already exists
   const exists = this.roleList.find(role => 
     role.normalizedName === roleData.name.toLowerCase().trim() && role.isActive
@@ -235,28 +234,14 @@ roleArraySchema.methods.addRole = async function(roleData) {
     createdAt: new Date(),
     updatedAt: new Date()
   };
-  
-  console.log('📝 New role object before push:', JSON.stringify(newRole, null, 2));
-  console.log('📋 Permissions in new role:', newRole.permissions?.length || 0);
-  
+
   this.roleList.push(newRole);
-  
-  console.log('📊 RoleList length after push:', this.roleList.length);
-  console.log('📊 All roles before save:');
   this.roleList.forEach((role, index) => {
-    console.log(`  Role ${index}: ${role.name} (${role.permissions?.length || 0} permissions)`);
+
   });
-  
-  console.log('💾 About to call save()...');
+
   await this.save();
-  console.log('✅ Save completed');
-  
   const addedRole = this.roleList[this.roleList.length - 1];
-  console.log('🎯 Returning role:', {
-    name: addedRole.name,
-    permissionsCount: addedRole.permissions?.length || 0
-  });
-  
   return addedRole;
 };
 
@@ -268,14 +253,6 @@ roleArraySchema.methods.updateRole = async function(roleId, updateData) {
   if (!role) {
     throw new Error('Role not found');
   }
-  
-  console.log('🔧 Model updateRole - BEFORE:', {
-    _id: role._id,
-    name: role.name,
-    isActive: role.isActive,
-    updateData
-  });
-  
   // Check if new name conflicts with existing roles
   if (updateData.name && updateData.name !== role.name) {
     const nameExists = this.roleList.find(r => 
@@ -292,7 +269,6 @@ roleArraySchema.methods.updateRole = async function(roleId, updateData) {
   // Update role properties
   Object.keys(updateData).forEach(key => {
     if (updateData[key] !== undefined) {
-      console.log(`   Setting role.${key} = ${updateData[key]}`);
       role[key] = updateData[key];
     }
   });
@@ -303,21 +279,8 @@ roleArraySchema.methods.updateRole = async function(roleId, updateData) {
   }
   
   role.updatedAt = new Date();
-  
-  console.log('🔧 Model updateRole - AFTER assignments:', {
-    _id: role._id,
-    name: role.name,
-    isActive: role.isActive
-  });
-  
   await this.save();
-  
-  console.log('💾 Model updateRole - AFTER save():', {
-    _id: role._id,
-    name: role.name,
-    isActive: role.isActive
-  });
-  
+
   return role;
 };
 

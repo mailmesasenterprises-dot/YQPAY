@@ -47,12 +47,10 @@ export const SettingsProvider = ({ children }) => {
         const response = await apiGet('/settings/general');
         if (response.ok) {
           const result = await response.json();
-          console.log('📡 Raw API response:', result);
-          
+
           // ✅ FIX: Handle the updated response format - data directly (no nested config)
           const config = result.data || {};
-          console.log('� Parsed settings config:', config);
-          
+
           if (config && Object.keys(config).length > 0) {
             setGeneralSettings(config);
             document.title = config.browserTabTitle || config.applicationName || config.companyName || 'YQPayNow Theater Canteen';
@@ -60,14 +58,13 @@ export const SettingsProvider = ({ children }) => {
             
             // Update favicon if logo is set
             if (config.logoUrl) {
-              console.log('🎨 Setting favicon from logoUrl');
+
               updateFavicon(getApiUrl('/settings/image/logo'));
             }
           }
         }
       } catch (error) {
-        console.error('Error loading settings:', error);
-      } finally {
+  } finally {
         setLoading(false);
       }
     };
@@ -94,8 +91,7 @@ export const SettingsProvider = ({ children }) => {
 
   // Update favicon function with enhanced reliability
   const updateFavicon = (logoUrl) => {
-    try {
-      console.log('🔄 Updating favicon:', logoUrl); // Debug log
+    try { // Debug log
       
       // Remove existing favicon links more aggressively
       const faviconSelectors = [
@@ -161,11 +157,8 @@ export const SettingsProvider = ({ children }) => {
           document.head.appendChild(finalLink);
         }, 100);
       }, 100);
-
-      console.log('✅ Favicon updated successfully:', cacheBustUrl);
-    } catch (error) {
-      console.error('❌ Error updating favicon:', error);
-    }
+  } catch (error) {
+  }
   };
 
   // Format date according to selected format

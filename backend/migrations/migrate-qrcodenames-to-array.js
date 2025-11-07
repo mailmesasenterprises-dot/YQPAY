@@ -38,20 +38,14 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/theate
 
 async function migrateQRCodeNames() {
   try {
-    console.log('🔄 Starting QR Code Names migration to array structure...\n');
-    
     await mongoose.connect(MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
-
     // Create models for migration
     const QRCodeNameOld = mongoose.model('QRCodeNameOld', qrCodeNameOldSchema);
     
     // First, backup existing data by renaming collection
     const collections = await mongoose.connection.db.listCollections({ name: 'qrcodenames' }).toArray();
     if (collections.length > 0) {
-      console.log('📋 Backing up existing qrcodenames collection...');
       await mongoose.connection.db.collection('qrcodenames').rename('qrcodenames_backup_' + Date.now());
-      console.log('✅ Backup created');
     }
 
     // Create new collection with array structure
@@ -62,13 +56,10 @@ async function migrateQRCodeNames() {
     const backupCollection = backupCollections.find(col => col.name.startsWith('qrcodenames_backup_'));
     
     if (!backupCollection) {
-      console.log('⚠️ No backup collection found, checking for existing data...');
       return;
     }
 
     const oldQRNames = await mongoose.connection.db.collection(backupCollection.name).find({}).toArray();
-    console.log(`📊 Found ${oldQRNames.length} QR code names to migrate`);
-
     // Group by theater
     const theaterGroups = {};
     oldQRNames.forEach(qrName => {
@@ -79,19 +70,15 @@ async function migrateQRCodeNames() {
       theaterGroups[theaterId].push(qrName);
     });
 
-    console.log(`🎭 Found ${Object.keys(theaterGroups).length} theater groups`);
-
     let migratedCount = 0;
     let errorCount = 0;
 
     // Process each theater group
     for (const [theaterId, qrNames] of Object.entries(theaterGroups)) {
       try {
-        console.log(`\n🔄 Processing theater ${theaterId} with ${qrNames.length} QR names...`);
-
         // Skip global QR names (no theater assigned)
         if (theaterId === 'global') {
-          console.log('⚠️ Skipping global QR names (no theater assigned)');
+
           continue;
         }
 
@@ -119,12 +106,9 @@ async function migrateQRCodeNames() {
 
         await newDoc.save();
         migratedCount += qrNames.length;
-        
-        console.log(`✅ Created new array document for theater ${theaterId} with ${qrNameList.length} QR names`);
-
         // List the migrated QR names
         qrNameList.forEach((qr, index) => {
-          console.log(`   ${index + 1}. ${qr.qrName} - ${qr.seatClass} (${qr.isActive ? 'Active' : 'Inactive'})`);
+
         });
 
       } catch (error) {
@@ -133,23 +117,10 @@ async function migrateQRCodeNames() {
       }
     }
 
-    console.log(`\n📊 Migration Summary:`);
-    console.log(`   - Total QR names processed: ${oldQRNames.length}`);
-    console.log(`   - Successfully migrated: ${migratedCount}`);
-    console.log(`   - Errors: ${errorCount}`);
-    console.log(`   - Theater groups processed: ${Object.keys(theaterGroups).length}`);
-    console.log(`   - Backup collection: ${backupCollection.name}`);
-
-    console.log(`\n⚠️ IMPORTANT: After verifying the migration, you should:`);
-    console.log(`   1. Test the new array structure thoroughly`);
-    console.log(`   2. Update your application to use the new structure`);
-    console.log(`   3. Remove the backup collection if everything works correctly`);
-
   } catch (error) {
     console.error('❌ Migration failed:', error);
   } finally {
     await mongoose.connection.close();
-    console.log('✅ Database connection closed');
   }
 }
 

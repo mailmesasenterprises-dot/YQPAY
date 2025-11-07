@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import TheaterLayout from '../../components/theater/TheaterLayout';
 import ErrorBoundary from '../../components/ErrorBoundary';
+import { getCachedData, setCachedData } from '../../utils/cacheUtils';
 import config from '../../config';
 import '../../styles/TheaterAdminDashboard.css';
 
@@ -72,13 +73,25 @@ function TheaterDashboard() {
   }, [theaterId, userTheaterId, userType, navigate, user]);
 
   const fetchDashboardData = async (theaterIdToFetch) => {
+    const cacheKey = `theaterDashboard_${theaterIdToFetch}`;
+    
+    // Check cache first for instant loading
+    const cached = getCachedData(cacheKey, 60000); // 1-minute cache for dashboard stats
+    if (cached) {
+      console.log('⚡ [TheaterDashboard] Loading from cache');
+      setStats(cached.stats);
+      setRecentOrders(cached.recentOrders);
+      setTheaterInfo(cached.theaterInfo);
+      if (cached.orderStatusCounts) setOrderStatusCounts(cached.orderStatusCounts);
+      if (cached.revenue) setRevenue(cached.revenue);
+      setLoading(false);
+    }
+    
+    // Fetch fresh data in background
     try {
-      setLoading(true);
       setError('');
-      
       const token = localStorage.getItem('authToken');
       
-      // Fetch theater-specific dashboard data
       const response = await fetch(`${config.api.baseUrl}/theater-dashboard/${theaterIdToFetch}`, {
         method: 'GET',
         headers: {
@@ -97,41 +110,51 @@ function TheaterDashboard() {
         setStats(data.stats);
         setRecentOrders(data.recentOrders);
         setTheaterInfo(data.theater);
+        
+        // Cache the fresh data
+        setCachedData(cacheKey, {
+          stats: data.stats,
+          recentOrders: data.recentOrders,
+          theaterInfo: data.theater
+        });
       } else {
         setError(data.message || 'Failed to load dashboard data');
       }
     } catch (error) {
-      setError('Unable to load dashboard data. Please try again.');
-      // Fallback to mock data for development
-      setStats({
-        totalOrders: 156,
-        todayRevenue: 12450,
-        activeProducts: 25,
-        totalCustomers: 89
-      });
-      setRecentOrders([
-        { id: 1, customerName: 'John Doe', amount: 150, status: 'completed' },
-        { id: 2, customerName: 'Jane Smith', amount: 89, status: 'pending' },
-        { id: 3, customerName: 'Mike Wilson', amount: 245, status: 'processing' },
-        { id: 4, customerName: 'Sarah Brown', amount: 320, status: 'completed' },
-        { id: 5, customerName: 'Tom Davis', amount: 175, status: 'cancelled' }
-      ]);
-      setOrderStatusCounts({
-        overdue: 0,
-        pending: 5,
-        inProgress: 3,
-        completed: 142,
-        cancelled: 6
-      });
-      setRevenue({
-        total: 245680,
-        yearly: 189450,
-        lastYear: 156320
-      });
-      setTheaterInfo({
-        name: 'YQ PAY NOW',
-        id: theaterIdToFetch
-      });
+      console.error('💥 [TheaterDashboard] Error:', error);
+      if (!cached) { // Only show error if we don't have cached data
+        setError('Unable to load dashboard data. Please try again.');
+        // Fallback to mock data for development
+        setStats({
+          totalOrders: 156,
+          todayRevenue: 12450,
+          activeProducts: 25,
+          totalCustomers: 89
+        });
+        setRecentOrders([
+          { id: 1, customerName: 'John Doe', amount: 150, status: 'completed' },
+          { id: 2, customerName: 'Jane Smith', amount: 89, status: 'pending' },
+          { id: 3, customerName: 'Mike Wilson', amount: 245, status: 'processing' },
+          { id: 4, customerName: 'Sarah Brown', amount: 320, status: 'completed' },
+          { id: 5, customerName: 'Tom Davis', amount: 175, status: 'cancelled' }
+        ]);
+        setOrderStatusCounts({
+          overdue: 0,
+          pending: 5,
+          inProgress: 3,
+          completed: 142,
+          cancelled: 6
+        });
+        setRevenue({
+          total: 245680,
+          yearly: 189450,
+          lastYear: 156320
+        });
+        setTheaterInfo({
+          name: 'YQ PAY NOW',
+          id: theaterIdToFetch
+        });
+      }
     } finally {
       setLoading(false);
     }

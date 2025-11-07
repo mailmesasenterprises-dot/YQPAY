@@ -12,20 +12,15 @@ require('dotenv').config();
 const app = express();
 
 // ==============================================
-// UTILITY - Get Network IP for Mobile Access
-// ==============================================
-const getNetworkIP = () => {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
-    }
-  }
-  return null;
-};
-const NETWORK_IP = getNetworkIP();
+const baseUrl =
+  process.env.BASE_URL && process.env.BASE_URL.trim() !== ''
+    ? process.env.BASE_URL
+    : process.env.FRONTEND_URL && process.env.FRONTEND_URL.trim() !== ''
+      ? process.env.FRONTEND_URL
+      : 'https://yqpaynow.com';
+
+console.log(`🌐 QR Code Base URL: ${baseUrl}`);
+
 
 // ==============================================
 // MIDDLEWARE SETUP
@@ -62,19 +57,14 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'https://localhost:3001',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
-  'http://172.20.10.2:3000',
-  'http://172.20.10.2:3001',
-  'https://172.20.10.2:3001'
+  'https://yqpaynow.com',
+  'https://yqpay-78918378061.us-central1.run.app',
+  
+  // optional: your LAN IP if testing on mobile
+  'http://192.168.1.8:3001',
+  'http://172.20.10.2:3001'
 ];
 
-// Add network IP dynamically for mobile device access
-if (NETWORK_IP) {
-  allowedOrigins.push(`http://${NETWORK_IP}:3000`);
-  allowedOrigins.push(`http://${NETWORK_IP}:3001`);
-  allowedOrigins.push(`https://${NETWORK_IP}:3001`);
-}
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -114,7 +104,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // DATABASE CONNECTION
 // ==============================================
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/theater_canteen_db';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose.connect(MONGODB_URI, {
   serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
@@ -153,6 +143,7 @@ const singleQRCodeRoutes = require('./routes/singleqrcodes');
 const syncRoutes = require('./routes/sync');
 const rolesRoutes = require('./routes/rolesArray'); // Use array-based structure
 const reportsRoutes = require('./routes/reports'); // Reports route
+const paymentRoutes = require('./routes/payments'); // Payment gateway routes
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -165,6 +156,34 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Image proxy endpoint to bypass CORS
+app.get('/api/proxy-image', async (req, res) => {
+  const { url } = req.query;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL parameter is required' });
+  }
+  
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    
+    const contentType = response.headers.get('content-type');
+    const buffer = await response.buffer();
+    
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    res.send(buffer);
+  } catch (error) {
+    console.error('Image proxy error:', error);
+    res.status(500).json({ error: 'Failed to proxy image' });
+  }
+});
+
 // Mount API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', require('./routes/dashboard')); // Super Admin Dashboard Stats
@@ -173,6 +192,7 @@ app.use('/api/theater-products', productRoutes.products);
 app.use('/api/theater-categories', productRoutes.categories);
 app.use('/api/theater-kiosk-types', require('./routes/theater-kiosk-types'));
 app.use('/api/theater-product-types', productRoutes.productTypes);
+app.use('/api/theater-banners', require('./routes/theater-banners')); // Theater Banners CRUD
 app.use('/api/orders', orderRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/sms', require('./routes/sms-test')); // SMS testing routes
@@ -188,6 +208,7 @@ app.use('/api/single-qrcodes', singleQRCodeRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/reports', reportsRoutes); // Reports route
+app.use('/api/payments', paymentRoutes); // Payment gateway routes
 app.use('/api/theater-users', require('./routes/theaterUsersArray'));
 app.use('/api/theater-dashboard', require('./routes/theater-dashboard'));
 
@@ -209,9 +230,20 @@ app.get('/api', (req, res) => {
       pageAccess: '/api/page-access',
       qrcodes: '/api/qrcodes',
       sync: '/api/sync',
+      payments: '/api/payments',
       health: '/api/health'
     }
   });
+});
+
+// ------------------------------
+// FRONTEND (REACT BUILD)
+// ------------------------------
+
+const buildPath = path.join(__dirname, "build");
+app.use(express.static(buildPath, { maxAge: "1y" }));
+app.get("/*", (req, res) => {
+  res.sendFile(path.join(buildPath, "index.html"));
 });
 
 // ==============================================
@@ -265,30 +297,13 @@ app.use((error, req, res, next) => {
   });
 });
 
-// ==============================================
-// SERVER STARTUP
-// ==============================================
-
-const PORT = process.env.PORT || 5000; // Backend on port 5000
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`🚀 YQPayNow Backend Server - RUNNING`);
-  console.log(`${'='.repeat(60)}`);
-  console.log(`📍 Local Access:    http://localhost:${PORT}/api`);
-  if (NETWORK_IP) {
-    console.log(`� Mobile Access:   http://${NETWORK_IP}:${PORT}/api`);
-    console.log(`   (For QR Code Scanning)`);
-  }
-  console.log(`🏥 Health Check:    http://localhost:${PORT}/api/health`);
-  console.log(`🌍 Environment:     ${process.env.NODE_ENV || 'development'}`);
-  console.log(`${'='.repeat(60)}\n`);
-  
-  if (NETWORK_IP) {
-    console.log(`✅ Both PC and Mobile can access the server`);
-    console.log(`   - On PC: Use localhost or ${NETWORK_IP}`);
-    console.log(`   - On Mobile: Use ${NETWORK_IP} (same WiFi required)\n`);
-  }
+// 
+// ------------------------------
+// START SERVER
+// ------------------------------
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 YQPayNow Server running on port ${PORT}`);
 });
 
 module.exports = app;

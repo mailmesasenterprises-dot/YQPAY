@@ -3,9 +3,6 @@ const router = express.Router();
 const PageAccessArray = require('../models/PageAccessArray');
 const { authenticateToken, optionalAuth, requireRole } = require('../middleware/auth');
 const { body, validationResult, param, query } = require('express-validator');
-
-console.log('🔧 PageAccessArray routes file loaded successfully!');
-
 /**
  * @route   GET /api/page-access
  * @desc    Get page access for a theater (array-based structure)
@@ -13,9 +10,6 @@ console.log('🔧 PageAccessArray routes file loaded successfully!');
  */
 router.get('/', async (req, res) => {
   try {
-    console.log('📥 GET /api/page-access - Request received');
-    console.log('Query params:', req.query);
-    
     const { theaterId, limit = 100, page = 1, isActive, category, search } = req.query;
     
     if (!theaterId) {
@@ -30,7 +24,6 @@ router.get('/', async (req, res) => {
       .populate('theater', 'name location contactInfo');
 
     if (!pageAccessDoc) {
-      console.log(`⚠️ No page access document found for theater ${theaterId}`);
       return res.json({
         success: true,
         data: {
@@ -44,9 +37,6 @@ router.get('/', async (req, res) => {
         }
       });
     }
-
-    console.log(`✅ Found page access document with ${pageAccessDoc.pageAccessList.length} pages for theater ${theaterId}`);
-
     // Return the entire pageAccessList array (like role system)
     res.json({
       success: true,
@@ -80,8 +70,6 @@ router.post('/', [
   body('route').notEmpty().trim().withMessage('Route is required')
 ], async (req, res) => {
   try {
-    console.log('📥 POST /api/page-access - Create page access');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -112,15 +100,8 @@ router.post('/', [
       tags = [],
       version = '1.0.0'
     } = req.body;
-
-    console.log('🔍 Creating page access for theater:', theaterId);
-    console.log('📄 Page data:', { page, pageName, route });
-    console.log('🗄️ PageAccessArray model collection:', PageAccessArray.collection.name);
-
     // Find or create page access document for theater
     let pageAccessDoc = await PageAccessArray.findOrCreateByTheater(theaterId);
-    console.log('📦 Document found/created. Collection:', pageAccessDoc.collection.name);
-
     // Add page to theater
     const newPage = await pageAccessDoc.addPage({
       page: page.trim(),
@@ -144,9 +125,6 @@ router.post('/', [
 
     // Populate theater info
     await pageAccessDoc.populate('theater', 'name location');
-
-    console.log(`✅ Page "${pageName}" added for theater ${theaterId}`);
-
     res.status(201).json({
       success: true,
       message: 'Page access created successfully',
@@ -178,10 +156,7 @@ router.put('/:pageId', [
   param('pageId').isMongoId().withMessage('Valid page ID is required')
 ], async (req, res) => {
   try {
-    console.log('📥 PUT /api/page-access/:pageId - Update page access');
-    console.log('🔍 Page ID:', req.params.pageId);
-    console.log('📦 Update Data:', JSON.stringify(req.body, null, 2));
-    
+
     const { pageId } = req.params;
     const updateData = req.body;
 
@@ -200,9 +175,6 @@ router.put('/:pageId', [
 
     // Populate theater info
     await pageAccessDoc.populate('theater', 'name location');
-
-    console.log(`✅ Page access ${pageId} updated successfully`);
-
     res.json({
       success: true,
       message: 'Page access updated successfully',
@@ -242,10 +214,6 @@ router.patch('/:pageId/toggle', [
   body('isActive').isBoolean().withMessage('isActive must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 PATCH /api/page-access/:pageId/toggle - Toggle page status');
-    console.log('🔍 Page ID:', req.params.pageId);
-    console.log('📦 New Status:', req.body.isActive);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -274,9 +242,6 @@ router.patch('/:pageId/toggle', [
 
     // Populate theater info
     await pageAccessDoc.populate('theater', 'name location');
-
-    console.log(`✅ Page access ${pageId} toggled to ${isActive}`);
-
     res.json({
       success: true,
       message: `Page access ${isActive ? 'activated' : 'deactivated'} successfully`,
@@ -316,9 +281,6 @@ router.delete('/:pageId', [
   param('pageId').isMongoId().withMessage('Valid page ID is required')
 ], async (req, res) => {
   try {
-    console.log('📥 DELETE /api/page-access/:pageId - Delete page access');
-    console.log('🔍 Page ID:', req.params.pageId);
-    
     const { pageId } = req.params;
 
     // Find document containing this page
@@ -337,9 +299,6 @@ router.delete('/:pageId', [
 
     // Remove the page
     await pageAccessDoc.removePage(pageId);
-
-    console.log(`✅ Page access ${pageId} deleted successfully`);
-
     res.json({
       success: true,
       message: `Page access "${pageName}" deleted successfully`,
@@ -377,9 +336,6 @@ router.get('/:pageId', [
   param('pageId').isMongoId().withMessage('Valid page ID is required')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/page-access/:pageId - Get specific page');
-    console.log('🔍 Page ID:', req.params.pageId);
-    
     const { pageId } = req.params;
 
     // Find document containing this page

@@ -9,8 +9,7 @@ export const usePerformanceMonitoring = (pageName) => {
       const observeLCP = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         const lastEntry = entries[entries.length - 1];
-        console.log(`📊 LCP for ${pageName}:`, lastEntry.startTime);
-      });
+  });
       
       try {
         observeLCP.observe({ entryTypes: ['largest-contentful-paint'] });
@@ -22,8 +21,7 @@ export const usePerformanceMonitoring = (pageName) => {
       const observeFID = new PerformanceObserver((list) => {
         const entries = list.getEntries();
         entries.forEach((entry) => {
-          console.log(`📊 FID for ${pageName}:`, entry.processingStart - entry.startTime);
-        });
+  });
       });
       
       try {
@@ -42,8 +40,7 @@ export const usePerformanceMonitoring = (pageName) => {
           }
         });
         if (clsValue > 0) {
-          console.log(`📊 CLS for ${pageName}:`, clsValue);
-        }
+  }
       });
       
       try {
@@ -54,12 +51,7 @@ export const usePerformanceMonitoring = (pageName) => {
 
       // Memory usage monitoring
       if (performance.memory) {
-        console.log(`📊 Memory usage for ${pageName}:`, {
-          used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) + 'MB',
-          total: Math.round(performance.memory.totalJSHeapSize / 1024 / 1024) + 'MB',
-          limit: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024) + 'MB'
-        });
-      }
+  }
     };
 
     // Delay measurement to ensure page is fully loaded

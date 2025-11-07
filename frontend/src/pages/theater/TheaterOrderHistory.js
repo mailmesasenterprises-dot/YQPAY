@@ -26,6 +26,7 @@ const TheaterOrderHistory = () => {
   const [allOrders, setAllOrders] = useState([]); // Store all orders for pagination
   const [loading, setLoading] = useState(true);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const [theaterInfo, setTheaterInfo] = useState(null); // Theater information for receipts
   const [summary, setSummary] = useState({
     totalOrders: 0,
     confirmedOrders: 0,
@@ -86,6 +87,34 @@ const TheaterOrderHistory = () => {
     }
   }, [theaterId, userTheaterId, userType]);
 
+  // Fetch theater information for receipts
+  const fetchTheaterInfo = useCallback(async () => {
+    if (!theaterId) return;
+    
+    try {
+      const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setTheaterInfo(data.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching theater info:', error);
+    }
+  }, [theaterId]);
+
+  // Load theater info on mount
+  useEffect(() => {
+    fetchTheaterInfo();
+  }, [fetchTheaterInfo]);
+
   // Load orders data
   const loadOrdersData = useCallback(async (page = 1, limit = 10, search = '', status = 'all', dateFilterParam = null) => {
     const currentDateFilter = dateFilterParam || dateFilter;
@@ -132,8 +161,7 @@ const TheaterOrderHistory = () => {
 
       const baseUrl = `${config.api.baseUrl}/orders/theater-nested?${params.toString()}`;
       
-      console.log('🎬 Fetching theater orders from:', baseUrl);
-      
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -145,18 +173,16 @@ const TheaterOrderHistory = () => {
         }
       });
       
-      console.log('📊 Order History API Response:', response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.log('❌ API Error:', errorText);
-        
+
         // Handle specific error cases
         if (response.status === 401) {
           throw new Error('Authentication failed. Please login again.');
         } else if (response.status === 404) {
           // 404 means no orders found - handle gracefully without error
-          console.log('ℹ️ No orders found for this theater (404)');
+
           if (!isMountedRef.current) return;
           setAllOrders([]);
           setOrders([]);
@@ -172,9 +198,7 @@ const TheaterOrderHistory = () => {
       }
 
       const data = await response.json();
-      console.log('📦 Order History Data:', data);
-      
-      
+
       if (!isMountedRef.current) return;
 
       if (data.success) {
@@ -187,12 +211,7 @@ const TheaterOrderHistory = () => {
           totalRevenue: 0
         };
         
-        console.log('📊 Orders data processed:', {
-          ordersCount: ordersData.length,
-          summary: summaryData,
-          pagination: data.pagination
-        });
-        
+
         // Store all orders
         setAllOrders(ordersData);
         
@@ -210,7 +229,7 @@ const TheaterOrderHistory = () => {
         }
       } else {
         // Handle case where API returns success but no data
-        console.log('⚠️ API returned success but no orders found');
+
         setAllOrders([]);
         setOrders([]);
         setTotalItems(0);
@@ -220,7 +239,7 @@ const TheaterOrderHistory = () => {
       }
     } catch (error) {
       if (error.name !== 'AbortError' && isMountedRef.current) {
-        console.error('❌ Order History Error:', error);
+
         // Removed error modal - just show empty state
         setOrders([]);
         setAllOrders([]);
@@ -266,21 +285,18 @@ const TheaterOrderHistory = () => {
 
   // Excel Download Handler
   const handleDownloadExcel = useCallback(async () => {
-    console.log('🔵 Excel download button clicked');
-    console.log('🔵 Theater ID:', theaterId);
-    
+
     if (!theaterId) {
-      console.error('❌ No theater ID available');
+
       showError('Theater ID is missing');
       return;
     }
     
     // Check if user is authenticated - try both token keys
     const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-    console.log('🔑 Token found:', !!token);
-    
+
     if (!token) {
-      console.error('❌ No authentication token found');
+
       showError('Please login again to download reports');
       return;
     }
@@ -307,8 +323,6 @@ const TheaterOrderHistory = () => {
       }
 
       const apiUrl = `${config.api.baseUrl}/orders/excel/${theaterId}?${params.toString()}`;
-      console.log('📊 Downloading Excel from:', apiUrl);
-      console.log('📊 Token exists:', !!token);
 
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -318,10 +332,9 @@ const TheaterOrderHistory = () => {
         }
       });
 
-      console.log('📊 Response status:', response.status);
 
       if (response.status === 401 || response.status === 403) {
-        console.error('❌ Authentication failed');
+
         showError('Session expired. Please login again.');
         // Optionally redirect to login
         setTimeout(() => {
@@ -333,8 +346,7 @@ const TheaterOrderHistory = () => {
       if (response.ok) {
         // Download Excel file
         const blob = await response.blob();
-        console.log('📊 Blob size:', blob.size, 'bytes');
-        
+
         if (blob.size === 0) {
           showError('No data available to export');
           return;
@@ -354,19 +366,18 @@ const TheaterOrderHistory = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        console.log('✅ Excel downloaded successfully');
-      } else {
+  } else {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
-          console.error('❌ Error response:', errorData);
+
           showError(errorData.error || `Failed to download Excel report (${response.status})`);
         } else {
           showError(`Failed to download Excel report (${response.status})`);
         }
       }
     } catch (error) {
-      console.error('❌ Error downloading Excel report:', error);
+
       showError('Network error. Please check your connection and try again.');
     } finally {
       setDownloadingExcel(false);
@@ -441,128 +452,189 @@ const TheaterOrderHistory = () => {
   // Download order as PDF
   const downloadOrderPDF = (order) => {
     try {
-      // Create PDF content as HTML
+      // Format theater address
+      const formatTheaterAddress = () => {
+        if (!theaterInfo || !theaterInfo.address) return 'N/A';
+        const addr = theaterInfo.address;
+        const parts = [
+          addr.street,
+          addr.city,
+          addr.state,
+          addr.zipCode,
+          addr.country
+        ].filter(Boolean);
+        return parts.join(', ') || 'N/A';
+      };
+
+      // Create PDF content as HTML - Thermal Receipt Style
       const pdfContent = `
         <!DOCTYPE html>
         <html>
         <head>
           <meta charset="utf-8">
-          <title>Order ${order.orderNumber}</title>
+          <title>Bill - ${order.orderNumber}</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #8B5CF6; padding-bottom: 20px; }
-            .header h1 { color: #8B5CF6; margin: 0; font-size: 28px; }
-            .header p { margin: 5px 0; color: #666; }
-            .section { margin-bottom: 25px; }
-            .section h2 { color: #8B5CF6; border-bottom: 1px solid #ddd; padding-bottom: 8px; font-size: 18px; }
-            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-            .info-item { padding: 10px; background: #f8f9fa; border-radius: 6px; }
-            .info-label { font-weight: bold; color: #666; font-size: 12px; text-transform: uppercase; margin-bottom: 5px; }
-            .info-value { font-size: 16px; color: #333; }
-            .items-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            .items-table th, .items-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-            .items-table th { background: #8B5CF6; color: white; font-weight: bold; }
-            .items-table tr:nth-child(even) { background: #f8f9fa; }
-            .total-section { margin-top: 25px; text-align: right; }
-            .total-amount { font-size: 24px; font-weight: bold; color: #8B5CF6; }
-            .status-badge { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-            .status-confirmed { background: #d4edda; color: #155724; }
-            .status-completed { background: #d1ecf1; color: #0c5460; }
-            .status-pending { background: #fff3cd; color: #856404; }
-            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; padding-top: 20px; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: 'Courier New', monospace; 
+              max-width: 300px; 
+              margin: 0 auto; 
+              padding: 10px;
+              font-size: 12px;
+              line-height: 1.4;
+            }
+            .receipt-header {
+              text-align: center;
+              border-bottom: 1px dashed #000;
+              padding-bottom: 10px;
+              margin-bottom: 10px;
+            }
+            .business-name {
+              font-size: 18px;
+              font-weight: bold;
+              margin-bottom: 5px;
+            }
+            .business-info {
+              font-size: 11px;
+              line-height: 1.5;
+            }
+            .bill-details {
+              border-bottom: 1px dashed #000;
+              padding: 8px 0;
+              margin-bottom: 8px;
+            }
+            .bill-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 3px;
+              font-size: 11px;
+            }
+            .bill-row strong {
+              font-weight: bold;
+            }
+            .items-header {
+              display: flex;
+              justify-content: space-between;
+              font-weight: bold;
+              border-bottom: 1px solid #000;
+              padding-bottom: 5px;
+              margin-bottom: 5px;
+            }
+            .item-name { flex: 2; }
+            .item-qty { flex: 0.5; text-align: center; }
+            .item-rate { flex: 1; text-align: right; }
+            .item-total { flex: 1; text-align: right; }
+            .item-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 4px;
+              font-size: 11px;
+            }
+            .totals-section {
+              border-top: 1px dashed #000;
+              padding-top: 8px;
+              margin-top: 8px;
+            }
+            .total-row {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 4px;
+              font-size: 12px;
+            }
+            .total-row.grand-total {
+              font-weight: bold;
+              font-size: 14px;
+              border-top: 1px solid #000;
+              padding-top: 5px;
+              margin-top: 5px;
+            }
+            .footer {
+              text-align: center;
+              margin-top: 10px;
+              padding-top: 10px;
+              border-top: 1px dashed #000;
+              font-size: 10px;
+            }
           </style>
         </head>
         <body>
-          <div class="header">
-            <h1>Order Receipt</h1>
-            <p><strong>Order Number:</strong> ${order.orderNumber}</p>
-            <p><strong>Date:</strong> ${formatDate(order.createdAt)}</p>
-          </div>
-
-          <div class="section">
-            <h2>Order Information</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="info-label">Order Number</div>
-                <div class="info-value">${order.orderNumber}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">Status</div>
-                <div class="info-value">
-                  <span class="status-badge status-${order.status}">
-                    ${order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
-                  </span>
-                </div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">Payment Method</div>
-                <div class="info-value">${order.paymentMethod || 'N/A'}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">Order Date</div>
-                <div class="info-value">${formatDate(order.createdAt)}</div>
-              </div>
+          <!-- Business Header -->
+          <div class="receipt-header">
+            <div class="business-name">${theaterInfo?.name || 'Theater Name'}</div>
+            <div class="business-info">
+              ${theaterInfo?.address ? formatTheaterAddress() : 'Address'}<br>
+              ${theaterInfo?.phone ? 'Phone: ' + theaterInfo.phone : ''}<br>
+              ${theaterInfo?.email ? 'Email: ' + theaterInfo.email : ''}<br>
+              ${theaterInfo?.gstNumber ? 'GST: ' + theaterInfo.gstNumber : ''}
             </div>
           </div>
 
-          <div class="section">
-            <h2>Customer Information</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="info-label">Customer Name</div>
-                <div class="info-value">${order.customerName || order.customerInfo?.name || 'N/A'}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">Phone Number</div>
-                <div class="info-value">${order.customerPhone || order.customerInfo?.phone || 'N/A'}</div>
-              </div>
-              <div class="info-item">
-                <div class="info-label">Email</div>
-                <div class="info-value">${order.customerEmail || order.customerInfo?.email || 'N/A'}</div>
-              </div>
+          <!-- Bill Details -->
+          <div class="bill-details">
+            <div class="bill-row">
+              <span><strong>Invoice ID:</strong> ${order.orderNumber || 'N/A'}</span>
+            </div>
+            <div class="bill-row">
+              <span><strong>Date:</strong> ${formatDate(order.createdAt)}</span>
+            </div>
+            <div class="bill-row">
+              <span><strong>Bill To:</strong> ${order.customerName || order.customerInfo?.name || 'Customer'}</span>
             </div>
           </div>
 
-          <div class="section">
-            <h2>Order Items</h2>
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th>Item Name</th>
-                  <th>Quantity</th>
-                  <th>Unit Price</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${(order.products || order.items) && (order.products || order.items).length > 0 ? 
-                  (order.products || order.items).map(item => `
-                    <tr>
-                      <td>${item.productName || item.menuItem?.name || 'Unknown Item'}</td>
-                      <td>${item.quantity}</td>
-                      <td>${formatCurrency(item.unitPrice || item.price)}</td>
-                      <td>${formatCurrency(item.totalPrice || (item.quantity * (item.unitPrice || item.price)))}</td>
-                    </tr>
-                  `).join('') : 
-                  '<tr><td colspan="4">No items found</td></tr>'
-                }
-              </tbody>
-            </table>
+          <!-- Items Header -->
+          <div class="items-header">
+            <div class="item-name">Item Name</div>
+            <div class="item-qty">Qty</div>
+            <div class="item-rate">Rate</div>
+            <div class="item-total">Total</div>
+          </div>
+
+          <!-- Items List -->
+          ${(order.products || order.items || []).map(item => {
+            const qty = item.quantity || 1;
+            const rate = item.unitPrice || item.price || 0;
+            const total = item.totalPrice || (qty * rate);
+            return `
+            <div class="item-row">
+              <div class="item-name">${item.productName || item.menuItem?.name || item.name || 'Item'}</div>
+              <div class="item-qty">${qty}</div>
+              <div class="item-rate">${rate.toFixed(2)}</div>
+              <div class="item-total">${total.toFixed(2)}</div>
+            </div>
+            `;
+          }).join('')}
+
+          <!-- Totals Section -->
+          <div class="totals-section">
+            ${order.pricing?.subtotal || order.subtotal ? `
+            <div class="total-row">
+              <span>Subtotal:</span>
+              <span>₹${(order.pricing?.subtotal || order.subtotal).toFixed(2)}</span>
+            </div>
+            ` : ''}
             
-            <div class="total-section">
-              <div class="total-amount">
-                Total Amount: ${formatCurrency(order.totalAmount)}
-              </div>
+            ${(order.pricing?.tax || order.tax || order.pricing?.gst || order.gst) ? `
+            <div class="total-row">
+              <span>GST/Tax:</span>
+              <span>₹${(order.pricing?.tax || order.tax || order.pricing?.gst || order.gst).toFixed(2)}</span>
+            </div>
+            ` : ''}
+            
+            ${(order.pricing?.discount || order.discount) ? `
+            <div class="total-row">
+              <span>Discount:</span>
+              <span>-₹${(order.pricing?.discount || order.discount).toFixed(2)}</span>
+            </div>
+            ` : ''}
+            
+            <div class="total-row grand-total">
+              <span>Grand Total:</span>
+              <span>₹${(order.pricing?.total || order.totalAmount || order.total || 0).toFixed(2)}</span>
             </div>
           </div>
 
-          ${order.notes ? `
-            <div class="section">
-              <h2>Order Notes</h2>
-              <p style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 0;">${order.notes}</p>
-            </div>
-          ` : ''}
-
+          <!-- Footer -->
           <div class="footer">
             <p>Thank you for your order!</p>
             <p>Generated on ${new Date().toLocaleString('en-IN')}</p>
@@ -693,12 +765,7 @@ const TheaterOrderHistory = () => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('🟢 EXCEL BUTTON CLICKED!', { 
-                  downloadingExcel, 
-                  loading, 
-                  theaterId,
-                  disabled: downloadingExcel || loading 
-                });
+
                 handleDownloadExcel();
               }}
               disabled={downloadingExcel || loading}
@@ -793,11 +860,12 @@ const TheaterOrderHistory = () => {
                         <div className="order-date">{formatDate(order.orderDate || order.createdAt)}</div>
                       </td>
                       <td className="action-cell">
-                        <div className="action-buttons">
+                        <div className="action-buttons" style={{ gap: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <button 
                             className="action-btn view-btn"
                             onClick={() => viewOrder(order)}
                             title="View Details"
+                            style={{ margin: '0' }}
                           >
                             <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '16px', height: '16px'}}>
                               <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
@@ -807,6 +875,7 @@ const TheaterOrderHistory = () => {
                             className="action-btn download-btn"
                             onClick={() => downloadOrderPDF(order)}
                             title="Download PDF"
+                            style={{ margin: '0' }}
                           >
                             <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '16px', height: '16px'}}>
                               <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
@@ -856,15 +925,35 @@ const TheaterOrderHistory = () => {
           itemType="orders"
         />
 
-        {/* View Modal */}
+        {/* View Modal - Thermal Receipt Style */}
         {showViewModal && selectedOrder && (
           <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>Order Details</h2>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+              maxWidth: '400px',
+              fontFamily: "'Courier New', monospace",
+              backgroundColor: '#fff',
+              padding: '0'
+            }}>
+              <div className="modal-header" style={{
+                background: '#8B5CF6',
+                color: 'white',
+                padding: '15px 20px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderRadius: '8px 8px 0 0'
+              }}>
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Bill - {selectedOrder.orderNumber}</h2>
                 <button 
                   className="close-btn"
                   onClick={() => setShowViewModal(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'white',
+                    cursor: 'pointer',
+                    padding: '5px'
+                  }}
                 >
                   <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
                     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -872,86 +961,149 @@ const TheaterOrderHistory = () => {
                 </button>
               </div>
               
-              <div className="modal-body">
-                <div className="order-details">
-                  <div className="detail-section">
-                    <h3>Order Information</h3>
-                    <div className="detail-grid">
-                      <div className="detail-item">
-                        <label>Order Number:</label>
-                        <span>{selectedOrder.orderNumber}</span>
-                      </div>
-                      <div className="detail-item">
-                        <label>Status:</label>
-                        <span className={getStatusBadgeClass(selectedOrder.status)}>
-                          {selectedOrder.status ? selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1) : 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="detail-item">
-                        <label>Date:</label>
-                        <span>{formatDate(selectedOrder.createdAt)}</span>
-                      </div>
-                      <div className="detail-item">
-                        <label>Payment Mode:</label>
-                        <span>{selectedOrder.payment?.method ? selectedOrder.payment.method.charAt(0).toUpperCase() + selectedOrder.payment.method.slice(1) : 'N/A'}</span>
-                      </div>
-                    </div>
+              <div className="modal-body" style={{
+                padding: '20px',
+                fontSize: '13px',
+                lineHeight: '1.5'
+              }}>
+                {/* Business Header */}
+                <div style={{
+                  textAlign: 'center',
+                  borderBottom: '2px dashed #000',
+                  paddingBottom: '15px',
+                  marginBottom: '15px'
+                }}>
+                  <div style={{
+                    fontSize: '20px',
+                    fontWeight: 'bold',
+                    marginBottom: '8px',
+                    color: '#8B5CF6'
+                  }}>{theaterInfo?.name || 'Theater Name'}</div>
+                  <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.6' }}>
+                    {theaterInfo?.address ? (() => {
+                      const addr = theaterInfo.address;
+                      const parts = [addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean);
+                      return parts.join(', ') || 'Address';
+                    })() : 'Address'}<br/>
+                    {theaterInfo?.phone ? `Phone: ${theaterInfo.phone}` : ''}<br/>
+                    {theaterInfo?.email ? `Email: ${theaterInfo.email}` : ''}<br/>
+                    {theaterInfo?.gstNumber ? `GST: ${theaterInfo.gstNumber}` : ''}
                   </div>
+                </div>
 
-                  <div className="detail-section">
-                    <h3>Customer Information</h3>
-                    <div className="detail-grid">
-                      <div className="detail-item">
-                        <label>Name:</label>
-                        <span>{selectedOrder.customerName || selectedOrder.customerInfo?.name || 'N/A'}</span>
-                      </div>
-                      <div className="detail-item">
-                        <label>Phone:</label>
-                        <span>{selectedOrder.customerPhone || selectedOrder.customerInfo?.phone || 'N/A'}</span>
-                      </div>
-                      <div className="detail-item">
-                        <label>Email:</label>
-                        <span>{selectedOrder.customerEmail || selectedOrder.customerInfo?.email || 'N/A'}</span>
-                      </div>
-                    </div>
+                {/* Bill Details */}
+                <div style={{
+                  borderBottom: '2px dashed #000',
+                  paddingBottom: '12px',
+                  marginBottom: '12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                    <span style={{ fontWeight: 'bold' }}>Invoice ID:</span>
+                    <span>{selectedOrder.orderNumber || 'N/A'}</span>
                   </div>
-
-                  <div className="detail-section">
-                    <h3>Order Items</h3>
-                    <div className="items-list">
-                      {(selectedOrder.products || selectedOrder.items) && (selectedOrder.products || selectedOrder.items).length > 0 ? (
-                        (selectedOrder.products || selectedOrder.items).map((item, index) => (
-                          <div key={index} className="item-row">
-                            <div className="item-info">
-                              <span className="item-name">
-                                {item.productName || item.menuItem?.name || 'Unknown Item'}
-                              </span>
-                              <span className="item-details">
-                                Qty: {item.quantity} × {formatCurrency(item.unitPrice || item.price)}
-                              </span>
-                            </div>
-                            <div className="item-total">
-                              {formatCurrency(item.totalPrice || (item.quantity * (item.unitPrice || item.price)))}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p>No items found</p>
-                      )}
-                    </div>
-                    <div className="order-total">
-                      <div className="total-row">
-                        <strong>Total Amount: {formatCurrency(selectedOrder.pricing?.total ?? selectedOrder.totalAmount ?? 0)}</strong>
-                      </div>
-                    </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                    <span style={{ fontWeight: 'bold' }}>Date:</span>
+                    <span>{formatDate(selectedOrder.createdAt)}</span>
                   </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                    <span style={{ fontWeight: 'bold' }}>Bill To:</span>
+                    <span>{selectedOrder.customerName || selectedOrder.customerInfo?.name || 'Customer'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 'bold' }}>Payment:</span>
+                    <span>{selectedOrder.payment?.method ? selectedOrder.payment.method.toUpperCase() : 'N/A'}</span>
+                  </div>
+                </div>
 
-                  {selectedOrder.notes && (
-                    <div className="detail-section">
-                      <h3>Order Notes</h3>
-                      <p>{selectedOrder.notes}</p>
+                {/* Items Header */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 0.7fr 1fr 1fr',
+                  fontWeight: 'bold',
+                  borderBottom: '2px solid #000',
+                  paddingBottom: '8px',
+                  marginBottom: '8px',
+                  fontSize: '12px'
+                }}>
+                  <div>Item Name</div>
+                  <div style={{ textAlign: 'center' }}>Qty</div>
+                  <div style={{ textAlign: 'right' }}>Rate</div>
+                  <div style={{ textAlign: 'right' }}>Total</div>
+                </div>
+
+                {/* Items List */}
+                {(selectedOrder.products || selectedOrder.items || []).map((item, index) => {
+                  const qty = item.quantity || 1;
+                  const rate = item.unitPrice || item.price || 0;
+                  const total = item.totalPrice || (qty * rate);
+                  return (
+                    <div key={index} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 0.7fr 1fr 1fr',
+                      marginBottom: '6px',
+                      fontSize: '12px'
+                    }}>
+                      <div style={{ wordBreak: 'break-word' }}>{item.productName || item.menuItem?.name || item.name || 'Item'}</div>
+                      <div style={{ textAlign: 'center' }}>{qty}</div>
+                      <div style={{ textAlign: 'right' }}>₹{rate.toFixed(2)}</div>
+                      <div style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{total.toFixed(2)}</div>
+                    </div>
+                  );
+                })}
+
+                {/* Totals Section */}
+                <div style={{
+                  borderTop: '2px dashed #000',
+                  paddingTop: '12px',
+                  marginTop: '12px'
+                }}>
+                  {(selectedOrder.pricing?.subtotal || selectedOrder.subtotal) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                      <span>Subtotal:</span>
+                      <span>₹{(selectedOrder.pricing?.subtotal || selectedOrder.subtotal).toFixed(2)}</span>
                     </div>
                   )}
+                  
+                  {(selectedOrder.pricing?.tax || selectedOrder.tax || selectedOrder.pricing?.gst || selectedOrder.gst) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                      <span>GST/Tax:</span>
+                      <span>₹{(selectedOrder.pricing?.tax || selectedOrder.tax || selectedOrder.pricing?.gst || selectedOrder.gst).toFixed(2)}</span>
+                    </div>
+                  )}
+                  
+                  {(selectedOrder.pricing?.discount || selectedOrder.discount) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                      <span>Discount:</span>
+                      <span>-₹{(selectedOrder.pricing?.discount || selectedOrder.discount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontWeight: 'bold',
+                    fontSize: '16px',
+                    borderTop: '2px solid #000',
+                    paddingTop: '8px',
+                    marginTop: '8px',
+                    color: '#8B5CF6'
+                  }}>
+                    <span>Grand Total:</span>
+                    <span>₹{(selectedOrder.pricing?.total || selectedOrder.totalAmount || selectedOrder.total || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{
+                  textAlign: 'center',
+                  marginTop: '15px',
+                  paddingTop: '15px',
+                  borderTop: '2px dashed #000',
+                  fontSize: '11px',
+                  color: '#666'
+                }}>
+                  <p style={{ margin: '5px 0', fontWeight: 'bold' }}>Thank you for your order!</p>
+                  <p style={{ margin: '5px 0' }}>Generated on {new Date().toLocaleString('en-IN')}</p>
                 </div>
               </div>
             </div>

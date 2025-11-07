@@ -11,11 +11,9 @@ const PerformanceProvider = ({ children }) => {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then((registration) => {
-            console.log('SW registered: ', registration);
-          })
+  })
           .catch((registrationError) => {
-            console.log('SW registration failed: ', registrationError);
-          });
+  });
       });
     }
 
@@ -36,8 +34,7 @@ const PerformanceProvider = ({ children }) => {
 
     // Performance monitoring
     if (process.env.NODE_ENV === 'development') {
-      console.log('Performance Metrics:', performanceMetrics);
-    }
+  }
 
     // Cleanup on unmount
     return () => {
@@ -46,7 +43,6 @@ const PerformanceProvider = ({ children }) => {
       preloadLinks.forEach(link => link.remove());
     };
   }, [performanceMetrics]);
-
   return <>{children}</>;
 };
 

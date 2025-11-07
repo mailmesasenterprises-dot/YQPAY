@@ -3,9 +3,6 @@ const router = express.Router();
 const QRCodeName = require('../models/QRCodeNameArray');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { body, validationResult, param, query } = require('express-validator');
-
-console.log('🔧 QRCodeName Array routes file loaded successfully!');
-
 /**
  * @route   GET /api/qrcodenames
  * @desc    Get QR code names for a theater (array-based structure)
@@ -17,13 +14,10 @@ router.get('/', [
   query('isActive').optional().isBoolean().withMessage('isActive must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/qrcodenames - Request received');
-    console.log('Query params:', req.query);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -70,9 +64,6 @@ router.get('/', [
     if (limit) {
       qrNameList = qrNameList.slice(0, parseInt(limit));
     }
-
-    console.log(`✅ Found ${qrNameList.length} QR names for theater ${theaterId}`);
-
     res.json({
       success: true,
       data: {
@@ -105,8 +96,7 @@ router.post('/', [
   body('description').optional().trim()
 ], async (req, res) => {
   try {
-    console.log('📥 POST /api/qrcodenames - Create QR name (theaterId in body)');
-    
+
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -143,9 +133,6 @@ router.post('/', [
 
     // Populate theater info
     await qrNamesDoc.populate('theater', 'name location');
-
-    console.log(`✅ QR name "${qrName}" created for theater ${theaterId}`);
-
     res.status(201).json({
       success: true,
       message: 'QR name created successfully',
@@ -179,8 +166,6 @@ router.post('/:theaterId', [
   body('description').optional().trim()
 ], async (req, res) => {
   try {
-    console.log('📥 POST /api/qrcodenames/:theaterId - Create QR name');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -218,9 +203,6 @@ router.post('/:theaterId', [
 
     // Populate theater info
     await qrNamesDoc.populate('theater', 'name location');
-
-    console.log(`✅ QR name "${qrName}" created for theater ${theaterId}`);
-
     res.status(201).json({
       success: true,
       message: 'QR name created successfully',
@@ -256,8 +238,6 @@ router.put('/:theaterId/:qrNameId', [
   body('isActive').optional().isBoolean()
 ], async (req, res) => {
   try {
-    console.log('📥 PUT /api/qrcodenames - Update QR name');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -283,9 +263,6 @@ router.put('/:theaterId/:qrNameId', [
     // Update QR name
     await qrNamesDoc.updateQRName(qrNameId, updates);
     await qrNamesDoc.populate('theater', 'name location');
-
-    console.log(`✅ QR name ${qrNameId} updated for theater ${theaterId}`);
-
     res.json({
       success: true,
       message: 'QR name updated successfully',
@@ -318,8 +295,6 @@ router.delete('/:theaterId/:qrNameId', [
   query('permanent').optional().isBoolean().withMessage('Permanent must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 DELETE /api/qrcodenames - Delete QR name');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -345,11 +320,9 @@ router.delete('/:theaterId/:qrNameId', [
     if (permanent) {
       // Permanent delete
       await qrNamesDoc.deleteQRName(qrNameId);
-      console.log(`✅ QR name ${qrNameId} permanently deleted`);
     } else {
       // Soft delete
       await qrNamesDoc.deactivateQRName(qrNameId);
-      console.log(`✅ QR name ${qrNameId} deactivated`);
     }
 
     await qrNamesDoc.populate('theater', 'name location');
@@ -388,8 +361,6 @@ router.put('/:qrNameId', [
   body('isActive').optional().isBoolean()
 ], async (req, res) => {
   try {
-    console.log('📥 PUT /api/qrcodenames/:qrNameId - Update QR name');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -415,9 +386,6 @@ router.put('/:qrNameId', [
     // Update QR name
     await qrNamesDoc.updateQRName(qrNameId, updates);
     await qrNamesDoc.populate('theater', 'name location');
-
-    console.log(`✅ QR name ${qrNameId} updated`);
-
     res.json({
       success: true,
       message: 'QR name updated successfully',
@@ -449,12 +417,6 @@ router.delete('/:qrNameId', [
   query('permanent').optional().isBoolean().withMessage('Permanent must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 DELETE /api/qrcodenames/:qrNameId - Delete QR name');
-    console.log('🔍 Request params:', req.params);
-    console.log('🔍 QR Name ID:', req.params.qrNameId);
-    console.log('🔍 Request query:', req.query);
-    console.log('🔍 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -480,11 +442,9 @@ router.delete('/:qrNameId', [
     if (permanent) {
       // Permanent delete
       await qrNamesDoc.deleteQRName(qrNameId);
-      console.log(`✅ QR name ${qrNameId} permanently deleted`);
     } else {
       // Soft delete
       await qrNamesDoc.deactivateQRName(qrNameId);
-      console.log(`✅ QR name ${qrNameId} deactivated`);
     }
 
     await qrNamesDoc.populate('theater', 'name location');
@@ -518,8 +478,6 @@ router.get('/theater/:theaterId', [
   param('theaterId').isMongoId().withMessage('Valid theater ID is required')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/qrcodenames/theater/:theaterId');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

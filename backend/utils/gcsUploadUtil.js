@@ -10,17 +10,11 @@ const mongoose = require('mongoose');
 let storageClient = null;
 let bucketName = null;
 const USE_MOCK_MODE = process.env.GCS_MOCK_MODE === 'true' || false; // Check env variable
-
-console.log('🔧 GCS Upload Utility Initialized');
-console.log('   GCS_MOCK_MODE env:', process.env.GCS_MOCK_MODE);
-console.log('   USE_MOCK_MODE:', USE_MOCK_MODE);
-
 /**
  * Initialize GCS client with settings from database
  */
 async function initializeGCS() {
   if (USE_MOCK_MODE) {
-    console.log('🧪 GCS MOCK MODE: Skipping actual GCS initialization');
     return { mock: true };
   }
   
@@ -58,9 +52,6 @@ async function initializeGCS() {
         private_key: privateKey
       }
     });
-
-    console.log('✅ GCS client initialized successfully');
-    console.log(`📦 Bucket: ${bucketName}`);
     return storageClient;
 
   } catch (error) {
@@ -79,8 +70,7 @@ async function initializeGCS() {
  */
 async function uploadFile(fileBuffer, filename, folder, mimetype) {
   try {
-    console.log(`📤 Uploading file: ${filename} (${(fileBuffer.length / 1024).toFixed(2)} KB) to ${folder}/`);
-    
+
     // Initialize GCS if not already done
     if (!storageClient && !USE_MOCK_MODE) {
       await initializeGCS();
@@ -97,20 +87,19 @@ async function uploadFile(fileBuffer, filename, folder, mimetype) {
     const uniqueFilename = `${name}-${timestamp}${ext}`;
     const destination = `${folder}/${uniqueFilename}`;
 
-    // Mock mode - return fake URL
+    // Mock mode - return base64 data URL (same as gcsUpload.js for consistency)
     if (USE_MOCK_MODE) {
-      const mockUrl = `https://storage.googleapis.com/theater-canteen-uploads-mock/${destination}`;
-      console.log(`🧪 MOCK: Generated URL for ${filename}: ${mockUrl}`);
-      return mockUrl;
+      console.log('🎭 MOCK MODE (gcsUploadUtil): Using base64 data URL for', filename);
+      const base64Data = fileBuffer.toString('base64');
+      const dataUrl = `data:${mimetype};base64,${base64Data}`;
+      console.log('✅ Base64 data URL created (length:', dataUrl.length, ')');
+      return dataUrl;
     }
 
     const bucket = storageClient.bucket(bucketName);
     
     // Create file reference
     const file = bucket.file(destination);
-
-    console.log(`☁️  Uploading to gs://${bucketName}/${destination}...`);
-    
     // Upload file (removed public:true to work with Public Access Prevention)
     await file.save(fileBuffer, {
       metadata: {
@@ -129,8 +118,6 @@ async function uploadFile(fileBuffer, filename, folder, mimetype) {
       expires: '12-31-2099' // Long-term access
     });
 
-    console.log(`✅ File uploaded successfully: ${destination}`);
-    console.log(`🔗 Signed URL generated (${url.substring(0, 80)}...)`);
     return url;
 
   } catch (error) {
@@ -177,7 +164,6 @@ async function deleteFile(fileUrl) {
   try {
     // Mock mode - just log and return success
     if (USE_MOCK_MODE) {
-      console.log(`🧪 MOCK: Deleted file ${fileUrl}`);
       return true;
     }
 
@@ -205,8 +191,6 @@ async function deleteFile(fileUrl) {
 
     const file = bucket.file(filePath);
     await file.delete();
-
-    console.log(`🗑️  File deleted: ${filePath}`);
     return true;
 
   } catch (error) {
@@ -225,8 +209,6 @@ async function deleteFiles(fileUrls) {
     const deletePromises = fileUrls.map(url => deleteFile(url));
     const results = await Promise.all(deletePromises);
     const successCount = results.filter(result => result === true).length;
-    
-    console.log(`🗑️  Deleted ${successCount}/${fileUrls.length} files`);
     return successCount;
 
   } catch (error) {

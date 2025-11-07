@@ -123,6 +123,12 @@ const IconSettings = () => (
   </svg>
 );
 
+const IconPayment = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+  </svg>
+);
+
 const getIcon = (iconName) => {
   const icons = {
     dashboard: <IconDashboard />,
@@ -144,6 +150,7 @@ const getIcon = (iconName) => {
     email: <IconEmail />,
     transactions: <IconTransactions />,
     invoices: <IconInvoices />,
+    payment: <IconPayment />,
     settings: <IconSettings />
   };
   return icons[iconName] || null;
@@ -174,8 +181,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
             }
           }
         } catch (error) {
-          console.error('Error fetching theater logo:', error);
-        } finally {
+  } finally {
           setLogoLoading(false);
         }
       }
@@ -188,6 +194,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
     { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', path: '/dashboard', tooltip: 'Main Dashboard - Overview & Analytics' },
     { id: 'add-theater', icon: 'add-theater', label: 'Add Theater', path: '/add-theater', tooltip: 'Add New Theater - Register Theater Location' },
     { id: 'theaters', icon: 'theaters', label: 'Theater List', path: '/theaters', tooltip: 'Theater Management - View All Theaters' },
+    { id: 'payment-gateway', icon: 'payment', label: 'Payment Gateway', path: '/payment-gateway-list', tooltip: 'Payment Gateway Settings - Configure Kiosk & Online APIs' },
     { id: 'page-access', icon: 'page-access', label: 'Page Access', path: '/page-access', tooltip: 'Page Access Control - Manage Page Permissions' },
     { id: 'roles', icon: 'roles', label: 'Create Role ', path: '/roles', tooltip: 'Role Management - Create & Edit User Roles' },
     { id: 'role-access', icon: 'role-access', label: 'Role Access', path: '/role-access', tooltip: 'Role Permissions - Configure Role Access Rights' },
@@ -209,7 +216,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
     // Theater users see only pages they have permission for
     if (userType === 'theater_user' || userType === 'theater_admin') {
       if (!rolePermissions || rolePermissions.length === 0) {
-        console.warn('⚠️ No role permissions found for user');
+
         return [];
       }
 
@@ -217,7 +224,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
         ?.filter(p => p.hasAccess === true)
         .map(p => p.route) || [];
 
-      console.log('🔐 Filtering menu items based on permissions:', allowedPages);
 
       return navigationItems.filter(item => {
         // Replace :theaterId in route for comparison
@@ -230,8 +236,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
         });
 
         if (isAllowed) {
-          console.log('✅ Menu item allowed:', item.label, item.path);
-        }
+  }
 
         return isAllowed;
       });
@@ -263,7 +268,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, currentPage = 
             {userType === 'super_admin' ? (
               // Show Application Logo for Super Admin
               <img 
-                src="/logo192.png" 
+                src="/images/logo.jpg" 
                 alt="Application Logo" 
                 style={{ width: '100%', height: '100%', objectFit: 'contain' }}
               />

@@ -52,8 +52,10 @@ export const extractPagesFromAppJS = () => {
   { page: 'TheaterProductList', pageName: 'Theater Product List', route: '/theater-products/:theaterId', description: 'View and manage theater product inventory', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterOrderInterface', pageName: 'Theater Order Interface', route: '/theater-order/:theaterId', description: 'Theater canteen staff order taking screen for customers', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'OnlinePOSInterface', pageName: 'Online POS Interface', route: '/online-pos/:theaterId', description: 'Dual order management system with current and online orders', roles: ['theater_user', 'theater-admin', 'admin'] },
+  { page: 'OfflinePOSInterface', pageName: 'Offline POS Interface', route: '/offline-pos/:theaterId', description: 'POS system with offline support - works without internet and auto-syncs orders', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterOrderHistory', pageName: 'Theater Order History', route: '/theater-order-history/:theaterId', description: 'View and manage theater order history with search and filtering', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'OnlineOrderHistory', pageName: 'Online Order History', route: '/online-order-history/:theaterId', description: 'View and manage online orders from QR code scans with search and filtering', roles: ['theater_user', 'theater-admin', 'admin'] },
+  { page: 'KioskOrderHistory', pageName: 'Kiosk Order History', route: '/kiosk-order-history/:theaterId', description: 'View and manage kiosk POS orders with search and filtering', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterAddProductWithId', pageName: 'Theater Add Product (With ID)', route: '/theater-add-product/:theaterId', description: 'Theater Product Management - Add new products to theater menu (With Theater ID)', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterRoles', pageName: 'Theater Roles Management', route: '/theater-roles/:theaterId', description: 'Manage theater-specific roles and permissions', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterRoleAccess', pageName: 'Theater Role Access Management', route: '/theater-role-access/:theaterId', description: 'Manage page access permissions for theater roles', roles: ['theater_user', 'theater-admin', 'admin'] },
@@ -62,7 +64,8 @@ export const extractPagesFromAppJS = () => {
   { page: 'TheaterQRManagement', pageName: 'Theater QR Management', route: '/theater-qr-management/:theaterId', description: 'View and manage all generated QR codes for theater', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterUserManagement', pageName: 'Theater User Management', route: '/theater-user-management/:theaterId', description: 'Manage theater users and their roles', roles: ['theater_user', 'theater-admin', 'admin'] },
   { page: 'TheaterMessages', pageName: 'Messages', route: '/theater-messages/:theaterId', description: 'Chat with Super Admin', roles: ['theater_user', 'theater-admin', 'admin'] },
-  { page: 'TheaterReports', pageName: 'Theater Reports', route: '/theater-reports/:theaterId', description: 'View theater reports and analytics', roles: ['theater_user', 'theater-admin', 'admin'] }
+  { page: 'TheaterReports', pageName: 'Theater Reports', route: '/theater-reports/:theaterId', description: 'View theater reports and analytics', roles: ['theater_user', 'theater-admin', 'admin'] },
+  { page: 'TheaterBanner', pageName: 'Theater Banner', route: '/theater-banner/:theaterId', description: 'Upload and manage theater banner image', roles: ['theater_user', 'theater-admin', 'admin'] }
   ];
 
   // Filter out pages that should not be in page access management

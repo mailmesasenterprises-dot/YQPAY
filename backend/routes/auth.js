@@ -17,9 +17,6 @@ const generateToken = (user) => {
     userType: user.userType, // ✅ ADD: Include userType for proper role checking
     theaterId: user.theaterId
   };
-  
-  console.log('🎫 Generating token with payload:', tokenPayload);
-  
   return jwt.sign(
     tokenPayload,
     process.env.JWT_SECRET || 'yqpaynow-super-secret-jwt-key-development-only',
@@ -65,18 +62,13 @@ router.post('/login', [
         code: 'MISSING_IDENTIFIER'
       });
     }
-
-    console.log(`🔐 Login attempt for: ${loginIdentifier}`);
-
     // Step 1: Check ADMINS collection by email
     if (loginIdentifier.includes('@')) {
-      console.log('📧 Checking admins collection by email...');
       try {
         const admin = await mongoose.connection.db.collection('admins')
           .findOne({ email: loginIdentifier, isActive: true });
         
         if (admin && await bcrypt.compare(password, admin.password)) {
-          console.log('✅ Admin authenticated successfully');
           authenticatedUser = {
             _id: admin._id,
             username: admin.email,
@@ -95,13 +87,12 @@ router.post('/login', [
             });
         }
       } catch (error) {
-        console.log('❌ Admin lookup error:', error.message);
       }
     }
 
     // Step 2: Check THEATERUSERS collection by username if no admin found (ARRAY-BASED STRUCTURE)
     if (!authenticatedUser) {
-      console.log('👤 Checking theaterusers collection by username (array structure)...');
+
       try {
         // Find the theater document that contains this user in its users array
         const theaterUsersDoc = await mongoose.connection.db.collection('theaterusers')
@@ -117,8 +108,6 @@ router.post('/login', [
           );
           
           if (theaterUser && await bcrypt.compare(password, theaterUser.password)) {
-            console.log('✅ Theater user password validated - PIN required');
-            
             // ✅ Return pending status - PIN is required before completing login
             return res.json({
               success: true,
@@ -149,28 +138,17 @@ router.post('/login', [
                   userType = 'theater_admin';
                 } else if (mongoose.Types.ObjectId.isValid(theaterUser.role)) {
                   // First check RoleArray collection (nested structure)
-                  console.log('🔍 Looking up role:', theaterUser.role, 'for theater:', theaterUsersDoc.theaterId);
-                  
                   const rolesDoc = await mongoose.connection.db.collection('roles')
                     .findOne({ 
                       theater: theaterUsersDoc.theaterId, // ✅ FIX: Use 'theater' not 'theaterId'
                       'roleList._id': new mongoose.Types.ObjectId(theaterUser.role)
                     });
-                  
-                  console.log('🔍 Roles document found:', !!rolesDoc);
-                  
                   if (rolesDoc && rolesDoc.roleList) {
-                    console.log('🔍 Searching in roleList array, length:', rolesDoc.roleList.length);
-                    
                     // Find the specific role in the roleList array
                     roleInfo = rolesDoc.roleList.find(
                       r => r._id.toString() === theaterUser.role.toString() && r.isActive
                     );
-                    
-                    console.log('🔍 Role found in array:', !!roleInfo);
                     if (roleInfo) {
-                      console.log('🔍 Role name:', roleInfo.name);
-                      console.log('🔍 Role permissions count:', roleInfo.permissions?.length || 0);
                     }
                   }
                   
@@ -190,12 +168,10 @@ router.post('/login', [
                         },
                         permissions: roleInfo.permissions.filter(p => p.hasAccess === true)
                       }];
-                      console.log(`🔑 Loaded ${rolePermissions[0].permissions.length} permissions for role: ${roleInfo.name}`);
                     }
                   }
                 }
               } catch (roleError) {
-                console.log('⚠️ Role lookup error:', roleError.message);
               }
             }
             
@@ -229,13 +205,11 @@ router.post('/login', [
           }
         }
       } catch (error) {
-        console.log('❌ Theater user lookup error:', error.message);
       }
     }
 
     // Step 3: Check legacy USERS collection by username if no theater user found
     if (!authenticatedUser) {
-      console.log('👤 Checking legacy users collection by username...');
       try {
         const user = await User.findOne({ 
           username: loginIdentifier, 
@@ -243,12 +217,9 @@ router.post('/login', [
         }).populate('theaterId');
         
         if (user && await bcrypt.compare(password, user.password)) {
-          console.log('✅ Legacy user authenticated successfully');
-          
           // ✅ CHECK: Validate theater is active for theater users
           if (user.theaterId) {
             if (!user.theaterId.isActive) {
-              console.log('❌ Theater access is disabled for legacy user');
               return res.status(403).json({
                 success: false,
                 error: 'Theater access has been disabled. Please contact administration.',
@@ -274,13 +245,11 @@ router.post('/login', [
           await user.save();
         }
       } catch (error) {
-        console.log('❌ Legacy user lookup error:', error.message);
       }
     }
 
     // Step 4: Authentication failed
     if (!authenticatedUser) {
-      console.log('❌ Authentication failed for:', loginIdentifier);
       return res.status(401).json({
         error: 'Invalid credentials',
         code: 'INVALID_CREDENTIALS'
@@ -288,8 +257,6 @@ router.post('/login', [
     }
 
     // Step 5: Generate tokens and respond
-    console.log(`🎯 Generating tokens for ${authenticatedUser.userType}:`, authenticatedUser.username);
-    
     const token = generateToken(authenticatedUser);
     const refreshToken = generateRefreshToken(authenticatedUser);
 
@@ -315,19 +282,9 @@ router.post('/login', [
     // Add rolePermissions for theater users only (not super admin)
     if (authenticatedUser.rolePermissions && authenticatedUser.rolePermissions.length > 0) {
       response.rolePermissions = authenticatedUser.rolePermissions;
-      console.log('✅ Including rolePermissions in login response');
     } else {
-      console.log('ℹ️ No rolePermissions (super admin or role not found)');
+
     }
-
-    console.log('📤 Login response:', {
-      success: response.success,
-      userType: response.user.userType,
-      theaterId: response.user.theaterId,
-      role: response.user.role,
-      hasRolePermissions: !!response.rolePermissions
-    });
-
     res.json(response);
 
   } catch (error) {
@@ -360,31 +317,28 @@ router.post('/validate-pin', [
 
     const { userId, pin, theaterId } = req.body;
 
-    console.log(`🔢 PIN validation attempt for user: ${userId}`);
-
     // Find the theater users document
     const theaterUsersDoc = await mongoose.connection.db.collection('theaterusers')
       .findOne({ 
         theaterId: new mongoose.Types.ObjectId(theaterId),
         'users._id': new mongoose.Types.ObjectId(userId)
       });
-
     if (!theaterUsersDoc) {
-      console.log('❌ Theater user not found');
       return res.status(404).json({
         success: false,
         error: 'User not found',
         code: 'USER_NOT_FOUND'
       });
     }
-
     // Find the specific user in the array
     const theaterUser = theaterUsersDoc.users.find(
       u => u._id.toString() === userId && u.isActive === true
     );
+    if (theaterUser) {
+
+    }
 
     if (!theaterUser) {
-      console.log('❌ User not found or inactive');
       return res.status(404).json({
         success: false,
         error: 'User not found or inactive',
@@ -393,17 +347,15 @@ router.post('/validate-pin', [
     }
 
     // Validate PIN
+
+
     if (theaterUser.pin !== pin) {
-      console.log('❌ Invalid PIN');
       return res.status(401).json({
         success: false,
         error: 'Invalid PIN',
         code: 'INVALID_PIN'
       });
     }
-
-    console.log('✅ PIN validated successfully');
-
     // Get theater details and validate theater is active
     let theaterInfo = null;
     if (theaterUsersDoc.theaterId) {
@@ -412,7 +364,6 @@ router.post('/validate-pin', [
       
       // ✅ CHECK: Prevent login if theater is inactive
       if (!theaterInfo) {
-        console.log('❌ Theater not found');
         return res.status(404).json({
           success: false,
           error: 'Theater not found',
@@ -421,7 +372,6 @@ router.post('/validate-pin', [
       }
       
       if (theaterInfo.isActive === false) {
-        console.log('❌ Theater access is disabled');
         return res.status(403).json({
           success: false,
           error: 'Theater access has been disabled. Please contact administration.',
@@ -440,8 +390,6 @@ router.post('/validate-pin', [
         if (typeof theaterUser.role === 'string' && theaterUser.role.includes('admin')) {
           userType = 'theater_admin';
         } else if (mongoose.Types.ObjectId.isValid(theaterUser.role)) {
-          console.log('🔍 Looking up role:', theaterUser.role, 'for theater:', theaterUsersDoc.theaterId);
-
           const rolesDoc = await mongoose.connection.db.collection('roles')
             .findOne({
               theater: theaterUsersDoc.theaterId,
@@ -467,13 +415,11 @@ router.post('/validate-pin', [
                   },
                   permissions: roleInfo.permissions.filter(p => p.hasAccess === true)
                 }];
-                console.log(`🔑 Loaded ${rolePermissions[0].permissions.length} permissions for role: ${roleInfo.name}`);
               }
             }
           }
         }
       } catch (roleError) {
-        console.log('⚠️ Role lookup error:', roleError.message);
       }
     }
 
@@ -530,13 +476,6 @@ router.post('/validate-pin', [
     if (authenticatedUser.rolePermissions && authenticatedUser.rolePermissions.length > 0) {
       response.rolePermissions = authenticatedUser.rolePermissions;
     }
-
-    console.log('📤 PIN validation response:', {
-      success: true,
-      userType: response.user.userType,
-      theaterId: response.user.theaterId
-    });
-
     res.json(response);
 
   } catch (error) {
@@ -672,7 +611,6 @@ router.get('/validate', require('../middleware/auth').authenticateToken, async (
   try {
     // Check if userId is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(req.user.userId)) {
-      console.log('Invalid token with non-ObjectId userId:', req.user.userId);
       return res.status(401).json({
         error: 'Invalid token format',
         code: 'INVALID_TOKEN_FORMAT'

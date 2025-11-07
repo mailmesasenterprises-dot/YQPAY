@@ -11,13 +11,18 @@ const getApiBaseUrl = () => {
     return process.env.REACT_APP_API_URL;
   }
   
-  // Otherwise, detect based on current window location at runtime
+  // In development, always use localhost:8080
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:8080/api';
+  }
+  
+  // In production, detect based on current window location at runtime
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
   
   // Use the same hostname as the frontend for the API
-  const dynamicUrl = `${protocol}//${hostname}:5000/api`;
-  console.log('🌐 Dynamic API URL:', dynamicUrl, 'from hostname:', hostname);
+  const dynamicUrl = `${protocol}//${hostname}/api`;
+
   return dynamicUrl;
 };
 
@@ -226,13 +231,6 @@ config.helpers = {
 
 // Log configuration in development
 if (config.app.isDevelopment && config.development.enableConsoleLogging) {
-  console.log('🔧 Frontend Global Configuration Loaded:');
-  console.log(`   App: ${config.app.name} v${config.app.version}`);
-  console.log(`   Environment: ${config.app.environment}`);
-  console.log(`   API URL: ${config.api.baseUrl}`);
-  console.log(`   Primary Color: ${config.branding.primaryColor}`);
-  console.log(`   Service Worker: ${config.performance.enableServiceWorker ? '✅' : '❌'}`);
-  console.log(`   Lazy Loading: ${config.performance.enableLazyLoading ? '✅' : '❌'}`);
-}
+  }
 
 export default config;

@@ -24,8 +24,7 @@ export const CategorySyncPanel = ({ theaterId, categoryId, showDetails = true, c
       setCategoryReport(report);
       setShowReport(true);
     } catch (error) {
-      console.error('Category verification failed:', error);
-    }
+  }
   };
 
   const handleSyncCategories = async () => {
@@ -34,8 +33,7 @@ export const CategorySyncPanel = ({ theaterId, categoryId, showDetails = true, c
       alert(`Category sync completed: ${result.successfulSyncs} products updated`);
       setShowReport(false);
     } catch (error) {
-      console.error('Category sync failed:', error);
-    }
+  }
   };
 
   const handleSyncSpecificCategory = async () => {
@@ -48,8 +46,7 @@ export const CategorySyncPanel = ({ theaterId, categoryId, showDetails = true, c
       const result = await syncCategory(categoryId);
       alert(`Synced ${result.productsUpdated} products for category "${result.categoryName}"`);
     } catch (error) {
-      console.error('Category sync failed:', error);
-    }
+  }
   };
 
   if (compact) {

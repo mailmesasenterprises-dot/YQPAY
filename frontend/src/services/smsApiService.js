@@ -36,7 +36,7 @@ class SMSApiService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to send OTP:', error);
+
       throw error;
     }
   }
@@ -65,7 +65,7 @@ class SMSApiService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to verify OTP:', error);
+
       throw error;
     }
   }
@@ -93,7 +93,7 @@ class SMSApiService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to send demo OTP:', error);
+
       throw error;
     }
   }
@@ -112,7 +112,7 @@ class SMSApiService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to get OTP status:', error);
+
       throw error;
     }
   }
@@ -140,7 +140,7 @@ class SMSApiService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to resend OTP:', error);
+
       throw error;
     }
   }

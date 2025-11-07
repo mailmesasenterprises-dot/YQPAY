@@ -4,10 +4,6 @@ const TheaterUserArray = require('../models/TheaterUserArray');
 const Theater = require('../models/Theater');
 const fs = require('fs').promises;
 const path = require('path');
-
-console.log('🔄 Theater User Migration Script');
-console.log('=====================================');
-
 class TheaterUserMigration {
   constructor() {
     this.backupDir = path.join(__dirname, '../backups');
@@ -29,9 +25,6 @@ class TheaterUserMigration {
   async log(message, level = 'info') {
     const timestamp = new Date().toISOString();
     const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${message}\n`;
-    
-    console.log(`${level === 'error' ? '❌' : level === 'warn' ? '⚠️' : 'ℹ️'} ${message}`);
-    
     try {
       await fs.appendFile(this.logFile, logEntry);
     } catch (error) {
@@ -390,10 +383,6 @@ if (require.main === module) {
           break;
           
         default:
-          console.log('Usage:');
-          console.log('  node theater-user-migration.js migrate [--dry-run] [--no-backup] [--theater <id>]');
-          console.log('  node theater-user-migration.js verify');
-          console.log('  node theater-user-migration.js rollback <backup-file>');
           process.exit(1);
       }
 

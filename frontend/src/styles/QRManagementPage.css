@@ -686,13 +686,14 @@ div[class*="theater"] .filter-controls {
 
 /* Order History Table Cell Alignment */
 .qr-management-table.order-history-table td:nth-child(1) { text-align: center; } /* S.No */
-.qr-management-table.order-history-table td:nth-child(2) { text-align: left; }   /* Order Number */
-.qr-management-table.order-history-table td:nth-child(3) { text-align: left; }   /* Customer */
+.qr-management-table.order-history-table td:nth-child(2) { text-align: center; } /* Order Number */
+.qr-management-table.order-history-table td:nth-child(3) { text-align: center; } /* Customer */
 .qr-management-table.order-history-table td:nth-child(4) { text-align: center; } /* Items */
-.qr-management-table.order-history-table td:nth-child(5) { text-align: right; }  /* Amount */
-.qr-management-table.order-history-table td:nth-child(6) { text-align: center; } /* Status */
-.qr-management-table.order-history-table td:nth-child(7) { text-align: center; } /* Date */
-.qr-management-table.order-history-table td:nth-child(8) { text-align: center; } /* Action */
+.qr-management-table.order-history-table td:nth-child(5) { text-align: center; } /* Amount */
+.qr-management-table.order-history-table td:nth-child(6) { text-align: center; } /* Payment Mode */
+.qr-management-table.order-history-table td:nth-child(7) { text-align: center; } /* Status */
+.qr-management-table.order-history-table td:nth-child(8) { text-align: center; } /* Date */
+.qr-management-table.order-history-table td:nth-child(9) { text-align: center; } /* Action */
 
 /* Product Management Table Column Widths - Professional Layout */
 .qr-management-table:not(.product-types-table):not(.order-history-table) th:nth-child(1) { width: 60px; min-width: 50px; }   /* S.No */
@@ -733,7 +734,7 @@ div[class*="theater"] .filter-controls {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  gap: 8px !important; /* Professional 8px gap matching TheaterList */
+  gap: 4px !important; /* Reduced gap for compact action buttons */
   flex-wrap: nowrap !important;
   width: 100% !important;
 }
@@ -760,7 +761,7 @@ div[class*="theater"] .filter-controls {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  gap: 8px !important; /* Professional 8px gap like TheaterList */
+  gap: 4px !important; /* Reduced gap for compact action buttons */
   flex-wrap: nowrap !important;
   width: 100% !important;
 }
@@ -782,7 +783,7 @@ div[class*="theater"] .filter-controls {
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
-  gap: 8px !important; /* Professional 8px gap for all theater admin tables */
+  gap: 4px !important; /* Reduced gap for compact action buttons */
   flex-wrap: nowrap !important;
   width: 100% !important;
 }
@@ -1139,7 +1140,7 @@ div[class*="theater"] .filter-controls {
 .action-buttons {
   display: flex !important;
   flex-direction: row !important;
-  gap: 8px !important;
+  gap: 4px !important;
   justify-content: center !important;
   align-items: center !important;
   width: 100% !important;
@@ -1406,6 +1407,28 @@ div[class*="theater"] .filter-controls {
     min-width: 600px;
   }
 
+  /* Order History Table Mobile Responsive */
+  .qr-management-table.order-history-table {
+    min-width: 800px; /* Wider for more columns */
+  }
+
+  .qr-management-table.order-history-table th:nth-child(1) { width: 40px; }   /* S.No - smaller */
+  .qr-management-table.order-history-table th:nth-child(2) { width: 120px; }  /* Order Number */
+  .qr-management-table.order-history-table th:nth-child(3) { width: 100px; }  /* Customer - smaller */
+  .qr-management-table.order-history-table th:nth-child(4) { width: 60px; }   /* Items */
+  .qr-management-table.order-history-table th:nth-child(5) { width: 80px; }   /* Amount */
+  .qr-management-table.order-history-table th:nth-child(6) { width: 90px; }   /* Payment Mode */
+  .qr-management-table.order-history-table th:nth-child(7) { width: 80px; }   /* Status */
+  .qr-management-table.order-history-table th:nth-child(8) { width: 120px; }  /* Date */
+  .qr-management-table.order-history-table th:nth-child(9) { width: 100px; }  /* Action */
+
+  /* Make text smaller for better fit */
+  .qr-management-table.order-history-table th,
+  .qr-management-table.order-history-table td {
+    font-size: 0.85rem;
+    padding: 8px 4px;
+  }
+
   .theater-details {
     gap: 8px;
   }
@@ -1468,6 +1491,28 @@ div[class*="theater"] .filter-controls {
   .items-select {
     font-size: 0.85rem;
     padding: 6px 10px;
+  }
+
+  /* Order History Table Extra Mobile Responsive */
+  .qr-management-table.order-history-table {
+    min-width: 700px; /* Slightly smaller for very small screens */
+  }
+
+  .qr-management-table.order-history-table th:nth-child(1) { width: 35px; }   /* S.No - even smaller */
+  .qr-management-table.order-history-table th:nth-child(2) { width: 100px; }  /* Order Number */
+  .qr-management-table.order-history-table th:nth-child(3) { width: 80px; }   /* Customer - smaller */
+  .qr-management-table.order-history-table th:nth-child(4) { width: 50px; }   /* Items */
+  .qr-management-table.order-history-table th:nth-child(5) { width: 70px; }   /* Amount */
+  .qr-management-table.order-history-table th:nth-child(6) { width: 70px; }   /* Payment Mode */
+  .qr-management-table.order-history-table th:nth-child(7) { width: 70px; }   /* Status */
+  .qr-management-table.order-history-table th:nth-child(8) { width: 100px; }  /* Date */
+  .qr-management-table.order-history-table th:nth-child(9) { width: 90px; }   /* Action */
+
+  /* Make text even smaller for better fit */
+  .qr-management-table.order-history-table th,
+  .qr-management-table.order-history-table td {
+    font-size: 0.75rem;
+    padding: 6px 2px;
   }
 }
 
@@ -1698,7 +1743,7 @@ textarea.form-control {
 /* Global Action Button Styles - Light Modern */
 .action-buttons {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   justify-content: center;
   align-items: center;
 }
@@ -1949,7 +1994,7 @@ textarea.form-control {
 }
 
 .order-history-table .customer-info {
-  text-align: left;
+  text-align: center;
 }
 
 .order-history-table .customer-name {
@@ -2891,7 +2936,7 @@ textarea.form-control {
 .qr-management-table .actions .action-buttons {
   display: flex !important;
   flex-direction: row !important;
-  gap: 8px !important;
+  gap: 4px !important;
   justify-content: center !important;
   align-items: center !important;
   flex-wrap: nowrap !important;

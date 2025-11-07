@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import PerformanceProvider from './components/PerformanceProvider';
 import { SettingsProvider } from './contexts/SettingsContext';
@@ -6,6 +6,10 @@ import { ModalProvider } from './contexts/ModalContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import RoleBasedRoute from './components/RoleBasedRoute';
+import CachePerformanceMonitor from './components/CachePerformanceMonitor'; // 📊 Global cache performance monitor
+import './utils/withCaching'; // 🚀 AUTO-CACHING: Enables automatic caching for ALL fetch calls
+import { showPerformanceReport } from './utils/withCaching';
+import { clearOldImageCache, getImageCacheStats } from './utils/globalImageCache'; // 🖼️ Global image caching
 import config from './config';
 import './styles/App.css';
 import './styles/action-buttons.css';
@@ -67,18 +71,29 @@ const TheaterQRCodeNames = React.lazy(() => import('./pages/theater/TheaterQRCod
 const TheaterGenerateQR = React.lazy(() => import('./pages/theater/TheaterGenerateQR')); // ✅ Theater Generate QR
 const TheaterQRManagement = React.lazy(() => import('./pages/theater/TheaterQRManagement')); // ✅ Theater QR Management
 const TheaterUserManagementPage = React.lazy(() => import('./pages/theater/TheaterUserManagement')); // ✅ Theater User Management
+const TheaterBanner = React.lazy(() => import('./pages/theater/TheaterBanner')); // ✅ Theater Banner Management
+const PaymentGatewayList = React.lazy(() => import('./pages/admin/PaymentGatewayList')); // ✅ Payment Gateway List
+const TheaterPaymentGatewaySettings = React.lazy(() => import('./pages/admin/TheaterPaymentGatewaySettings')); // ✅ Theater Payment Gateway Settings
+const CachingDemo = React.lazy(() => import('./pages/CachingDemo')); // 🚀 Caching Performance Demo
 
 const StockManagement = React.lazy(() => import('./pages/theater/StockManagement'));
-const TestStockManagement = React.lazy(() => import('./pages/theater/TestStockManagement'));
+// const TestStockManagement = React.lazy(() => import('./pages/theater/TestStockManagement'));
 const SimpleProductList = React.lazy(() => import('./pages/theater/SimpleProductList'));
 const TheaterOrderInterface = React.lazy(() => import('./pages/theater/TheaterOrderInterface'));
 const OnlinePOSInterface = React.lazy(() => import('./pages/theater/OnlinePOSInterface'));
+const OfflinePOSInterface = React.lazy(() => import('./pages/theater/OfflinePOSInterface')); // 📶 Offline POS
 const ViewCart = React.lazy(() => import('./pages/theater/ViewCart'));
 const ProfessionalPOSInterface = React.lazy(() => import('./pages/theater/ProfessionalPOSInterface'));
 const OnlineOrderHistory = React.lazy(() => import('./pages/theater/OnlineOrderHistory'));
+const KioskOrderHistory = React.lazy(() => import('./pages/theater/KioskOrderHistory'));
 const AddProduct = React.lazy(() => import('./pages/theater/AddProduct'));
 const TestAddProductDropdowns = React.lazy(() => import('./components/TestAddProductDropdowns'));
 const AuthDebugPage = React.lazy(() => import('./pages/AuthDebugPage'));
+
+// Kiosk Pages
+const KioskCheckout = React.lazy(() => import('./pages/theater/KioskCheckout'));
+const KioskPayment = React.lazy(() => import('./pages/theater/KioskPayment'));
+const KioskViewCart = React.lazy(() => import('./pages/theater/KioskViewCart'));
 // const AuthTokenTest = React.lazy(() => import('./pages/AuthTokenTest')); // File not found
 // const StockDataTest = React.lazy(() => import('./pages/StockDataTest')); // Unused
 // const DirectStockTest = React.lazy(() => import('./pages/DirectStockTest')); // File not found
@@ -99,14 +114,34 @@ const PageLoader = () => (
 );
 
 function App() {
+  useEffect(() => {
+    // Make performance report available globally for easy access in console
+    window.showCacheStats = showPerformanceReport;
+    window.getImageCacheStats = getImageCacheStats; // Image cache stats
+    
+    // Clear old cached images on app start (no-op now, cache persists 24 hours)
+    clearOldImageCache();
+    
+    console.log('🚀 YQPAY Global Auto-Caching is ACTIVE!');
+    console.log('🖼️  Global Image Caching: UNIFIED with Offline POS (24-hour cache)');
+    console.log('⚡ Images load INSTANTLY from base64 cache (same as Offline POS)');
+    console.log('📊 Cache Performance Monitor: Bottom-right corner (minimized by default)');
+    console.log('⌨️  Keyboard Shortcut: Ctrl+Shift+P to toggle cache monitor');
+    console.log('💡 Type window.showCacheStats() to see API cache stats');
+    console.log('🎨 Type window.getImageCacheStats() to see image cache stats');
+  }, []);
+
   return (
     <PerformanceProvider>
       <SettingsProvider>
         <ModalProvider>
           <CartProvider>
-            <Router>
+            <Router future={{ v7_relativeSplatPath: true }}>
               <AuthProvider>
                 <div className="App">
+                  {/* 🚀 Global Cache Performance Monitor - Visible on ALL pages */}
+                  <CachePerformanceMonitor position="bottom-right" minimized={true} />
+                  
                   <Suspense fallback={<PageLoader />}>
                   <Routes>
                     <Route path="/" element={<HomePage />} />
@@ -127,6 +162,9 @@ function App() {
                 <Route path="/customer/payment" element={<CustomerPayment />} />
                 <Route path="/customer/order-success" element={<CustomerOrderSuccess />} />
                 <Route path="/customer/:theaterId/:qrName/:seat/order-confirmation" element={<CustomerOrderHistory />} />
+                
+                {/* Caching Performance Demo */}
+                <Route path="/caching-demo" element={<CachingDemo />} />
                 <Route path="/qr-unavailable" element={<QRServiceUnavailable />} />
                 
                 {/* QR Code Redirect Route - Redirects scanned QR codes to customer landing */}
@@ -149,6 +187,8 @@ function App() {
                 <Route path="/page-access" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagementList /></RoleBasedRoute>} />
                 <Route path="/page-access/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><PageAccessManagement /></RoleBasedRoute>} />
                 <Route path="/messages" element={<RoleBasedRoute allowedRoles={['super_admin']}><Messages /></RoleBasedRoute>} />
+                <Route path="/payment-gateway-list" element={<RoleBasedRoute allowedRoles={['super_admin']}><PaymentGatewayList /></RoleBasedRoute>} />
+                <Route path="/payment-gateway-settings/:theaterId" element={<RoleBasedRoute allowedRoles={['super_admin']}><TheaterPaymentGatewaySettings /></RoleBasedRoute>} />
                 <Route path="/qr-generate" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRGenerate /></RoleBasedRoute>} />
 
                 <Route path="/qr-management" element={<RoleBasedRoute allowedRoles={['super_admin']}><QRManagement /></RoleBasedRoute>} />
@@ -167,26 +207,37 @@ function App() {
                 <Route path="/theater-product-types/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterProductTypes']}><TheaterProductTypes /></RoleBasedRoute>} />
                 <Route path="/theater-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterOrderHistory']}><TheaterOrderHistory /></RoleBasedRoute>} />
                 <Route path="/theater-reports/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterReports']}><TheaterReports /></RoleBasedRoute>} />
+                <Route path="/theater-banner/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterBanner']}><TheaterBanner /></RoleBasedRoute>} />
                 <Route path="/theater-roles/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterRoles']}><TheaterRoles /></RoleBasedRoute>} />
                 <Route path="/theater-role-access/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterRoleAccess']}><TheaterRoleAccess /></RoleBasedRoute>} />
                 <Route path="/theater-qr-code-names/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterQRCodeNames']}><TheaterQRCodeNames /></RoleBasedRoute>} />
+                {/* Theater Generate QR - QR Generation Form (like /qr-generate) */}
                 <Route path="/theater-generate-qr/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterGenerateQR']}><TheaterGenerateQR /></RoleBasedRoute>} />
+                {/* Theater QR Management - QR List/Management Page (like /theater-qr-detail) */}
                 <Route path="/theater-qr-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterQRManagement']}><TheaterQRManagement /></RoleBasedRoute>} />
                 <Route path="/theater-user-management/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterUserManagement']}><TheaterUserManagementPage /></RoleBasedRoute>} />
-                {/* <Route path="/staff-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><StaffOrderHistory /></RoleBasedRoute>} /> */} {/* ❌ Component doesn't exist */}
                 <Route path="/theater-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterProductList']}><TheaterProductList /></RoleBasedRoute>} />
                 <Route path="/theater-stock-management/:theaterId/:productId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} ><StockManagement /></RoleBasedRoute>} />
-                <Route path="/test-stock-management/:theaterId/:productId" element={<TestStockManagement />} />
+                {/* <Route path="/test-stock-management/:theaterId/:productId" element={<TestStockManagement />} /> */}
                 <Route path="/simple-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['SimpleProductList']}><SimpleProductList /></RoleBasedRoute>} />
                 <Route path="/theater-order/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['TheaterOrderInterface']}><TheaterOrderInterface /></RoleBasedRoute>} />
                 <Route path="/online-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['OnlinePOSInterface']}><OnlinePOSInterface /></RoleBasedRoute>} />
+                <Route path="/offline-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['OfflinePOSInterface']}><OfflinePOSInterface /></RoleBasedRoute>} />
                 <Route path="/online-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><OnlineOrderHistory /></RoleBasedRoute>} />
+                <Route path="/kiosk-order-history/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><KioskOrderHistory /></RoleBasedRoute>} />
                 <Route path="/view-cart/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><ViewCart /></RoleBasedRoute>} />
                 <Route path="/theater-order-pos/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['ProfessionalPOSInterface']}><ProfessionalPOSInterface /></RoleBasedRoute>} />
                 <Route path="/theater-add-product/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']}><AddProduct /></RoleBasedRoute>} />
                 <Route path="/test-add-product-dropdowns/:theaterId" element={<TestAddProductDropdowns />} />
                 <Route path="/test-add-product-dropdowns" element={<TestAddProductDropdowns />} />
                 <Route path="/auth-debug" element={<AuthDebugPage />} />
+                
+                {/* Kiosk Routes */}
+                <Route path="/kiosk-products/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['KioskProductList']}><SimpleProductList /></RoleBasedRoute>} />
+                <Route path="/kiosk-cart/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['KioskCart']}><KioskViewCart /></RoleBasedRoute>} />
+                <Route path="/kiosk-checkout/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['KioskCheckout']}><KioskCheckout /></RoleBasedRoute>} />
+                <Route path="/kiosk-payment/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['KioskPayment']}><KioskPayment /></RoleBasedRoute>} />
+                <Route path="/kiosk-view-cart/:theaterId" element={<RoleBasedRoute allowedRoles={['theater_user', 'theater_admin', 'super_admin']} requiredPermissions={['KioskViewCart']}><KioskViewCart /></RoleBasedRoute>} />
           
               </Routes>
               </Suspense>

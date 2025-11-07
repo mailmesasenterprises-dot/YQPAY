@@ -263,8 +263,7 @@ const CustomerCheckout = () => {
             setTheater(data.theater);
           }
         } catch (error) {
-          console.error('Error loading theater:', error);
-        }
+  }
       }
     };
     loadTheater();
@@ -316,8 +315,7 @@ const CustomerCheckout = () => {
         } 
       });
     } catch (error) {
-      console.error('Checkout error:', error);
-    } finally {
+  } finally {
       setIsLoading(false);
     }
   };

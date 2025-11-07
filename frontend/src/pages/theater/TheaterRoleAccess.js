@@ -68,7 +68,7 @@ const TheaterRoleAccess = () => {
   // Validate theater access
   useEffect(() => {
     if (userType === 'theater_user' && userTheaterId && theaterId !== userTheaterId) {
-      console.error('Theater access denied: User can only access their own theater');
+
       return;
     }
   }, [theaterId, userTheaterId, userType]);
@@ -85,7 +85,7 @@ const TheaterRoleAccess = () => {
   // Load active pages from database
   const loadActivePages = useCallback(async () => {
     if (!theaterId) {
-      console.warn('⚠️ No theaterId provided, cannot load pages');
+
       setActivePages([]);
       return [];
     }
@@ -102,8 +102,7 @@ const TheaterRoleAccess = () => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 Page access response:', data);
-        
+
         // Backend returns data.data.pageAccessList (array-based structure per theater)
         if (data.success && data.data && data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
           const pages = data.data.pageAccessList
@@ -114,11 +113,11 @@ const TheaterRoleAccess = () => {
               description: pageAccess.description || `Access to ${pageAccess.pageName}`,
               route: pageAccess.route
             }));
-          console.log('✅ Active pages loaded:', pages.length);
+
           setActivePages(pages);
           return pages;
         } else {
-          console.warn('⚠️ No page access data found:', data);
+
           setActivePages([]);
           return [];
         }
@@ -126,7 +125,7 @@ const TheaterRoleAccess = () => {
         throw new Error(`HTTP ${response.status}: Failed to fetch pages from database`);
       }
     } catch (error) {
-      console.error('❌ Error loading active pages:', error);
+
       setActivePages([]);
       return [];
     }
@@ -134,10 +133,9 @@ const TheaterRoleAccess = () => {
 
   // Load role permissions data
   const loadRolePermissionsData = useCallback(async (page = 1, limit = 10, search = '') => {
-    console.log('🔥 DEBUGGING: loadRolePermissionsData called with params:', { theaterId, page, limit, search });
-    
+
     if (!isMountedRef.current || !theaterId) {
-      console.log('🔥 DEBUGGING: Component not mounted or no theaterId, returning');
+
       return;
     }
 
@@ -161,8 +159,7 @@ const TheaterRoleAccess = () => {
 
       const baseUrl = `${config.api.baseUrl}/roles?${params.toString()}`;
       
-      console.log('🔥 DEBUGGING: Fetching from', baseUrl);
-      
+
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
       const response = await fetch(baseUrl, {
@@ -176,23 +173,19 @@ const TheaterRoleAccess = () => {
         }
       });
       
-      console.log('🔥 DEBUGGING: Response status', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       
-      console.log('🔥 DEBUGGING: Raw API response', data);
-      
+
       if (!isMountedRef.current) return;
 
       if (data.success && data.data) {
         let roles = data.data.roles || [];
-        console.log('🔥 DEBUGGING: Roles extracted', roles);
-        console.log('🔥 DEBUGGING: Roles count', roles.length);
-        
+
         setRolePermissions(roles);
         
         // Batch pagination state updates
@@ -211,16 +204,14 @@ const TheaterRoleAccess = () => {
           totalRoleAccess: roles.length
         });
         
-        console.log('🔥 DEBUGGING: Summary calculated', { activeCount, inactiveCount, total: roles.length });
-      }
+  }
       
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('🔥 DEBUGGING: Request cancelled');
+
         return;
       }
-      console.error('Error loading role permissions:', error);
-    } finally {
+  } finally {
       if (isMountedRef.current) {
         setLoading(false);
       }
@@ -279,14 +270,9 @@ const TheaterRoleAccess = () => {
 
   // Edit role permissions
   const editRolePermission = (role) => {
-    console.log('🔧 Edit role permission called');
-    console.log('📝 Role:', role.name, 'ID:', role._id);
-    console.log('📊 Active pages available:', activePages.length);
-    console.log('🔒 Role permissions:', role.permissions?.length || 0);
-    console.log('🎯 Full role object:', role);
-    
+
     if (activePages.length === 0) {
-      console.error('❌ No active pages available!');
+
       showError('Page permissions are still loading. Please wait a moment and try again.');
       return;
     }
@@ -303,16 +289,12 @@ const TheaterRoleAccess = () => {
       };
     });
     
-    console.log('✅ Prepared permissions:', permissions.length);
-    console.log('📋 Permissions data:', permissions);
-    console.log('🚀 Opening edit modal...');
-    
+
     setFormData({
       roleId: role._id,
       permissions: permissions
     });
     setShowEditModal(true);
-    console.log('✅ Modal should be visible now');
   };
 
   // Delete role permission
@@ -340,12 +322,7 @@ const TheaterRoleAccess = () => {
         permissions: formData.permissions
       };
       
-      console.log('📤 Updating role permissions:', {
-        roleId: selectedRolePermission._id,
-        roleName: selectedRolePermission.name,
-        permissionsCount: formData.permissions.length
-      });
-      
+
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
       const response = await fetch(url, {
@@ -377,7 +354,7 @@ const TheaterRoleAccess = () => {
         showError(errorData.message || 'Failed to update role permissions');
       }
     } catch (error) {
-      console.error('Error updating role permissions:', error);
+
       showError('Failed to update role permissions');
     }
   };
@@ -405,7 +382,7 @@ const TheaterRoleAccess = () => {
         showError(errorData.message || 'Failed to delete role');
       }
     } catch (error) {
-      console.error('Error deleting role:', error);
+
       showError('Failed to delete role. Please try again.');
     }
   };

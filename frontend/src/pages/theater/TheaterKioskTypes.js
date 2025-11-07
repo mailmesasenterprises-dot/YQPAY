@@ -8,6 +8,7 @@ import ErrorBoundary from '../../components/ErrorBoundary';
 import ImageUpload from '../../components/common/ImageUpload';
 import { useModal } from '../../contexts/ModalContext';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
+import { getCachedData, setCachedData, clearCachePattern } from '../../utils/cacheUtils';
 import config from '../../config';
 import '../../styles/QRManagementPage.css';
 import '../../styles/TheaterList.css';
@@ -119,7 +120,7 @@ const TheaterKioskTypes = () => {
       const data = await response.json();
       
       if (data.success && isMountedRef.current) {
-        console.log('🔥 DEBUGGING: Received kiosk types data', data);
+
         const items = data.data?.kioskTypes || data.kioskTypes || [];
         setKioskTypes(items);
         setCurrentPage(data.data?.pagination?.page || 1);
@@ -132,7 +133,7 @@ const TheaterKioskTypes = () => {
           inactiveKioskTypes: statisticsData.inactive || 0,
           totalKioskTypes: statisticsData.total || 0
         };
-        console.log('🔥 DEBUGGING: Setting summary', summary);
+
         setSummary(summary);
       } else {
         throw new Error(data.message || 'Failed to load kiosk types');
@@ -215,8 +216,7 @@ const TheaterKioskTypes = () => {
         : `${config.api.baseUrl}/theater-kiosk-types/${theaterId}`;
       const method = isEdit ? 'PUT' : 'POST';
       
-      console.log('🔥 DEBUGGING: Submitting kiosk type to', url, 'Method:', method);
-      
+
       // Create FormData for file upload
       const formDataToSend = new FormData();
       formDataToSend.append('name', formData.name);
@@ -274,7 +274,7 @@ const TheaterKioskTypes = () => {
         throw new Error(data.message || 'Failed to save kiosk type');
       }
     } catch (error) {
-      console.error('Error submitting kiosk type:', error);
+
       setImageError(error.message);
     }
   };
@@ -308,7 +308,7 @@ const TheaterKioskTypes = () => {
         throw new Error(data.message || 'Failed to delete kiosk type');
       }
     } catch (error) {
-      console.error('Error deleting kiosk type:', error);
+
       showError(error.message);
     }
   };
@@ -503,7 +503,7 @@ const TheaterKioskTypes = () => {
                               imageRendering: 'auto'
                             }}
                             onError={(e) => {
-                              console.log('Image load error:', kioskType.imageUrl || kioskType.image);
+
                               e.target.style.display = 'none';
                             }}
                           />
@@ -580,11 +580,13 @@ const TheaterKioskTypes = () => {
         </div>
 
         {/* Pagination */}
-        {!loading && totalPages > 1 && (
+        {!loading && kioskTypes.length > 0 && (
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={handlePageChange}
+            totalItems={totalItems}
+            itemsPerPage={itemsPerPage}
           />
         )}
 
@@ -820,7 +822,7 @@ const TheaterKioskTypes = () => {
                             imageRendering: 'auto'
                           }}
                           onError={(e) => {
-                            console.log('Modal image load error:', selectedKioskType.imageUrl || selectedKioskType.image);
+
                             e.target.style.display = 'none';
                           }}
                         />

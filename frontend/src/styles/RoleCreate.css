@@ -1139,6 +1139,23 @@
   .role-table {
     min-width: 800px;
   }
+
+  /* Role Table Mobile Optimization */
+  .role-table thead th {
+    padding: 16px 12px;
+    font-size: 0.85rem;
+  }
+
+  .role-table tbody td {
+    padding: 14px 12px;
+    font-size: 0.9rem;
+  }
+
+  /* Make action buttons smaller */
+  .action-btn {
+    padding: 8px 12px;
+    font-size: 0.8rem;
+  }
   
   .pagination {
     flex-wrap: wrap;
@@ -1180,8 +1197,57 @@
   .role-table-container {
     padding: 0 16px 16px 16px;
   }
+
+  /* Role Table Small Mobile Optimization */
+  .role-table {
+    min-width: 600px;
+  }
+
+  .role-table thead th {
+    padding: 12px 8px;
+    font-size: 0.75rem;
+  }
+
+  .role-table tbody td {
+    padding: 10px 8px;
+    font-size: 0.8rem;
+  }
+
+  /* Extra small action buttons */
+  .action-btn {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* Make role names wrap better */
+  .role-name {
+    word-break: break-word;
+    hyphens: auto;
+  }
   
   .pagination-container {
     padding: 20px 16px;
+  }
+}
+
+/* Mobile Extra Small - 360px breakpoint */
+@media (max-width: 360px) {
+  .role-table {
+    min-width: 520px;
+  }
+
+  .role-table thead th {
+    padding: 10px 6px;
+    font-size: 0.7rem;
+  }
+
+  .role-table tbody td {
+    padding: 8px 6px;
+    font-size: 0.75rem;
+  }
+
+  .action-btn {
+    padding: 4px 8px;
+    font-size: 0.7rem;
   }
 }

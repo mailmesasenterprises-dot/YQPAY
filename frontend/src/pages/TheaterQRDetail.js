@@ -1,17 +1,19 @@
-﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import config from '../config';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import ErrorBoundary from '../components/ErrorBoundary';
 import PageContainer from '../components/PageContainer';
 import VerticalPageHeader from '../components/VerticalPageHeader';
-import ErrorBoundary from '../components/ErrorBoundary';
 import { ActionButton, ActionButtons } from '../components/ActionButton';
+import Pagination from '../components/Pagination';
+import InstantImage from '../components/InstantImage';
 import { useModal } from '../contexts/ModalContext';
 import JSZip from 'jszip';
-import '../styles/TheaterUserDetails.css';
 import '../styles/TheaterList.css'; // Import TheaterList styles for table
 import '../styles/QRManagementPage.css'; // Import global modal styles
-import '../styles/AddTheater.css'; // Import error message styles
+import '../styles/RoleCreate.css'; // Import for consistent styling
+import '../styles/TheaterUserDetails.css'; // Import Theater User Details styles for vertical layout
 import { clearTheaterCache, addCacheBuster } from '../utils/cacheManager';
 import { usePerformanceMonitoring, preventLayoutShift } from '../hooks/usePerformanceMonitoring';
 
@@ -94,7 +96,7 @@ const QRCard = React.memo(({ qrCode, onView, onDownload, onToggleStatus, onDelet
         className="qr-img"
       />
       <div className="qr-type-badge">
-        {qrCode.qrType === 'canteen' ? 'ðŸ•' : 'ðŸŽ¬'}
+        {qrCode.qrType === 'canteen' ? '🍕' : '🎬'}
       </div>
       <div className={`qr-status-indicator ${qrCode.isActive ? 'active' : 'inactive'}`}></div>
     </div>
@@ -108,7 +110,7 @@ const QRCard = React.memo(({ qrCode, onView, onDownload, onToggleStatus, onDelet
       )}
       <div className="qr-stats">
         <span>Orders: {qrCode.orderCount || 0}</span>
-        <span>Revenue: â‚¹{qrCode.totalRevenue || 0}</span>
+        <span>Revenue: ₹{qrCode.totalRevenue || 0}</span>
       </div>
       <div className="qr-status">
         <span className={`status ${qrCode.isActive ? 'active' : 'inactive'}`}>
@@ -123,14 +125,14 @@ const QRCard = React.memo(({ qrCode, onView, onDownload, onToggleStatus, onDelet
         onClick={() => onView(qrCode)}
         title="View Details"
       >
-        ðŸ‘ï¸
+        👁️
       </button>
       <button
         className="action-btn download-btn"
         onClick={() => onDownload(qrCode)}
         title="Download QR Code"
       >
-        â¬‡ï¸
+        ⬇️
       </button>
       <button
         className={`action-btn toggle-btn ${qrCode.isActive ? 'active' : 'inactive'}`}
@@ -138,7 +140,7 @@ const QRCard = React.memo(({ qrCode, onView, onDownload, onToggleStatus, onDelet
         disabled={actionLoading[qrCode._id]}
         title={qrCode.isActive ? 'Deactivate' : 'Activate'}
       >
-        {actionLoading[qrCode._id] ? 'âŸ³' : (qrCode.isActive ? 'â¸ï¸' : 'â–¶ï¸')}
+        {actionLoading[qrCode._id] ? '⟳' : (qrCode.isActive ? '⏸️' : '▶️')}
       </button>
       <button
         className="action-btn delete-btn"
@@ -146,7 +148,7 @@ const QRCard = React.memo(({ qrCode, onView, onDownload, onToggleStatus, onDelet
         disabled={actionLoading[qrCode._id]}
         title="Delete"
       >
-        ðŸ—‘ï¸
+        🗑️
       </button>
     </div>
   </div>
@@ -168,15 +170,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
 
   useEffect(() => {
     if (qrCode) {
-      console.log('ðŸ” CrudModal - QR Code data received:', qrCode);
-      console.log('ðŸ–¼ï¸ QR Image URL:', qrCode.qrImageUrl);
-      console.log('ðŸ” QR Code Full Object Keys:', Object.keys(qrCode));
-      console.log(' QR Image URL Details:', {
-        exists: !!qrCode.qrImageUrl,
-        type: typeof qrCode.qrImageUrl,
-        length: qrCode.qrImageUrl?.length || 0,
-        value: qrCode.qrImageUrl
-      });
+
       setFormData({ ...qrCode });
     }
   }, [qrCode]);
@@ -329,37 +323,31 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
             {/* PHASE 2 FIX: Hide QR Preview for screen-type QR codes (seat rows) */}
             {(() => {
               const shouldShowQRPreview = formData.qrType !== 'screen' && !formData.isSeatRow;
-              console.log('🔍 QR Preview Condition:', {
-                qrType: formData.qrType,
-                isSeatRow: formData.isSeatRow,
-                shouldShowQRPreview,
-                seatNumber: formData.seatNumber
-              });
+
               return shouldShowQRPreview;
             })() && (
               <div className="form-group">
                 <label>QR Code Preview</label>
                 <div className="qr-preview">
-                {console.log('?? Render: displayImageUrl =', displayImageUrl)}
                 {displayImageUrl ? (
                   <div className="qr-image-container">
-                    <img 
+                    <InstantImage 
                       src={displayImageUrl} 
                       alt="QR Code Preview"
                       className="qr-preview-img"
                       onLoad={(e) => {
-                        console.log('âœ… QR Image loaded successfully');
+
                         e.target.nextElementSibling.style.display = 'none';
                       }}
                       onError={(e) => {
-                        console.error('âŒ QR Image failed to load:', formData.qrImageUrl);
+
                         e.target.style.display = 'none';
                         e.target.nextElementSibling.style.display = 'flex';
                       }}
                     />
                     <div className="qr-preview-error" style={{ display: 'none' }}>
                       <div className="qr-error-content">
-                        <span>ðŸ–¼ï¸</span>
+                        <span>🖼️</span>
                         <h4>Image not available</h4>
                         <p>The QR code image could not be loaded. This might be due to:</p>
                         <ul>
@@ -412,7 +400,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                   </div>
                 ) : (
                   <div className="qr-preview-placeholder">
-                    <span>ðŸ”</span>
+                    <span>🔍</span>
                     <h4>No QR Code Available</h4>
                     <p>No QR code image URL found for this item.</p>
                   </div>
@@ -425,13 +413,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
             {(() => {
               // Show individual seat info only if it's a seat row
               const shouldShowSeatInfo = formData.isSeatRow;
-              console.log('🪑 Seat Info Condition:', {
-                qrType: formData.qrType,
-                isSeatRow: formData.isSeatRow,
-                shouldShowSeatInfo,
-                seatNumber: formData.seatNumber,
-                qrImageUrl: formData.qrImageUrl
-              });
+
               return shouldShowSeatInfo;
             })() && (
               <div className="form-group">
@@ -459,7 +441,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                         <strong>QR Code Image:</strong>
                       </div>
                       <div style={{ textAlign: 'center' }}>
-                        <img 
+                        <InstantImage 
                           src={formData.qrImageUrl} 
                           alt={`QR Code for ${formData.seatNumber}`}
                           style={{
@@ -486,7 +468,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                         <button
                           type="button"
                           onClick={() => {
-                            console.log('📥 Downloading QR for seat:', formData.seatNumber);
+
                             const link = document.createElement('a');
                             link.href = formData.qrImageUrl;
                             link.download = `${formData.seatClass || formData.name}_${formData.seatNumber}_QR.png`;
@@ -521,7 +503,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                             e.currentTarget.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
                           }}
                         >
-                          <span>⬇️</span>
+                          <span>??</span>
                           <span>Download QR Code</span>
                         </button>
                       </div>
@@ -537,7 +519,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                           }}>
                             Update QR Code Image URL:
                           </label>
-                          <input
+                          {/* <input
                             type="text"
                             name="qrImageUrl"
                             className="form-control"
@@ -545,7 +527,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                             onChange={handleInputChange}
                             placeholder="Enter new QR code image URL"
                             style={{ fontSize: '13px' }}
-                          />
+                          /> */}
                           <p style={{ 
                             fontSize: '11px', 
                             color: '#9ca3af', 
@@ -566,13 +548,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
             {(() => {
               // Show seat grid only if it's a screen-type QR with seats (not an individual seat row)
               const shouldShowSeatGrid = formData.qrType === 'screen' && !formData.isSeatRow && formData.seats && formData.seats.length > 0;
-              console.log('🎭 Seat Grid Condition:', {
-                qrType: formData.qrType,
-                isSeatRow: formData.isSeatRow,
-                hasSeats: !!(formData.seats && formData.seats.length > 0),
-                seatsCount: formData.seats?.length || 0,
-                shouldShowSeatGrid
-              });
+
               return shouldShowSeatGrid;
             })() && (
               <div className="form-group">
@@ -600,7 +576,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                     gap: '12px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>🎬</span>
+                      <span>??</span>
                       <span>SCREEN - {formData.seatClass || formData.name}</span>
                     </div>
                     
@@ -634,8 +610,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                               isNewSeat: true
                             };
                             
-                            console.log('➕ Adding new seat:', newSeatName);
-                            
+
                             // Switch to edit mode for the new seat
                             if (onSeatEdit) {
                               onSeatEdit(newSeatData);
@@ -664,7 +639,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                             e.currentTarget.style.transform = 'scale(1)';
                           }}
                         >
-                          <span>➕</span>
+                          <span>?</span>
                           <span>Add Seat</span>
                         </button>
                       )}
@@ -674,8 +649,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                           type="button"
                           onClick={async () => {
                             const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
-                            console.log(`📥 Creating ZIP with ${seatsWithQR.length} QR codes...`);
-                            
+
                             try {
                               const zip = new JSZip();
                               const folder = zip.folder(`${formData.seatClass || formData.name}_QR_Codes`);
@@ -687,16 +661,14 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                   const blob = await response.blob();
                                   const filename = `${seat.seat}_QR.png`;
                                   folder.file(filename, blob);
-                                  console.log(`✅ Added ${filename} to ZIP`);
-                                } catch (error) {
-                                  console.error(`❌ Failed to fetch ${seat.seat}:`, error);
-                                }
+  } catch (error) {
+  }
                               });
                               
                               await Promise.all(fetchPromises);
                               
                               // Generate ZIP file
-                              console.log('📦 Generating ZIP file...');
+
                               const zipBlob = await zip.generateAsync({ type: 'blob' });
                               
                               // Download ZIP
@@ -708,11 +680,11 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                               document.body.removeChild(link);
                               URL.revokeObjectURL(link.href);
                               
-                              console.log('✅ ZIP downloaded successfully!');
-                              alert(`✅ Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
+
+                              alert(`? Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
                             } catch (error) {
-                              console.error('❌ Failed to create ZIP:', error);
-                              alert('❌ Failed to create ZIP file. Please try again.');
+
+                              alert('? Failed to create ZIP file. Please try again.');
                             }
                           }}
                           style={{
@@ -738,7 +710,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                             e.currentTarget.style.transform = 'scale(1)';
                           }}
                         >
-                          <span>⬇️</span>
+                          <span>??</span>
                           <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
                         </button>
                       )}
@@ -834,7 +806,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                         seats: formData.seats
                                       };
                                       
-                                      console.log('🪑 Opening seat edit for:', seat.seat);
+
                                       onSeatEdit(seatData);
                                     }
                                   }}
@@ -842,8 +814,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                     e.preventDefault(); // Prevent default context menu
                                     if (seat.qrCodeUrl && mode === 'view') {
                                       // Download QR code for this seat
-                                      console.log('📥 Downloading QR for seat:', seat.seat);
-                                      
+
                                       const link = document.createElement('a');
                                       link.href = seat.qrCodeUrl;
                                       link.download = `${formData.seatClass || formData.name}_${seat.seat}_QR.png`;
@@ -930,7 +901,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                       {' '}{formData.seats.filter(s => s.qrCodeUrl).length} with QR codes
                     </div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e5e7eb' }}>
-                      <strong>Quick Actions:</strong> Left-click to edit • Right-click to download
+                      <strong>Quick Actions:</strong> Left-click to edit � Right-click to download
                     </div>
                   </div>
                 </div>
@@ -944,7 +915,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
               </div>
               <div className="stat-item">
                 <span className="stat-label">Revenue:</span>
-                <span className="stat-value">â‚¹{formData.totalRevenue || 0}</span>
+                <span className="stat-value">₹{formData.totalRevenue || 0}</span>
               </div>
             </div> */}
             </form>
@@ -1147,11 +1118,25 @@ const TheaterQRDetail = () => {
   // QR Codes grouped by name
   const [qrCodesByName, setQrCodesByName] = useState({});
   
+  // Pagination state (matching RolesList)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // Search state (matching RolesList)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  
   // Performance refs (matching QRManagement)
   const abortControllerRef = useRef(null);
+  const searchTimeoutRef = useRef(null);
   
   // Active category state - will be set to first QR name when loaded
   const [activeCategory, setActiveCategory] = useState(null);
+  
+  // Force render state for tab reloading
+  const [forceRender, setForceRender] = useState(0);
   
   // Filter state
   const [filters, setFilters] = useState({
@@ -1172,32 +1157,47 @@ const TheaterQRDetail = () => {
   // Display image URL state for signed URL
   const [displayImageUrl, setDisplayImageUrl] = useState(null);
 
+  // Debounced search effect (matching RolesList)
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
   // Load QR Names for dynamic sidebar
   const loadQRNames = useCallback(async () => {
     if (!theaterId) return;
     
     try {
-      console.log('ðŸ” Loading QR names for theater:', theaterId);
+
       setQrNamesLoading(true);
       const url = `${config.api.baseUrl}/qrcodenames?theaterId=${theaterId}&isActive=true&limit=100`;
-      console.log('ðŸŒ Fetching from URL:', url);
-      
+
       const response = await fetch(url, { headers: getAuthHeaders() });
       const data = await response.json();
       
-      console.log('ðŸ“¡ QR Names API Response:', data);
-      console.log('ðŸ“‹ QR Names found:', data.data?.qrCodeNames?.length || 0);
-      
+
       if (data.success && data.data) {
         const qrNamesArray = data.data.qrCodeNames || [];
-        console.log('âœ… Setting QR names:', qrNamesArray.map(qr => qr.qrName));
+
         setQrNames(qrNamesArray);
       } else {
-        console.error('âŒ Failed to load QR names:', data.message);
+
         setQrNames([]);
       }
     } catch (error) {
-      console.error('âŒ Error loading QR names:', error);
+
       setQrNames([]);
     } finally {
       setQrNamesLoading(false);
@@ -1206,12 +1206,12 @@ const TheaterQRDetail = () => {
 
   // Set active category to first QR name when QR names are loaded
   useEffect(() => {
-    console.log('🎯 QR Names effect - qrNames:', qrNames.length, 'activeCategory:', activeCategory);
+
     if (qrNames.length > 0) {
       // Set activeCategory if it's null OR if current activeCategory is not in the list
       if (!activeCategory || !qrNames.find(qr => qr.qrName === activeCategory)) {
         const firstQRName = qrNames[0].qrName;
-        console.log('🎯 Setting active category to:', firstQRName);
+
         setActiveCategory(firstQRName);
       }
     }
@@ -1241,10 +1241,10 @@ const TheaterQRDetail = () => {
       }
       
       // PERFORMANCE OPTIMIZATION: Parallel requests for all QR codes
-      console.log('ðŸš€ Making API calls for theater:', theaterId);
+
       const singleUrl = addCacheBuster(`${config.api.baseUrl}/single-qrcodes/theater/${theaterId}`);
       // Fetching from singleqrcodes collection which contains both single and screen QR codes
-      console.log('ðŸŒ Single QR URL:', singleUrl);
+
       // singleUrl removed
       
       const singleResponse = await fetch(singleUrl, { signal, headers });
@@ -1256,40 +1256,31 @@ const TheaterQRDetail = () => {
       // Group QR codes by name
       const qrsByName = {};
       
-      console.log('ðŸ” Single QR API Response Status:', singleResponse.status);
-      console.log('ðŸ” Single QR Data Response:', singleData);
+
       // singleResponse removed
-      console.log('ðŸ” Screen QR Data Response:', screenData);
-      
+
       if (!singleData.success) {
-        console.log('â„¹ï¸ Single QR API Info:', singleData.message || 'No single QR codes found');
+
         // Only show error for actual server errors, not "not found" cases
         if (singleData.message && !singleData.message.includes('not found') && !singleData.message.includes('No QR codes found')) {
-          console.error('âŒ Single QR API Error:', singleData.message);
+
           // Removed error modal - errors logged to console only
         }
       }
       
       if (!screenData.success) {
-        console.log('â„¹ï¸ Screen QR API Info:', screenData.message || 'No screen QR codes found');
+
         // Only show error for actual server errors, not "not found" cases
         if (screenData.message && !screenData.message.includes('not found') && !screenData.message.includes('No QR codes found')) {
-          console.error('âŒ Screen QR API Error:', screenData.message);
+
           // Removed error modal - errors logged to console only
         }
       }
       
       if (singleData.success) {
-        console.log('ðŸ“‹ Single QR Codes found:', singleData.data?.qrCodes?.length || 0);
+
         (singleData.data?.qrCodes || []).forEach(qr => {
-          console.log('ðŸŽ¯ Processing QR:', { 
-            name: qr.name, 
-            qrType: qr.qrType,
-            qrImageUrl: qr.qrImageUrl ? 'EXISTS' : 'MISSING',
-            qrImageUrlLength: qr.qrImageUrl?.length || 0,
-            hasSeats: !!(qr.seats && qr.seats.length > 0),
-            seatsCount: qr.seats?.length || 0
-          });
+
           if (!qrsByName[qr.name]) {
             qrsByName[qr.name] = [];
           }
@@ -1301,23 +1292,15 @@ const TheaterQRDetail = () => {
       }
       
       // singleResponse removed
-      console.log('ðŸ” Screen QR Data Response:', screenData);
-      
+
       // Additional error logging for screen QR codes (already handled above)
       if (!screenData.success) {
-        console.log('â„¹ï¸ Screen QR additional info:', screenData.message || 'No screen QR codes found');
-      }
+  }
       
       if (screenData.success) {
-        console.log('ðŸ“‹ Screen QR Codes found:', screenData.data?.qrCodes?.length || 0);
+
         (screenData.data?.qrCodes || []).forEach(qr => {
-          console.log('ðŸŽ¯ Processing Screen QR:', { 
-            name: qr.name, 
-            qrType: 'screen',
-            qrImageUrl: qr.qrImageUrl ? 'EXISTS' : 'MISSING',
-            qrImageUrl: qr.qrImageUrl ? 'EXISTS' : 'MISSING'
-          });
-          
+
           if (!qrsByName[qr.name]) {
             qrsByName[qr.name] = [];
           }
@@ -1328,16 +1311,16 @@ const TheaterQRDetail = () => {
         });
       }
       
-      console.log('ðŸŽ¯ Final QR codes grouped by name:', qrsByName);
+
       setQrCodesByName(qrsByName);
       
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('TheaterQRDetail request was cancelled');
+
         return;
       }
-      console.log('Error loading theater data:', error);
+
       // Removed error modal - errors logged to console only
     } finally {
       setLoading(false);
@@ -1349,27 +1332,25 @@ const TheaterQRDetail = () => {
     if (!qrCodeId) return null;
     
     try {
-      console.log('??? Fetching display image URL for QR code:', qrCodeId);
-      
+
       const response = await fetch(`${config.api.baseUrl}/qrcodes/${qrCodeId}/image-url`, {
         headers: getAuthHeaders()
       });
       
       if (!response.ok) {
-        console.error('? Failed to fetch display image URL:', response.status);
+
         return null;
       }
       
       const data = await response.json();
-      console.log('? Display image URL response:', data);
-      
+
       if (data.success && data.data && data.data.imageUrl) {
         return data.data.imageUrl;
       }
       
       return null;
     } catch (error) {
-      console.error('? Error fetching display image URL:', error);
+
       return null;
     }
   }, []);
@@ -1392,24 +1373,38 @@ const TheaterQRDetail = () => {
     };
   }, [theaterId, loadTheaterData, loadQRNames]);
 
-  // Memoized computations for better performance - now based on QR names
-  const currentQRs = useMemo(() => {
+  // Memoized computations for better performance - now based on QR names with pagination
+  const filteredQRs = useMemo(() => {
     if (!activeCategory || !qrCodesByName[activeCategory]) {
       return [];
     }
     
     return qrCodesByName[activeCategory].filter(qr => {
-      const matchesSearch = !filters.search || 
-        qr.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-        (qr.screenName && qr.screenName.toLowerCase().includes(filters.search.toLowerCase())) ||
-        (qr.seatNumber && qr.seatNumber.toLowerCase().includes(filters.search.toLowerCase()));
+      const matchesSearch = !debouncedSearchTerm || 
+        qr.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        (qr.screenName && qr.screenName.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
+        (qr.seatNumber && qr.seatNumber.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
       
       const matchesStatus = !filters.isActive || 
         qr.isActive.toString() === filters.isActive;
       
       return matchesSearch && matchesStatus;
     });
-  }, [activeCategory, qrCodesByName, filters.search, filters.isActive]);
+  }, [activeCategory, qrCodesByName, debouncedSearchTerm, filters.isActive]);
+
+  // Update pagination when filtered results change
+  useEffect(() => {
+    const total = filteredQRs.length;
+    setTotalItems(total);
+    setTotalPages(Math.ceil(total / itemsPerPage));
+  }, [filteredQRs, itemsPerPage]);
+
+  // Paginated QRs
+  const currentQRs = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredQRs.slice(startIndex, endIndex);
+  }, [filteredQRs, currentPage, itemsPerPage]);
 
   // Get QR count for each QR name (for sidebar display)
   const qrNameCounts = useMemo(() => {
@@ -1454,10 +1449,10 @@ const TheaterQRDetail = () => {
     
     // Set display image URL directly from qrCode data
     if (qrCode && qrCode.qrImageUrl) {
-      console.log('🖼️ openCrudModal: Using QR image URL from data:', qrCode.qrImageUrl);
+
       setDisplayImageUrl(qrCode.qrImageUrl);
     } else {
-      console.warn('⚠️ openCrudModal: No qrImageUrl found in QR code data');
+
       setDisplayImageUrl(null);
     }
   }, []);
@@ -1471,7 +1466,7 @@ const TheaterQRDetail = () => {
   }, []);
 
   const handleCrudSave = useCallback(async (formData) => {
-    console.log('ðŸ”„ CRUD Save operation started:', { mode: crudModal.mode, formData, theaterId });
+
     try {
       setActionLoading(prev => ({ ...prev, [formData._id || 'new']: true }));
       
@@ -1480,17 +1475,10 @@ const TheaterQRDetail = () => {
       if (isEditing) {
         // PHASE 3 FIX: Check if this is a seat-level update
         if (formData.isSeatRow && formData.parentQRDetailId && formData.seatId) {
-          console.log('Updating individual seat:', {
-            parentQRDetailId: formData.parentQRDetailId,
-            seatId: formData.seatId,
-            parentDocId: formData.parentDocId,
-            isNewSeat: formData.isNewSeat
-          });
-          
+
           // Check if this is a new seat (seatId starts with 'new_')
           if (formData.isNewSeat || formData.seatId.toString().startsWith('new_')) {
-            console.log('➕ Creating new seat:', formData.seatNumber);
-            
+
             // For new seats, use the new POST endpoint to add seat to existing screen
             const response = await fetch(
               `${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData.parentQRDetailId}/seats`,
@@ -1511,8 +1499,7 @@ const TheaterQRDetail = () => {
             }
 
             const result = await response.json();
-            console.log('New seat created successfully:', result);
-            
+
             // Reload theater data to reflect the new seat
             await loadTheaterData();
             closeCrudModal();
@@ -1539,7 +1526,7 @@ const TheaterQRDetail = () => {
             }
 
             const result = await response.json();
-            console.log('Seat updated successfully:', result);
+
             showSuccess(`Seat ${formData.seatNumber} updated successfully`);
           }
           
@@ -1561,7 +1548,6 @@ const TheaterQRDetail = () => {
             isActive: formData.isActive
           };
 
-          console.log('Sending update payload:', updatePayload);
 
           const response = await fetch(`${config.api.baseUrl}/single-qrcodes/${formData.parentDocId}/details/${formData._id}`, {
             method: 'PUT',
@@ -1607,7 +1593,6 @@ const TheaterQRDetail = () => {
           };
         }
         
-        console.log('ðŸ“¤ Creating QR code with payload:', payload);
 
         const response = await fetch(`${config.api.baseUrl}/qrcodes/generate`, {
           method: 'POST',
@@ -1629,7 +1614,7 @@ const TheaterQRDetail = () => {
         }
       }
     } catch (error) {
-      console.error('Error saving QR code:', error);
+
       // Removed error modal - errors logged to console only
     } finally {
       setActionLoading(prev => ({ ...prev, [formData._id || 'new']: false }));
@@ -1648,7 +1633,7 @@ const TheaterQRDetail = () => {
       `Location: ${qrCode.location || 'Not specified'}`,
       `Status: ${qrCode.isActive ? 'Active' : 'Inactive'}`,
       `Orders: ${qrCode.orderCount || 0}`,
-      `Revenue: ₹${qrCode.totalRevenue || 0}`
+      `Revenue: ?${qrCode.totalRevenue || 0}`
     ].join('\n');
 
     alert({
@@ -1659,10 +1644,10 @@ const TheaterQRDetail = () => {
   };
 
   const downloadQRCode = async (qrCode) => {
-    console.log('📥 Download button clicked!', { qrCode: qrCode.name, id: qrCode._id, qrType: qrCode.qrType });
+
     try {
       if (!qrCode._id) {
-        console.error('❌ No QR code ID available');
+
         return;
       }
       
@@ -1675,8 +1660,7 @@ const TheaterQRDetail = () => {
           return;
         }
         
-        console.log(`📥 Creating ZIP with ${seatsWithQR.length} seat QR codes...`);
-        
+
         try {
           const zip = new JSZip();
           const folderName = `${qrCode.seatClass || qrCode.name}_QR_Codes`;
@@ -1689,16 +1673,14 @@ const TheaterQRDetail = () => {
               const blob = await response.blob();
               const filename = `${seat.seat}_QR.png`;
               folder.file(filename, blob);
-              console.log(`✅ Added ${filename} to ZIP`);
-            } catch (error) {
-              console.error(`❌ Failed to fetch ${seat.seat}:`, error);
-            }
+  } catch (error) {
+  }
           });
           
           await Promise.all(fetchPromises);
           
           // Generate ZIP file
-          console.log('📦 Generating ZIP file...');
+
           const zipBlob = await zip.generateAsync({ type: 'blob' });
           
           // Download ZIP
@@ -1710,28 +1692,24 @@ const TheaterQRDetail = () => {
           document.body.removeChild(link);
           URL.revokeObjectURL(link.href);
           
-          console.log('✅ ZIP downloaded successfully!');
+
           showSuccess(`Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
         } catch (error) {
-          console.error('❌ Failed to create ZIP:', error);
+
           showError('Failed to create ZIP file. Please try again.');
         }
         return;
       }
       
       // Single QR code download (original logic)
-      console.log('🔗 QR Code ID:', qrCode._id);
-      
+
       // Create clean filename
       const filename = `${qrCode.name.replace(/[^a-zA-Z0-9\s]/g, '_').replace(/\s+/g, '_')}_QR.png`;
-      console.log('📝 Filename:', filename);
-      
+
       // Use backend proxy to download (handles CORS)
-      console.log('⬇️ Downloading via backend proxy...');
-      
+
       const downloadUrl = `${config.api.baseUrl}/single-qrcodes/${qrCode._id}/download`;
-      console.log('🔗 Download URL:', downloadUrl);
-      
+
       const response = await fetch(downloadUrl, {
         method: 'GET',
         headers: getAuthHeaders()
@@ -1742,8 +1720,7 @@ const TheaterQRDetail = () => {
       }
       
       const blob = await response.blob();
-      console.log('✅ Image downloaded successfully, size:', blob.size);
-      
+
       // Create download link
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1751,7 +1728,7 @@ const TheaterQRDetail = () => {
       a.download = filename;
       a.style.display = 'none';
       
-      console.log('🚀 Triggering download...');
+
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1759,11 +1736,11 @@ const TheaterQRDetail = () => {
       // Clean up blob URL
       setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
       
-      console.log('✅ Download completed successfully!');
+
       showSuccess('QR code downloaded successfully!');
       
     } catch (error) {
-      console.error('❌ Error downloading QR code:', error);
+
       // Removed error modal - errors logged to console only
     }
   };
@@ -1804,7 +1781,7 @@ const TheaterQRDetail = () => {
         // Removed error modal - errors logged to console only
       }
     } catch (error) {
-      console.error('Error updating QR code status:', error);
+
       // Removed error modal - errors logged to console only
     } finally {
       setActionLoading(prev => ({ ...prev, [qrCodeId]: false }));
@@ -1852,7 +1829,7 @@ const TheaterQRDetail = () => {
         throw new Error(data.message || 'Failed to delete seat');
       }
     } catch (error) {
-      console.error('Error deleting seat:', error);
+
       showError(error.message || 'Failed to delete seat');
     } finally {
       setActionLoading(prev => ({ ...prev, [seatId]: false }));
@@ -1905,7 +1882,7 @@ const TheaterQRDetail = () => {
         setDeleteModal({ show: false, qrCode: null });
       }
     } catch (error) {
-      console.error('Error deleting QR code:', error);
+
       // Removed error modal - errors logged to console only
       setDeleteModal({ show: false, qrCode: null });
     } finally {
@@ -1929,18 +1906,54 @@ const TheaterQRDetail = () => {
           pageTitle="Loading Theater QR Details..." 
           currentPage="qr-list"
         >
-          <PageContainer
-            title="Loading..."
-            subtitle="Loading theater QR codes..."
-          >
-            <div className="loading-container">
-              <div className="qr-grid">
-                {Array.from({ length: 6 }, (_, index) => (
-                  <QRCardSkeleton key={`skeleton-${index}`} />
-                ))}
+          <div className="theater-list-page qr-management-page">
+            <div className="page-header-section">
+              <div className="header-content">
+                <h1 className="page-title">Loading QR Codes...</h1>
               </div>
             </div>
-          </PageContainer>
+            <div className="qr-stats">
+              <div className="stat-card">
+                <div className="stat-number">...</div>
+                <div className="stat-label">Total QR Codes</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">...</div>
+                <div className="stat-label">Active QR Codes</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">...</div>
+                <div className="stat-label">Inactive QR Codes</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">...</div>
+                <div className="stat-label">QR Name Categories</div>
+              </div>
+            </div>
+            <div className="theater-list-section">
+              <div className="theater-table-container">
+                <table className="theater-table">
+                  <thead>
+                    <tr>
+                      <th className="sno-cell">S.No</th>
+                      <th className="name-cell">QR Code Name</th>
+                      <th className="description-cell">Type</th>
+                      <th className="status-cell">Status</th>
+                      <th className="actions-cell">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colSpan="5" className="loading-cell">
+                        <div className="loading-spinner"></div>
+                        <span>Loading QR codes...</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </AdminLayout>
       </ErrorBoundary>
     );
@@ -1948,22 +1961,36 @@ const TheaterQRDetail = () => {
 
   if (!theater) {
     return (
-      <AdminLayout 
-        pageTitle="Theater Not Found" 
-        currentPage="qr-list"
-      >
-        <PageContainer
-          title="Theater Not Found"
-          subtitle="The requested theater could not be found"
+      <ErrorBoundary>
+        <AdminLayout 
+          pageTitle="Theater Not Found" 
+          currentPage="qr-list"
         >
-          <div className="error-container">
-            <h2>Theater not found</h2>
-            <button onClick={() => navigate('/qr-management')}>
-              Return to QR List
-            </button>
+          <div className="theater-list-page qr-management-page">
+            <div className="page-header-section">
+              <div className="header-content">
+                <h1 className="page-title">Theater Not Found</h1>
+              </div>
+            </div>
+            <div className="theater-list-section">
+              <div className="theater-table-container">
+                <div className="error-container" style={{padding: '60px 20px', textAlign: 'center'}}>
+                  <i className="fas fa-exclamation-circle fa-3x" style={{color: 'var(--primary-color)', marginBottom: '20px'}}></i>
+                  <h2>Theater not found</h2>
+                  <p>The requested theater could not be found.</p>
+                  <button 
+                    className="add-theater-btn" 
+                    onClick={() => navigate('/qr-management')}
+                    style={{marginTop: '20px'}}
+                  >
+                    Return to QR Management
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-        </PageContainer>
-      </AdminLayout>
+        </AdminLayout>
+      </ErrorBoundary>
     );
   }
 
@@ -1974,245 +2001,232 @@ const TheaterQRDetail = () => {
         currentPage="qr-list"
       >
         <div className="theater-user-details-page">
-        <PageContainer
-          hasHeader={false}
-          className="theater-user-management-vertical"
-        >
-          {/* Global Vertical Header Component */}
-          <VerticalPageHeader
-            title={theater?.name || 'Loading Theater...'}
-            showBackButton={true}
-            backButtonPath="/qr-management"
-            backButtonText="Back to QR Management"
-            actionButton={
-              <button 
-                className="header-btn"
-                onClick={() => navigate(`/qr-generate?theaterId=${theaterId}`)}
-              >
-                <span className="btn-icon">
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                  </svg>
-                </span>
-                GENERATE QR CODES
-              </button>
-            }
-          />
-          <div className="theater-user-settings-container">
-            {/* Settings Tabs - Dynamic QR Names */}
-            <div className="theater-user-settings-tabs">
-              {qrNamesLoading ? (
-                <div className="theater-user-loading">Loading QR names...</div>
-              ) : qrNames.length > 0 ? (
-                qrNames.map((qrName) => (
-                  <button 
+          <PageContainer
+            hasHeader={false}
+            className="theater-user-management-vertical"
+          >
+            {/* Global Vertical Header Component */}
+            <VerticalPageHeader
+              title={theater?.name ? `${theater.name} - QR Code Management` : 'QR Code Management'}
+              backButtonText="Back to QR Management"
+              backButtonPath="/qr-management"
+              actionButton={
+                <button 
+                  className="header-btn"
+                  onClick={() => navigate(`/qr-generate?theaterId=${theaterId}`)}
+                >
+                  <span className="btn-icon">
+                    <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                    </svg>
+                  </span>
+                  Generate QR Codes
+                </button>
+              }
+            />
+            <div className="theater-user-settings-container">
+              {/* Settings Tabs - EXACTLY like Theater Users page */}
+              <div className="theater-user-settings-tabs" key={`tabs-${forceRender}`}>
+                {qrNames.length > 0 && qrNames.map((qrName) => (
+                  <button
                     key={qrName.qrName}
                     className={`theater-user-settings-tab ${activeCategory === qrName.qrName ? 'active' : ''}`}
-                    onClick={() => setActiveCategory(qrName.qrName)}
+                    onClick={() => {
+                      setActiveCategory(qrName.qrName);
+                      setCurrentPage(1);
+                    }}
                   >
-                    <span className="theater-user-tab-icon">📱</span>
+                    <span className="theater-user-tab-icon">
+                      <i className="fas fa-qrcode"></i>
+                    </span>
                     {qrName.qrName}
-                    <span className="theater-user-tab-count">{qrNameCounts[qrName.qrName] || 0}</span>
+                    <span className="badge" style={{
+                      marginLeft: 'auto',
+                      background: activeCategory === qrName.qrName ? 'rgba(255, 255, 255, 0.3)' : 'var(--background-light)',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontSize: '0.8rem',
+                      fontWeight: '700'
+                    }}>
+                      {qrNameCounts[qrName.qrName] || 0}
+                    </span>
                   </button>
-                ))
-              ) : (
-                <div className="theater-user-no-names">No QR names configured for this theater</div>
-              )}
-            </div>
+                ))}
+              </div>
 
-            {/* Settings Content - EXACTLY like Settings page */}
-            <div className="theater-user-settings-content">
-              <div className="theater-user-settings-section">
-                <div className="theater-user-section-header">
-                  <h3>{activeCategory ? `${activeCategory} QR Codes` : 'QR Codes'}</h3>
-                  <div className="theater-user-section-stats">
+              {/* Settings Content - EXACTLY like Theater Users page */}
+              <div className="theater-user-settings-content">
+                {activeCategory ? (
+                  <div className="theater-user-settings-section">
+                   
+
+             
+
+                    {/* QR Codes Table */}
                     {loading ? (
-                      <>
-                        <span>Total: <span className="loading-dots">...</span></span>
-                        <span>Active: <span className="loading-dots">...</span></span>
-                      </>
+                      <div className="theater-user-empty-state">
+                        <div className="theater-user-empty-state-icon">⏳</div>
+                        <h4>Loading QR codes...</h4>
+                        <p>Please wait while we fetch the QR code data.</p>
+                      </div>
+                    ) : currentQRs.length === 0 ? (
+                      <div className="theater-user-empty-state">
+                        <div className="theater-user-empty-state-icon">
+                          <i className="fas fa-qrcode fa-3x"></i>
+                        </div>
+                        <h4>No QR codes found</h4>
+                        {debouncedSearchTerm ? (
+                          <>
+                            <p>No QR codes match your search.</p>
+                            <button className="add-theater-btn" onClick={() => setSearchTerm('')}>
+                              Clear Search
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p>Get started by generating your first QR code.</p>
+                            <button 
+                              className="add-theater-btn" 
+                              onClick={() => navigate(`/qr-generate?theaterId=${theaterId}`)}
+                            >
+                              Generate First QR Code
+                            </button>
+                          </>
+                        )}
+                      </div>
                     ) : (
                       <>
-                        <span>Total: {currentQRs.length}</span>
-                        <span>Active: {currentQRs.filter(qr => qr.isActive).length}</span>
+                        <div className="theater-table-container">
+                          <table className="theater-table">
+                            <thead>
+                              <tr>
+                                <th className="sno-col">S NO</th>
+                                <th className="name-col">QR CODE NAME</th>
+                                <th className="description-col">TYPE</th>
+                                <th className="status-col">STATUS</th>
+                                <th className="actions-col">ACTIONS</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {currentQRs.map((qrCode, index) => (
+                                <tr key={qrCode._id} className="theater-row">
+                                  <td className="sno-cell">
+                                    <div className="sno-number">{(currentPage - 1) * itemsPerPage + index + 1}</div>
+                                  </td>
+                                  <td className="name-cell">
+                                    <div className="role-name-wrapper">
+                                      <strong>{qrCode.name}</strong>
+                                      {qrCode.qrType === 'screen' }
+                                    </div>
+                                  </td>
+                                  <td className="description-cell">
+                                    {qrCode.qrType === 'screen' ? (
+                                      <span>
+                                        <i className="fas fa-film"></i> Screen QR
+                                        {qrCode.screenName && ` - ${qrCode.screenName}`}
+                                      </span>
+                                    ) : (
+                                      <span>
+                                        <i className="fas fa-qrcode"></i> Single QR
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="status-cell">
+                                    <span className={`status-badge ${qrCode.isActive ? 'active' : 'inactive'}`}>
+                                      {qrCode.isActive ? 'Active' : 'Inactive'}
+                                    </span>
+                                  </td>
+                                  <td className="actions-cell">
+                                    <ActionButtons>
+                                      <ActionButton
+                                        type="view"
+                                        onClick={() => openCrudModal(qrCode)}
+                                        title="View QR Details"
+                                      />
+                                      <ActionButton
+                                        type="download"
+                                        onClick={() => downloadQRCode(qrCode)}
+                                        title="Download QR Code"
+                                      />
+                                      <ActionButton
+                                        type="delete"
+                                        onClick={() => deleteQRCode(qrCode._id, qrCode.name)}
+                                        disabled={actionLoading[qrCode._id]}
+                                        title="Delete QR Code"
+                                      />
+                                    </ActionButtons>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {!loading && (
+                          <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={totalItems}
+                            itemsPerPage={itemsPerPage}
+                            onPageChange={setCurrentPage}
+                            itemType="QR codes"
+                          />
+                        )}
                       </>
                     )}
                   </div>
-                </div>
-                
-                {/* QR Grid */}
-                <div className="theater-table-container">
-                  <table className="theater-table">
-                    <thead>
-                      <tr>
-                        <th className="sno-col">S NO</th>
-                        <th className="name-col">QR CODE NAME</th>
-                        <th className="access-status-col">ACCESS STATUS</th>
-                        <th className="status-col">STATUS</th>
-                        <th className="actions-col">ACTION</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                        {currentQRs.length === 0 ? (
-                          <tr>
-                            <td colSpan="5" className="no-data">
-                              <div className="empty-state">
-                                <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '48px', height: '48px', opacity: 0.3}}>
-                                  <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1V3H9V1L3 7V9H1V11H3V19C3 20.1 3.9 21 5 21H11V19H5V11H3V9H21M16 12C14.9 12 14 12.9 14 14S14.9 16 16 16 18 15.1 18 14 17.1 12 16 12M24 20V18H18V20C18 21.1 18.9 22 20 22H22C23.1 22 24 21.1 24 20Z"/>
-                                </svg>
-                                <p>No QR Code Names found</p>
-                                <button 
-                                  className="btn-primary" 
-                                  onClick={() => navigate('/qr-generate')}
-                                >
-                                  CREATE YOUR FIRST QR CODE
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : (
-                          currentQRs.map((qrCode, index) => (
-                            <tr key={qrCode._id} className={`theater-row ${!qrCode.isActive ? 'inactive' : ''}`}>
-                              {/* S NO Column */}
-                              <td className="sno-cell">
-                                <div className="sno-number">{index + 1}</div>
-                              </td>
-
-                              {/* QR Name Column */}
-                              <td className="theater-name-cell">
-                                <div className="theater-name-full">{qrCode.name}</div>
-                              </td>
-
-                              {/* Access Status Column - Toggle Button */}
-                              <td className="access-status-cell">
-                                <div className="toggle-wrapper">
-                                  <label className="switch" style={{
-                                    position: 'relative',
-                                    display: 'inline-block',
-                                    width: '50px',
-                                    height: '24px'
-                                  }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={qrCode.isActive}
-                                      onChange={() => toggleQRStatus(qrCode._id, qrCode.isActive)}
-                                      disabled={actionLoading[qrCode._id]}
-                                      style={{
-                                        opacity: 0,
-                                        width: 0,
-                                        height: 0
-                                      }}
-                                    />
-                                    <span className="slider" style={{
-                                      position: 'absolute',
-                                      cursor: actionLoading[qrCode._id] ? 'not-allowed' : 'pointer',
-                                      top: 0,
-                                      left: 0,
-                                      right: 0,
-                                      bottom: 0,
-                                      backgroundColor: qrCode.isActive ? 'var(--primary-dark, #6D28D9)' : '#ccc',
-                                      transition: '.4s',
-                                      borderRadius: '24px',
-                                      opacity: actionLoading[qrCode._id] ? 0.5 : 1
-                                    }}>
-                                      <span style={{
-                                        position: 'absolute',
-                                        content: '""',
-                                        height: '18px',
-                                        width: '18px',
-                                        left: qrCode.isActive ? '26px' : '3px',
-                                        bottom: '3px',
-                                        backgroundColor: 'white',
-                                        transition: '.4s',
-                                        borderRadius: '50%',
-                                        display: 'block'
-                                      }}></span>
-                                    </span>
-                                  </label>
-                                </div>
-                              </td>
-
-                              {/* Status Column */}
-                              <td className="status-cell">
-                                <span className={`status-badge ${qrCode.isActive ? 'active' : 'inactive'}`}>
-                                  {qrCode.isActive ? 'Active' : 'Inactive'}
-                                </span>
-                              </td>
-
-                              {/* Actions Column */}
-                              <td className="actions-cell">
-                                <ActionButtons>
-                                  <ActionButton 
-                                    type="view"
-                                    onClick={() => openCrudModal(qrCode)}
-                                    disabled={actionLoading[qrCode._id]}
-                                    title="View QR Details"
-                                  />
-                                  
-                                  <ActionButton 
-                                    type="download"
-                                    onClick={() => downloadQRCode(qrCode)}
-                                    title="Download QR Code"
-                                  />
-                                  
-                                  <ActionButton 
-                                    type="delete"
-                                    onClick={() => deleteQRCode(qrCode._id, qrCode.name)}
-                                    disabled={actionLoading[qrCode._id]}
-                                    title="Delete QR Code"
-                                  />
-                                </ActionButtons>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                </div>
+                ) : (
+                  <div className="theater-user-empty-state">
+                    <div className="theater-user-empty-state-icon">
+                      <i className="fas fa-qrcode fa-3x"></i>
+                    </div>
+                    <h4>Select a QR Category</h4>
+                    <p>Choose a category from the left sidebar to view QR codes.</p>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
-
-          {/* CRUD Modal */}
-          {crudModal.isOpen && (
-            <CrudModal
-              isOpen={crudModal.isOpen}
-              qrCode={crudModal.qrCode}
-              mode={crudModal.mode}
-              theater={theater}
-              onClose={closeCrudModal}
-              onSave={handleCrudSave}
-              onDelete={crudModal.qrCode?.isSeatRow ? deleteSeat : deleteQRCode}
-              onModeChange={(mode, newQrCode) => {
-                if (newQrCode) {
-                  // Update both mode and QR code data (for navigating back to parent)
-                  setCrudModal(prev => ({ ...prev, mode, qrCode: newQrCode }));
-                } else {
-                  // Just update the mode
-                  setCrudModal(prev => ({ ...prev, mode }));
-                }
-              }}
-              actionLoading={actionLoading}
-              displayImageUrl={displayImageUrl}
-              onToggleStatus={toggleQRStatus}
-              qrNames={qrNames}
-              existingQRNames={Object.keys(qrCodesByName)}
-              onSeatEdit={(seatData) => {
-                // Close current modal and open seat edit modal
-                closeCrudModal();
-                setTimeout(() => {
-                  setCrudModal({
-                    isOpen: true,
-                    qrCode: seatData,
-                    mode: 'edit'
-                  });
-                }, 100);
-              }}
-            />
-          )}
-
-        </PageContainer>
+          </PageContainer>
         </div>
+
+        {/* CRUD Modal */}
+        {crudModal.isOpen && (
+          <CrudModal
+            isOpen={crudModal.isOpen}
+            qrCode={crudModal.qrCode}
+            mode={crudModal.mode}
+            theater={theater}
+            onClose={closeCrudModal}
+            onSave={handleCrudSave}
+            onDelete={crudModal.qrCode?.isSeatRow ? deleteSeat : deleteQRCode}
+            onModeChange={(mode, newQrCode) => {
+              if (newQrCode) {
+                // Update both mode and QR code data (for navigating back to parent)
+                setCrudModal(prev => ({ ...prev, mode, qrCode: newQrCode }));
+              } else {
+                // Just update the mode
+                setCrudModal(prev => ({ ...prev, mode }));
+              }
+            }}
+            actionLoading={actionLoading}
+            displayImageUrl={displayImageUrl}
+            onToggleStatus={toggleQRStatus}
+            qrNames={qrNames}
+            existingQRNames={Object.keys(qrCodesByName)}
+            onSeatEdit={(seatData) => {
+              // Close current modal and open seat edit modal
+              closeCrudModal();
+              setTimeout(() => {
+                setCrudModal({
+                  isOpen: true,
+                  qrCode: seatData,
+                  mode: 'edit'
+                });
+              }, 100);
+            }}
+          />
+        )}
 
         {/* Delete Confirmation Modal - GLOBAL DESIGN from Theater Management */}
         {deleteModal.show && (
@@ -2244,208 +2258,6 @@ const TheaterQRDetail = () => {
           </div>
         )}
       </AdminLayout>
-
-      {/* Custom CSS for modal width - matches TheaterList */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          .theater-view-modal-content,
-          .theater-edit-modal-content {
-            max-width: 900px !important;
-            width: 85% !important;
-          }
-
-          @media (max-width: 768px) {
-            .theater-view-modal-content,
-            .theater-edit-modal-content {
-              width: 95% !important;
-              max-width: none !important;
-            }
-          }
-
-          /* ============================================
-             COMPREHENSIVE TABLE RESPONSIVE DESIGN
-             ============================================ */
-          
-          /* Table base styling */
-          .theater-user-settings-content .theater-table {
-            width: 100%;
-            min-width: 800px;
-            border-collapse: collapse;
-            font-size: 0.9rem;
-            background: white;
-            table-layout: auto !important;
-            border: 1px solid #d1d5db;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-          }
-
-          /* Table header styling */
-          .theater-user-settings-content .theater-table thead {
-            background: linear-gradient(135deg, #6B0E9B 0%, #8B2FB8 100%);
-            box-shadow: 0 2px 4px rgba(107, 14, 155, 0.1);
-            color: white;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-          }
-
-          .theater-user-settings-content .theater-table thead tr {
-            border-bottom: 2px solid #5A0C82;
-          }
-
-          .theater-user-settings-content .theater-table th {
-            padding: 18px 16px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border: none;
-            position: relative;
-            white-space: nowrap;
-            color: white !important;
-          }
-
-          .theater-user-settings-content .theater-table th::after {
-            content: '';
-            position: absolute;
-            right: 0;
-            top: 25%;
-            height: 50%;
-            width: 1px;
-            background: rgba(255, 255, 255, 0.2);
-          }
-
-          .theater-user-settings-content .theater-table th:last-child::after {
-            display: none;
-          }
-
-          /* Table body styling */
-          .theater-user-settings-content .theater-table tbody tr {
-            border-bottom: 1px solid #e5e7eb;
-            background: #ffffff;
-            transition: all 0.2s ease;
-          }
-
-          .theater-user-settings-content .theater-table tbody tr:nth-child(even) {
-            background: #f9fafb;
-          }
-
-          .theater-user-settings-content .theater-table tbody tr:hover {
-            background: #f0f9ff !important;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            transform: translateY(-1px);
-          }
-
-          .theater-user-settings-content .theater-table td {
-            padding: 16px 12px;
-            vertical-align: middle;
-            border-right: 1px solid #f3f4f6;
-          }
-
-          .theater-user-settings-content .theater-table td:last-child {
-            border-right: none;
-          }
-
-          /* Column Widths */
-          .theater-user-settings-content .theater-table .sno-col { 
-            width: 80px; 
-            min-width: 70px;
-            text-align: center;
-          }
-          
-          .theater-user-settings-content .theater-table .name-col { 
-            width: 200px; 
-            min-width: 180px;
-          }
-          
-          .theater-user-settings-content .theater-table .access-status-col { 
-            width: 150px; 
-            min-width: 130px;
-            text-align: center;
-          }
-          
-          .theater-user-settings-content .theater-table .status-col { 
-            width: 130px; 
-            min-width: 120px;
-            text-align: center;
-          }
-          
-          .theater-user-settings-content .theater-table .actions-col { 
-            width: 180px; 
-            min-width: 160px;
-            text-align: center;
-          }
-
-          /* S.No cell styling */
-          .theater-user-settings-content .theater-table .sno-cell {
-            text-align: center;
-          }
-
-          .theater-user-settings-content .theater-table .sno-number {
-            display: inline-block;
-            width: 32px;
-            height: 32px;
-            line-height: 32px;
-            background: #f3f4f6;
-            border-radius: 50%;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #6b7280;
-          }
-
-          /* Name cell styling */
-          .theater-user-settings-content .theater-table .name-cell {
-            font-weight: 600;
-            color: #111827;
-            text-align: left;
-            padding-left: 20px;
-          }
-
-          /* Access Status cell styling */
-          .theater-user-settings-content .theater-table .access-status-cell {
-            text-align: center;
-          }
-
-          /* Status cell styling */
-          .theater-user-settings-content .theater-table .status-cell {
-            text-align: center;
-          }
-
-          /* Actions cell styling */
-          .theater-user-settings-content .theater-table .actions-cell {
-            text-align: center;
-          }
-
-          /* Enhanced action buttons styling */
-          .theater-user-settings-content .action-buttons {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: nowrap;
-          }
-
-          /* Status badge styling */
-          .theater-user-settings-content .status-badge {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-
-          .theater-user-settings-content .status-badge.active {
-            background: #d1fae5;
-            color: #065f46;
-          }
-
-          .theater-user-settings-content .status-badge.inactive {
-            background: #fee2e2;
-            color: #991b1b;
-          }
-        `
-      }} />
     </ErrorBoundary>
   );
 };

@@ -58,9 +58,8 @@ const StockHistoryManagerV2 = ({ productId, productName, onClose }) => {
 
       const data = await response.json();
       setStockEntries(data.data.stockEntries);
+  } catch (error) {
 
-    } catch (error) {
-      console.error('❌ Error fetching stock entries:', error);
       setError('Failed to load stock entries');
     } finally {
       setLoading(false);
@@ -92,8 +91,7 @@ const StockHistoryManagerV2 = ({ productId, productName, onClose }) => {
       }
 
       const data = await response.json();
-      console.log('✅ Entry added successfully:', data);
-      
+
       // Reset form
       setNewEntry({
         date: '',
@@ -108,9 +106,8 @@ const StockHistoryManagerV2 = ({ productId, productName, onClose }) => {
       
       // Refresh entries
       await fetchStockEntries();
+  } catch (error) {
 
-    } catch (error) {
-      console.error('❌ Error adding stock entry:', error);
       setError('Failed to add stock entry');
     } finally {
       setLoading(false);
@@ -142,16 +139,14 @@ const StockHistoryManagerV2 = ({ productId, productName, onClose }) => {
       }
 
       const data = await response.json();
-      console.log('✅ Entry updated successfully:', data);
-      
+
       // Reset editing state
       setEditingEntry(null);
       
       // Refresh entries
       await fetchStockEntries();
+  } catch (error) {
 
-    } catch (error) {
-      console.error('❌ Error updating stock entry:', error);
       setError('Failed to update stock entry');
     } finally {
       setLoading(false);
@@ -184,13 +179,11 @@ const StockHistoryManagerV2 = ({ productId, productName, onClose }) => {
       }
 
       const data = await response.json();
-      console.log('✅ Entry deleted successfully:', data);
-      
+
       // Refresh entries
       await fetchStockEntries();
+  } catch (error) {
 
-    } catch (error) {
-      console.error('❌ Error deleting stock entry:', error);
       setError('Failed to delete stock entry');
     } finally {
       setLoading(false);

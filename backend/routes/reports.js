@@ -21,9 +21,6 @@ router.get('/full-report/:theaterId',
     try {
       const { theaterId } = req.params;
       const { startDate, endDate, format = 'json' } = req.query;
-
-      console.log(`📊 Theater Admin downloading FULL report for theater: ${theaterId}`);
-
       // Build query - NO FILTERS (all data)
       const query = {
         theater: new mongoose.Types.ObjectId(theaterId)
@@ -34,24 +31,17 @@ router.get('/full-report/:theaterId',
         query.createdAt = {};
         if (startDate) {
           query.createdAt.$gte = new Date(startDate);
-          console.log(`   - Start date: ${startDate}`);
         }
         if (endDate) {
           query.createdAt.$lte = new Date(endDate);
-          console.log(`   - End date: ${endDate}`);
         }
       }
-
-      console.log('🔍 Query:', JSON.stringify(query, null, 2));
 
       // Fetch ALL orders for the theater
       const orders = await mongoose.connection.db.collection('orders')
         .find(query)
         .sort({ createdAt: -1 })
         .toArray();
-
-      console.log(`✅ Found ${orders.length} total orders`);
-
       // Calculate complete statistics
       const totalOrders = orders.length;
       const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.total || 0), 0);
@@ -160,9 +150,6 @@ router.get('/my-sales/:theaterId',
           code: 'NO_DATA_ACCESS'
         });
       }
-
-      console.log(`📊 User ${dataScope.scope.userName} downloading report. Type: ${dataScope.scope.type}`);
-
       // Build query with USER-SPECIFIC filters
       const query = {
         theater: new mongoose.Types.ObjectId(theaterId)
@@ -172,9 +159,6 @@ router.get('/my-sales/:theaterId',
       if (dataScope.scope.type === 'user_specific') {
         const filters = dataScope.scope.filters;
         const userId = dataScope.scope.userId;
-
-        console.log(`🔒 Applying USER-SPECIFIC filters for user: ${userId}`);
-
         // ✅ Filter by user's assigned categories
         if (filters.assignedCategories && filters.assignedCategories.length > 0) {
           query['items.category'] = { 
@@ -182,7 +166,6 @@ router.get('/my-sales/:theaterId',
               mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
             )
           };
-          console.log(`   - Filtering by assigned categories: ${filters.assignedCategories.length} categories`);
         }
 
         // ✅ Filter by user's assigned products
@@ -190,19 +173,17 @@ router.get('/my-sales/:theaterId',
           query['items.productId'] = { 
             $in: filters.assignedProducts.map(id => new mongoose.Types.ObjectId(id))
           };
-          console.log(`   - Filtering by assigned products: ${filters.assignedProducts.length} products`);
         }
 
         // ✅ Filter by user's assigned sections
         if (filters.assignedSections && filters.assignedSections.length > 0) {
           query.section = { $in: filters.assignedSections };
-          console.log(`   - Filtering by assigned sections: ${filters.assignedSections.join(', ')}`);
+
         }
 
         // ✅ Filter by who processed the order
         if (filters.trackByProcessor) {
           query.processedBy = new mongoose.Types.ObjectId(userId);
-          console.log(`   - Filtering by processor: only orders processed by this user`);
         }
 
         // ✅ Filter by user's date range restriction
@@ -211,12 +192,11 @@ router.get('/my-sales/:theaterId',
             $gte: new Date(filters.accessStartDate),
             $lte: new Date(filters.accessEndDate)
           };
-          console.log(`   - Filtering by date range: ${filters.accessStartDate} to ${filters.accessEndDate}`);
         }
 
       } else if (dataScope.scope.type === 'full') {
         // Theater Admin - no filters
-        console.log('✅ Theater Admin - Full access (no filters)');
+
       }
 
       // Optional additional date range from query params
@@ -226,16 +206,11 @@ router.get('/my-sales/:theaterId',
         if (endDate) query.createdAt.$lte = new Date(endDate);
       }
 
-      console.log('🔍 Final query:', JSON.stringify(query, null, 2));
-
       // ✅ Fetch USER-SPECIFIC filtered orders
       const orders = await mongoose.connection.db.collection('orders')
         .find(query)
         .sort({ createdAt: -1 })
         .toArray();
-
-      console.log(`✅ Found ${orders.length} orders for user ${dataScope.scope.userName || 'Unknown'}`);
-
       // Calculate USER-SPECIFIC statistics
       const totalOrders = orders.length;
       const totalRevenue = orders.reduce((sum, order) => sum + (order.pricing?.total || 0), 0);
@@ -446,10 +421,6 @@ router.get('/excel/:theaterId',
     try {
       const { theaterId } = req.params;
       const { startDate, endDate } = req.query;
-
-      console.log(`📊 Generating Excel report for theater: ${theaterId}`);
-      console.log(`   Date range: ${startDate} to ${endDate}`);
-
       // Check user access
       const dataScope = await getUserDataScope(req.user.userId);
       const isTheaterAdmin = req.user.userType === 'theater_admin' || req.user.role === 'theater_admin';
@@ -489,9 +460,6 @@ router.get('/excel/:theaterId',
         .find(query)
         .sort({ createdAt: -1 })
         .toArray();
-
-      console.log(`✅ Found ${orders.length} orders for Excel export`);
-
       // Create Excel workbook
       const workbook = new ExcelJS.Workbook();
       workbook.creator = req.user.username || 'System';
@@ -621,9 +589,6 @@ router.get('/excel/:theaterId',
 
       await workbook.xlsx.write(res);
       res.end();
-
-      console.log(`✅ Excel report generated: ${filename}`);
-
     } catch (error) {
       console.error('❌ Error generating Excel report:', error);
       res.status(500).json({

@@ -38,18 +38,14 @@ const CustomerPhoneEntry = () => {
   };
 
   const handleContinue = async () => {
-    console.log('🔥 Continue clicked!');
-    console.log('Phone number:', phoneNumber);
-    console.log('Phone length:', phoneNumber.length);
-    
+
     if (!phoneNumber) {
       setError('Please enter your phone number');
       return;
     }
 
     const isValid = validatePhoneNumber(phoneNumber);
-    console.log('Is valid:', isValid);
-    
+
     if (!isValid) {
       setError('Please enter a valid 10-digit mobile number');
       return;
@@ -60,12 +56,10 @@ const CustomerPhoneEntry = () => {
 
     try {
       const fullPhoneNumber = countryCode + phoneNumber;
-      console.log('📤 Sending OTP to:', fullPhoneNumber);
-      
+
       // Call actual API to send OTP - Use dynamic API URL
       const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
-      console.log('🌐 API URL:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -78,10 +72,9 @@ const CustomerPhoneEntry = () => {
       });
 
       const result = await response.json();
-      console.log('📥 API Response:', result);
 
       if (result.success) {
-        console.log('✅ OTP sent successfully!');
+
         // Navigate to OTP verification page with phone number
         navigate('/customer/otp-verification', { 
           state: { 
@@ -94,7 +87,7 @@ const CustomerPhoneEntry = () => {
         setError(result.error || 'Failed to send OTP. Please try again.');
       }
     } catch (err) {
-      console.error('❌ Error:', err);
+
       setError('Failed to send OTP. Please check your connection and try again.');
     } finally {
       setLoading(false);
@@ -122,7 +115,7 @@ const CustomerPhoneEntry = () => {
           type="button"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
         <h1 className="phone-entry-title">Phone Verification</h1>

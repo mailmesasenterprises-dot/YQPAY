@@ -57,8 +57,6 @@ router.get('/:theaterId', [
     }
 
     const { theaterId } = req.params;
-    console.log('🔍 Fetching products for theater:', theaterId);
-    
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 100;
     const skip = (page - 1) * limit;
@@ -73,17 +71,12 @@ router.get('/:theaterId', [
     let allProducts = [];
     
     if (productContainer && productContainer.productList) {
-      console.log('✅ Using NEW array-based structure');
       allProducts = productContainer.productList || [];
     } else {
       // Fallback to OLD individual document structure
-      console.log('⚠️  Falling back to OLD individual document structure');
       const query = { theaterId: new mongoose.Types.ObjectId(theaterId) };
       allProducts = await Product.find(query).lean();
     }
-
-    console.log('📦 Total products found:', allProducts.length);
-
     // Apply filters
     let filtered = allProducts;
 
@@ -140,15 +133,10 @@ router.get('/:theaterId', [
     // Pagination
     const total = filtered.length;
     const paginatedProducts = filtered.slice(skip, skip + limit);
-
-    console.log('📊 Filtered:', filtered.length, '| Paginated:', paginatedProducts.length);
-
     // ✅ Fetch real stock balances from MonthlyStock for each product
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
-    
-    console.log('📦 Fetching real stock balances from MonthlyStock...');
     const productsWithRealStock = await Promise.all(
       paginatedProducts.map(async (product) => {
         try {
@@ -176,9 +164,6 @@ router.get('/:theaterId', [
         }
       })
     );
-
-    console.log('✅ Stock balances updated from MonthlyStock');
-
     res.json({
       success: true,
       data: {
@@ -246,16 +231,13 @@ router.post('/:theaterId', [
       });
     }
 
-    console.log('✅ Creating product:', req.body.name, 'for theater:', theaterId);
-    console.log('📦 Request body quantity:', req.body.quantity);
-    console.log('📦 Full request body:', JSON.stringify(req.body, null, 2));
-
     // Prepare new product data
     const newProduct = {
       _id: new mongoose.Types.ObjectId(),
       name: req.body.name,
       description: req.body.description || '',
       categoryId: new mongoose.Types.ObjectId(req.body.categoryId),
+      kioskType: req.body.kioskType ? new mongoose.Types.ObjectId(req.body.kioskType) : undefined,
       productTypeId: req.body.productTypeId ? new mongoose.Types.ObjectId(req.body.productTypeId) : undefined,
       sku: req.body.sku || `PRD-${Date.now()}`,
       quantity: req.body.quantity || '', // NEW: Accept quantity field from frontend
@@ -315,7 +297,6 @@ router.post('/:theaterId', [
       };
       
       await db.collection('productlist').insertOne(productContainer);
-      console.log('✅ Created new product container with first product');
     } else {
       // Add product to existing container
       await db.collection('productlist').updateOne(
@@ -330,7 +311,6 @@ router.post('/:theaterId', [
           }
         }
       );
-      console.log('✅ Added product to existing container');
     }
 
     res.status(201).json({
@@ -424,7 +404,8 @@ router.put('/:theaterId/:productId', [
       'lowStockAlert': 'inventory.minStock',
       'productCode': 'sku',
       'category': 'categoryId',
-      'productType': 'productTypeId'
+      'productType': 'productTypeId',
+      'kioskType': 'kioskType'
     };
 
     // Process each field
@@ -441,6 +422,9 @@ router.put('/:theaterId/:productId', [
     if (processedData['pricing.categoryId']) {
       processedData['pricing.categoryId'] = new mongoose.Types.ObjectId(processedData['pricing.categoryId']);
     }
+    if (processedData.kioskType) {
+      processedData.kioskType = new mongoose.Types.ObjectId(processedData.kioskType);
+    }
     if (processedData.productTypeId) {
       processedData.productTypeId = new mongoose.Types.ObjectId(processedData.productTypeId);
     }
@@ -456,8 +440,6 @@ router.put('/:theaterId/:productId', [
       try {
         const productName = processedData.name || productContainer.productList.find(p => p._id.equals(productObjectId))?.name || 'product';
         const folder = `products/${theaterId}/${productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        console.log(`📤 Uploading product image to GCS folder: ${folder}`);
         const imageUrl = await uploadFile(
           req.file.buffer,
           req.file.originalname,
@@ -471,7 +453,6 @@ router.put('/:theaterId/:productId', [
         
         // Add new image to the beginning of the array
         processedData.images = [imageUrl, ...existingImages];
-        console.log(`✅ Image uploaded successfully: ${imageUrl}`);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
@@ -488,9 +469,6 @@ router.put('/:theaterId/:productId', [
         updateFields[`productList.$.${key}`] = value;
       }
     }
-
-    console.log('🔄 Update fields:', updateFields);
-
     // Update the product in the array
     const result = await db.collection('productlist').updateOne(
       {
@@ -564,7 +542,6 @@ router.delete('/:theaterId/:productId', [
 
     // Get product details before deletion (for logging/backup)
     const productToDelete = productContainer.productList.find(p => p._id.equals(productObjectId));
-    console.log('🗑️ Permanently deleting product:', productToDelete?.name, `(${productObjectId})`);
 
     // HARD DELETE - Permanently remove from array using $pull
     const result = await db.collection('productlist').updateOne(
@@ -609,8 +586,6 @@ router.delete('/:theaterId/:productId', [
           }
         }
       );
-
-      console.log('✅ Product deleted. Total products now:', totalProducts);
     }
 
     res.json({
@@ -648,14 +623,10 @@ categoriesRouter.get('/:theaterId', [
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
     const searchTerm = req.query.q || '';
-
-    console.log('🔍 Fetching categories for theater:', theaterId);
-
     // Find category document for this theater
     const categoryDoc = await Category.findOne({ theater: theaterId });
     
     if (!categoryDoc) {
-      console.log('⚠️  No categories found for theater:', theaterId);
       return res.json({
         success: true,
         data: {
@@ -700,8 +671,6 @@ categoriesRouter.get('/:theaterId', [
 
     // Apply pagination
     const paginatedCategories = categories.slice(skip, skip + limit);
-
-    console.log(`✅ Found ${paginatedCategories.length} categories (${total} total)`);
 
     res.json({
       success: true,
@@ -764,9 +733,6 @@ categoriesRouter.post('/:theaterId', [
         details: [{ msg: 'Category name is required', param: 'name' }]
       });
     }
-
-    console.log('🔥 Creating category:', { theaterId, name: categoryName, kioskTypeId, hasImage: !!req.file });
-
     // Find or create category document for this theater
     let categoryDoc = await Category.findOne({ theater: theaterId });
     
@@ -808,10 +774,7 @@ categoriesRouter.post('/:theaterId', [
     if (req.file) {
       try {
         const folder = `categories/${theaterId}/${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        console.log(`📤 Uploading category image to GCS folder: ${folder}`);
-        console.log(`   File: ${req.file.originalname} (${(req.file.size / 1024).toFixed(2)} KB)`);
-        
+
         const imageUrl = await uploadFile(
           req.file.buffer,
           req.file.originalname,
@@ -820,7 +783,6 @@ categoriesRouter.post('/:theaterId', [
         );
         
         newCategory.imageUrl = imageUrl;
-        console.log(`✅ Image uploaded successfully`);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
@@ -833,9 +795,6 @@ categoriesRouter.post('/:theaterId', [
     // Add category to categoryList array
     categoryDoc.categoryList.push(newCategory);
     await categoryDoc.save();
-
-    console.log('✅ Category created successfully:', newCategory._id);
-
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
@@ -875,9 +834,6 @@ categoriesRouter.put('/:theaterId/:categoryId', [
     // Accept both 'name' and 'categoryName' field names
     const categoryName = req.body.name || req.body.categoryName;
     const { description, isActive, categoryType, sortOrder, removeImage, kioskTypeId } = req.body;
-    
-    console.log('🔥 Updating category:', { categoryId, name: categoryName, kioskTypeId, hasImage: !!req.file, removeImage });
-    
     // Find category document for this theater
     const categoryDoc = await Category.findOne({ theater: theaterId });
     if (!categoryDoc) {
@@ -927,7 +883,6 @@ categoriesRouter.put('/:theaterId/:categoryId', [
       if (category.imageUrl) {
         try {
           await deleteFile(category.imageUrl);
-          console.log('✅ Old image deleted from GCS');
         } catch (deleteError) {
           console.warn('⚠️  Could not delete old image:', deleteError.message);
         }
@@ -940,17 +895,13 @@ categoriesRouter.put('/:theaterId/:categoryId', [
         if (category.imageUrl) {
           try {
             await deleteFile(category.imageUrl);
-            console.log('✅ Old image deleted from GCS');
           } catch (deleteError) {
             console.warn('⚠️  Could not delete old image:', deleteError.message);
           }
         }
         
         const folder = `categories/${theaterId}/${(categoryName || category.categoryName).replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        console.log(`📤 Uploading category image to GCS folder: ${folder}`);
-        console.log(`   File: ${req.file.originalname} (${(req.file.size / 1024).toFixed(2)} KB)`);
-        
+
         const imageUrl = await uploadFile(
           req.file.buffer,
           req.file.originalname,
@@ -959,7 +910,6 @@ categoriesRouter.put('/:theaterId/:categoryId', [
         );
         
         category.imageUrl = imageUrl;
-        console.log(`✅ Image uploaded successfully`);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
@@ -971,9 +921,6 @@ categoriesRouter.put('/:theaterId/:categoryId', [
 
     // Save category document with updated category
     await categoryDoc.save();
-
-    console.log('✅ Category updated successfully:', categoryId);
-
     res.json({
       success: true,
       message: 'Category updated successfully',
@@ -999,9 +946,6 @@ categoriesRouter.delete('/:theaterId/:categoryId', [
 ], async (req, res) => {
   try {
     const { theaterId, categoryId } = req.params;
-    
-    console.log('🔥 Deleting category:', { theaterId, categoryId });
-
     // Find category document for this theater
     const categoryDoc = await Category.findOne({ theater: theaterId });
     if (!categoryDoc) {
@@ -1024,7 +968,6 @@ categoriesRouter.delete('/:theaterId/:categoryId', [
     if (category.imageUrl) {
       try {
         await deleteFile(category.imageUrl);
-        console.log('✅ Category image deleted from GCS');
       } catch (deleteError) {
         console.warn('⚠️  Could not delete category image:', deleteError.message);
       }
@@ -1033,9 +976,6 @@ categoriesRouter.delete('/:theaterId/:categoryId', [
     // Remove category from categoryList using pull
     categoryDoc.categoryList.pull(categoryId);
     await categoryDoc.save();
-
-    console.log('✅ Category deleted successfully');
-
     res.json({
       success: true,
       message: 'Category deleted successfully'
@@ -1075,9 +1015,6 @@ productTypesRouter.get('/:theaterId', [
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
     const { search, isActive } = req.query;
-
-    console.log('🔍 Fetching product types for theater:', theaterId);
-
     // Find product types document for this theater
     let productTypeDoc = await ProductType.findOne({ theater: theaterId });
 
@@ -1127,8 +1064,6 @@ productTypesRouter.get('/:theaterId', [
     const totalFiltered = productTypeList.length;
     const paginatedList = productTypeList.slice(skip, skip + limit);
 
-    console.log(`✅ Found ${paginatedList.length} product types (page ${page}/${Math.ceil(totalFiltered / limit)})`);
-
     res.json({
       success: true,
       data: paginatedList,
@@ -1176,9 +1111,6 @@ productTypesRouter.post('/:theaterId', [
 
     const { theaterId } = req.params;
     const { productName, productCode, description, quantity, icon, color, sortOrder, isActive } = req.body;
-
-    console.log('🔥 Creating product type:', { theaterId, productName, productCode, hasImage: !!req.file });
-
     // Find or create product type document for this theater
     let productTypeDoc = await ProductType.findOne({ theater: theaterId });
     
@@ -1220,9 +1152,6 @@ productTypesRouter.post('/:theaterId', [
     if (req.file) {
       try {
         const folder = `product-types/${theaterId}/${productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        console.log(`📤 Uploading product type image to GCS folder: ${folder}`);
-        
         const imageUrl = await uploadFile(
           req.file.buffer,
           req.file.originalname,
@@ -1231,7 +1160,6 @@ productTypesRouter.post('/:theaterId', [
         );
         
         newProductType.image = imageUrl;
-        console.log('✅ Image uploaded successfully:', imageUrl);
       } catch (uploadError) {
         console.error('❌ Image upload failed:', uploadError);
         return res.status(500).json({
@@ -1244,9 +1172,6 @@ productTypesRouter.post('/:theaterId', [
     // Add to array
     productTypeDoc.productTypeList.push(newProductType);
     await productTypeDoc.save();
-
-    console.log('✅ Product type created with ID:', newProductType._id);
-
     res.status(201).json({
       success: true,
       message: 'Product type created successfully',
@@ -1274,9 +1199,6 @@ productTypesRouter.put('/:theaterId/:productTypeId', [
   try {
     const { theaterId, productTypeId } = req.params;
     const { productName, productCode, description, quantity, icon, color, sortOrder, isActive } = req.body;
-
-    console.log('🔄 Updating product type:', { theaterId, productTypeId });
-
     // Find product type document
     const productTypeDoc = await ProductType.findOne({ theater: theaterId });
     
@@ -1315,9 +1237,6 @@ productTypesRouter.put('/:theaterId/:productTypeId', [
     if (req.file) {
       try {
         const folder = `product-types/${theaterId}/${productType.productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        console.log(`📤 Uploading new product type image to GCS folder: ${folder}`);
-        
         const newImageUrl = await uploadFile(
           req.file.buffer,
           req.file.originalname,
@@ -1326,13 +1245,10 @@ productTypesRouter.put('/:theaterId/:productTypeId', [
         );
         
         productType.image = newImageUrl;
-        console.log('✅ New image uploaded successfully:', newImageUrl);
-
         // Delete old image if it exists
         if (oldImageUrl) {
           try {
             await deleteFile(oldImageUrl);
-            console.log('✅ Old image deleted from GCS');
           } catch (deleteError) {
             console.error('⚠️ Failed to delete old image:', deleteError.message);
           }
@@ -1347,9 +1263,6 @@ productTypesRouter.put('/:theaterId/:productTypeId', [
     }
 
     await productTypeDoc.save();
-
-    console.log('✅ Product type updated successfully');
-
     // Sync changes to all products that belong to this product type
     try {
       // Products are stored in array structure, need to update them differently
@@ -1412,9 +1325,7 @@ productTypesRouter.put('/:theaterId/:productTypeId', [
             { _id: productContainer._id },
             { $set: { productList: productList, updatedAt: new Date() } }
           );
-          console.log(`✅ Synced changes to ${productsUpdated} products in array structure`);
         } else {
-          console.log('ℹ️  No products found with this productTypeId');
         }
       }
     } catch (syncError) {
@@ -1447,9 +1358,6 @@ productTypesRouter.delete('/:theaterId/:productTypeId', [
 ], async (req, res) => {
   try {
     const { theaterId, productTypeId } = req.params;
-
-    console.log('🗑️ Deleting product type:', { theaterId, productTypeId });
-
     // Find product type document
     const productTypeDoc = await ProductType.findOne({ theater: theaterId });
     
@@ -1476,14 +1384,10 @@ productTypesRouter.delete('/:theaterId/:productTypeId', [
     // Remove from array using pull (Mongoose 6+ compatible)
     productTypeDoc.productTypeList.pull(productTypeId);
     await productTypeDoc.save();
-
-    console.log('✅ Product type removed from array');
-
     // Delete image from GCS if exists
     if (imageUrl) {
       try {
         await deleteFile(imageUrl);
-        console.log('✅ Image deleted from GCS');
       } catch (deleteError) {
         console.error('⚠️ Failed to delete image from GCS:', deleteError.message);
       }
@@ -1503,6 +1407,448 @@ productTypesRouter.delete('/:theaterId/:productTypeId', [
   }
 });
 
+/**
+ * GET /api/theater-products/:theaterId/export-excel
+ * Export product list to Excel with current filters
+ */
+router.get('/:theaterId/export-excel', authenticateToken, async (req, res) => {
+  try {
+    const { theaterId } = req.params;
+    const { search, category, status, stockStatus, month, year } = req.query;
+
+    // Get current month/year if not provided
+    const now = new Date();
+    const filterMonth = month ? parseInt(month) : now.getMonth() + 1;
+    const filterYear = year ? parseInt(year) : now.getFullYear();
+
+    // Fetch products with filters
+    const productContainer = await mongoose.connection.db.collection('productlist').findOne({
+      theater: new mongoose.Types.ObjectId(theaterId),
+      productList: { $exists: true }
+    });
+
+    let allProducts = [];
+    
+    if (productContainer && productContainer.productList) {
+      allProducts = productContainer.productList || [];
+    } else {
+      const query = { theaterId: new mongoose.Types.ObjectId(theaterId) };
+      allProducts = await Product.find(query).lean();
+    }
+
+    // Apply filters
+    let filtered = allProducts;
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.name?.toLowerCase().includes(searchLower) ||
+        p.description?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    if (category && category !== 'all') {
+      filtered = filtered.filter(p => String(p.categoryId) === category);
+    }
+
+    if (status && status !== 'all') {
+      filtered = filtered.filter(p => p.status === status);
+    }
+
+    // Fetch stock balances for filtered products
+    const productsWithStock = await Promise.all(filtered.map(async (product) => {
+      try {
+        const stockRecord = await MonthlyStock.findOne({
+          theaterId: new mongoose.Types.ObjectId(theaterId),
+          productId: new mongoose.Types.ObjectId(product._id),
+          month: filterMonth,
+          year: filterYear
+        });
+
+        const balance = stockRecord?.statistics?.closingBalance || 0;
+
+        return {
+          ...product,
+          currentStock: Math.max(0, balance)
+        };
+      } catch (err) {
+        return {
+          ...product,
+          currentStock: 0
+        };
+      }
+    }));
+
+    // Apply stock filter after fetching balances
+    let finalProducts = productsWithStock;
+    if (stockStatus && stockStatus !== 'all') {
+      if (stockStatus === 'in_stock') {
+        finalProducts = finalProducts.filter(p => p.currentStock > 0);
+      } else if (stockStatus === 'out_of_stock') {
+        finalProducts = finalProducts.filter(p => p.currentStock === 0);
+      }
+    }
+
+    // Create Excel workbook
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Products');
+
+    // Define columns
+    worksheet.columns = [
+      { header: 'S.No', key: 'sno', width: 8 },
+      { header: 'Product Name', key: 'name', width: 30 },
+      { header: 'Category', key: 'category', width: 20 },
+      { header: 'Price', key: 'price', width: 12 },
+      { header: 'Current Stock', key: 'stock', width: 15 },
+      { header: 'Status', key: 'status', width: 15 },
+      { header: 'Description', key: 'description', width: 40 }
+    ];
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF8B5CF6' }
+    };
+    worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+    // Fetch categories for display names
+    const categories = await Category.find({ theaterId: new mongoose.Types.ObjectId(theaterId) });
+    const categoryMap = {};
+    categories.forEach(cat => {
+      categoryMap[String(cat._id)] = cat.name;
+    });
+
+    // Add data rows
+    finalProducts.forEach((product, index) => {
+      const row = worksheet.addRow({
+        sno: index + 1,
+        name: product.name || 'N/A',
+        category: categoryMap[String(product.categoryId)] || 'N/A',
+        price: product.price || 0,
+        stock: product.currentStock || 0,
+        status: product.isActive ? 'Active' : 'Inactive',
+        description: product.description || ''
+      });
+
+      // Style stock cell based on value
+      if (product.currentStock === 0) {
+        row.getCell('stock').fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFEE2E2' }
+        };
+        row.getCell('stock').font = { color: { argb: 'FF991B1B' } };
+      } else {
+        row.getCell('stock').fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFD1FAE5' }
+        };
+        row.getCell('stock').font = { color: { argb: 'FF065F46' } };
+      }
+
+      // Center align numbers
+      row.getCell('sno').alignment = { horizontal: 'center' };
+      row.getCell('price').alignment = { horizontal: 'right' };
+      row.getCell('stock').alignment = { horizontal: 'center' };
+      row.getCell('status').alignment = { horizontal: 'center' };
+    });
+
+    // Set response headers
+    const filename = `Theater_Products_${filterYear}-${String(filterMonth).padStart(2, '0')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Write to response
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error('❌ Export product list error:', error);
+    res.status(500).json({
+      error: 'Failed to export product list',
+      message: error.message || 'Internal server error'
+    });
+  }
+});
+
+/**
+ * GET /api/theater-products/:theaterId/export-stock-by-date
+ * Export stock data for ALL products on a specific date
+ */
+router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, res) => {
+  try {
+    const { theaterId } = req.params;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Date parameter is required (format: YYYY-MM-DD)'
+      });
+    }
+
+    const ExcelJS = require('exceljs');
+    
+    // Parse the selected date
+    const selectedDate = new Date(date);
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth() + 1; // JavaScript months are 0-indexed
+
+    // Get products from productlist collection
+    const productContainer = await mongoose.connection.db.collection('productlist').findOne({
+      theater: new mongoose.Types.ObjectId(theaterId),
+      productList: { $exists: true }
+    });
+
+    if (!productContainer || !productContainer.productList || productContainer.productList.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No products found for this theater'
+      });
+    }
+
+    const products = productContainer.productList.filter(p => p.isActive);
+
+    // Fetch stock data for each product on the selected date
+    const stockData = [];
+    let totalStockAdded = 0;
+    let totalExpiredOldStock = 0;
+    let totalCarryForward = 0;
+    let totalUsedStock = 0;
+    let totalExpiredStock = 0;
+    let totalDamageStock = 0;
+    let totalBalance = 0;
+
+    for (const product of products) {
+      // Find monthly stock document
+      const monthlyDoc = await MonthlyStock.findOne({
+        theaterId: new mongoose.Types.ObjectId(theaterId),
+        productId: product._id,
+        year: year,
+        monthNumber: month
+      });
+
+      if (monthlyDoc && monthlyDoc.stockDetails) {
+        // Find stock entry for the specific date
+        const stockEntry = monthlyDoc.stockDetails.find(entry => {
+          const entryDate = new Date(entry.date);
+          return entryDate.toISOString().split('T')[0] === date;
+        });
+
+        if (stockEntry) {
+          const stockInfo = {
+            productName: product.name,
+            date: date,
+            stockAdded: stockEntry.stockAdded || 0,
+            expiredOldStock: stockEntry.expiredOldStock || 0,
+            carryForward: stockEntry.carryForward || 0,
+            usedStock: stockEntry.usedStock || 0,
+            expiredStock: stockEntry.expiredStock || 0,
+            damageStock: stockEntry.damageStock || 0,
+            balance: stockEntry.balance || 0
+          };
+
+          stockData.push(stockInfo);
+
+          // Add to totals
+          totalStockAdded += stockInfo.stockAdded;
+          totalExpiredOldStock += stockInfo.expiredOldStock;
+          totalCarryForward += stockInfo.carryForward;
+          totalUsedStock += stockInfo.usedStock;
+          totalExpiredStock += stockInfo.expiredStock;
+          totalDamageStock += stockInfo.damageStock;
+          totalBalance += stockInfo.balance;
+        }
+      }
+    }
+
+    if (stockData.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `No stock data found for date: ${date}`
+      });
+    }
+
+    // Create Excel workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Stock Report');
+
+    // Title row (merged A1:J1)
+    worksheet.mergeCells('A1:J1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = `Stock Report - ${date}`;
+    titleCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    titleCell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+    worksheet.getRow(1).height = 30;
+
+    // Subtitle row (merged A2:J2)
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    worksheet.mergeCells('A2:J2');
+    const subtitleCell = worksheet.getCell('A2');
+    subtitleCell.value = `${monthNames[month - 1]} ${year}`;
+    subtitleCell.font = { bold: true, size: 12 };
+    subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    subtitleCell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' }
+    };
+    worksheet.getRow(2).height = 25;
+
+    // Header row
+    worksheet.getRow(3).values = [
+      'S.NO',
+      'PRODUCT NAME',
+      'DATE',
+      'STOCK ADDED',
+      'EXPIRED OLD STOCK',
+      'CARRY FORWARD',
+      'USED STOCK',
+      'EXPIRED STOCK',
+      'DAMAGE STOCK',
+      'BALANCE'
+    ];
+
+    const headerRow = worksheet.getRow(3);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    headerRow.height = 25;
+
+    headerRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Set column widths
+    worksheet.columns = [
+      { width: 8 },   // S.NO
+      { width: 30 },  // PRODUCT NAME
+      { width: 15 },  // DATE
+      { width: 12 },  // STOCK ADDED
+      { width: 15 },  // EXPIRED OLD STOCK
+      { width: 15 },  // CARRY FORWARD
+      { width: 12 },  // USED STOCK
+      { width: 15 },  // EXPIRED STOCK
+      { width: 15 },  // DAMAGE STOCK
+      { width: 12 }   // BALANCE
+    ];
+
+    // Add data rows
+    stockData.forEach((stock, index) => {
+      const row = worksheet.addRow([
+        index + 1,
+        stock.productName,
+        stock.date,
+        stock.stockAdded,
+        stock.expiredOldStock,
+        stock.carryForward,
+        stock.usedStock,
+        stock.expiredStock,
+        stock.damageStock,
+        stock.balance
+      ]);
+
+      // Apply styling
+      row.eachCell((cell, colNumber) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+
+        // Center align S.NO and DATE
+        if (colNumber === 1 || colNumber === 3) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+        // Right align all numbers
+        else if (colNumber >= 4) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+        }
+        // Left align product name
+        else {
+          cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        }
+
+        // Alternating row background
+        if (index % 2 === 0) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+        }
+      });
+    });
+
+    // Add TOTAL row
+    const totalRow = worksheet.addRow([
+      '',
+      'TOTAL',
+      '',
+      totalStockAdded,
+      totalExpiredOldStock,
+      totalCarryForward,
+      totalUsedStock,
+      totalExpiredStock,
+      totalDamageStock,
+      totalBalance
+    ]);
+
+    totalRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF7C3AED' } };
+    totalRow.height = 25;
+
+    totalRow.eachCell((cell, colNumber) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+
+      if (colNumber === 1 || colNumber === 3) {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      } else if (colNumber >= 4) {
+        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+      } else {
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+    });
+
+    // Set response headers
+    const filename = `Stock_Report_${date}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Write to response
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error('❌ Export stock by date error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export stock data',
+      message: error.message
+    });
+  }
+});
+
 // Export all routers
 module.exports = {
   products: router,
@@ -1511,3 +1857,4 @@ module.exports = {
 };
 
 // Trigger reload
+

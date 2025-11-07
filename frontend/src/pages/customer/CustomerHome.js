@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
-import OptimizedImage from '../../components/common/OptimizedImage';
 import ProductCollectionModal from '../../components/customer/ProductCollectionModal';
+import BannerCarousel from '../../components/customer/BannerCarousel';
 import OfflineNotice from '../../components/OfflineNotice';
+import CachedImage from '../../components/CachedImage'; // 🖼️ Global image caching
+import InstantImage from '../../components/InstantImage'; // 🚀 INSTANT image loading (like Offline POS)
 import useNetworkStatus from '../../hooks/useNetworkStatus';
 import { 
   groupProductsIntoCollections, 
   filterCollections,
   getDefaultVariant 
 } from '../../utils/productCollections';
+import { getCachedData, setCachedData } from '../../utils/cacheUtils';
+import { preCacheImages, cacheProductImages } from '../../utils/globalImageCache'; // 🎨 Pre-cache product images
 import config from '../../config';
 import './../../styles/customer/CustomerHome.css';
 
@@ -80,29 +84,23 @@ const CustomerHome = () => {
     const screen = params.get('screen') || params.get('SCREEN') || params.get('screenName');
     const category = params.get('category'); // Get saved category from URL
     
-    console.log('🔍 URL Parameters:', {
-      theaterid: id,
-      qrName: qr,
-      // seat: seatNum,
-      screen: screen,
-      category: category,
-      fullURL: location.search,
-      allParams: Object.fromEntries(params.entries())
-    });
-    
+
     // Save to localStorage for persistence on refresh
     if (id) {
+      console.log('✅ [CustomerHome] Setting theaterId:', id);
       setTheaterId(id);
       localStorage.setItem('customerTheaterId', id);
+    } else {
+      console.warn('⚠️ [CustomerHome] No theaterId found in URL parameters');
     }
     
     if (qr) {
-      console.log('✅ Setting QR Name:', qr);
+
       setQrName(qr);
       localStorage.setItem('customerQrName', qr);
       // If no screen name is provided, use qrName as screen name
       if (!screen) {
-        console.log('ℹ️ No screen parameter, using qrName as screen name');
+
         setScreenName(qr);
         localStorage.setItem('customerScreenName', qr);
       }
@@ -121,178 +119,175 @@ const CustomerHome = () => {
     if (category) setSelectedCategory(category); // Restore selected category
   }, [location.search, navigate]);
 
-  const loadTheater = useCallback(async (id) => {
-    try {
-      const res = await fetch(`${config.api.baseUrl}/theaters/${id}`);
-      const data = await res.json();
-      if (data.success && data.data) setTheater(data.data);
-    } catch (err) {
-      console.error('Error loading theater:', err);
-    }
-  }, []);
-
-  const loadProducts = useCallback(async (id) => {
-    try {
-      // Use session storage to cache products for better performance
-      const res = await fetch(`${config.api.baseUrl}/theater-products/${id}`);
-      const data = await res.json();
-      if (data.success && data.data.products) {
-        console.log('🍔 Raw products from API:', data.data.products.slice(0, 2));
-        console.log('🍔 Full raw products:', data.data.products.map(p => ({ 
-          name: p.name, 
-          category: p.category, 
-          categoryType: typeof p.category,
-          categoryKeys: p.category ? Object.keys(p.category) : null
-        })));
-        const mappedProducts = data.data.products.map(p => {
-          // Handle different image formats
-          let imageUrl = null;
-          if (p.images && Array.isArray(p.images) && p.images.length > 0) {
-            // New format: images array with objects or strings
-            if (typeof p.images[0] === 'object' && p.images[0].url) {
-              imageUrl = p.images[0].url; // Object with url property
-            } else if (typeof p.images[0] === 'string') {
-              imageUrl = p.images[0]; // Direct string URL
-            }
-          } else if (p.productImage) {
-            imageUrl = p.productImage; // Old format
-          } else if (p.image) {
-            imageUrl = p.image; // Alternative old format
-          }
-          
-          // Check if product is available (active and has stock)
-          const isActive = p.isActive === true; // Must be explicitly true
-          const trackStock = p.inventory?.trackStock !== false;
-          const currentStock = p.inventory?.currentStock || 0;
-          const hasStock = !trackStock || currentStock > 0;
-          const isAvailable = isActive && hasStock;
-          
-          // Debug logging for ALL products to see stock info
-          console.log(`📦 Product: ${p.name}`, {
-            size: p.size || p.quantity,
-            currentStock,
-            trackStock,
-            rawTrackStock: p.inventory?.trackStock,
-            rawIsActive: p.isActive,
-            hasStock,
-            isActive,
-            isAvailable,
-            status: p.status,
-            inventory: p.inventory
-          });
-          
-          return {
-            _id: p._id,
-            name: p.name || p.productName,
-            price: p.pricing?.salePrice || p.price || p.sellingPrice || 0,
-            description: p.description || '',
-            image: imageUrl,
-            // Store category ID directly from the product (it's already a field in the DB)
-            categoryId: p.categoryId || (typeof p.category === 'object' ? p.category?._id : p.category),
-            category: typeof p.category === 'object' ? (p.category?.categoryName || p.category?.name) : p.category,
-            quantity: p.quantity || null,
-            size: p.size || null,
-            // Include tax and discount information
-            pricing: p.pricing,
-            taxRate: p.pricing?.taxRate || p.taxRate || 0,
-            gstType: p.gstType || 'EXCLUDE',
-            discountPercentage: p.pricing?.discountPercentage || p.discountPercentage || 0,
-            // Include availability information
-            isActive: p.isActive,
-            status: p.status,
-            inventory: p.inventory,
-            currentStock: currentStock,
-            trackStock: trackStock,
-            isAvailable: isAvailable,
-          };
-        });
-        console.log('✅ Mapped products:', mappedProducts.slice(0, 2));
-        setProducts(mappedProducts);
-        
-        // Group products into collections (for "All" view)
-        const collections = groupProductsIntoCollections(mappedProducts);
-        console.log('📦 Collections created:', collections.length);
-        setProductCollections(collections);
-        
-        // Don't set filtered collections here - let filterProductCollections handle it
-        // This will be triggered by the useEffect that watches products/collections changes
-      }
-    } catch (err) {
-      console.error('Error loading products:', err);
-    }
-  }, []);
-
-  const loadCategories = useCallback(async (id) => {
-    try {
-      const res = await fetch(`${config.api.baseUrl}/theater-categories/${id}`);
-      const data = await res.json();
-      console.log('📦 Categories API Response:', data);
-      if (data.success && data.data.categories) {
-        const activeCategories = data.data.categories
-          .filter(cat => cat.isActive)
-          .slice(0, 6) // Limit to 6 categories for header
-          .map(cat => ({
-            _id: cat._id,
-            name: cat.categoryName || cat.name,
-            image: cat.imageUrl || cat.image,
-            icon: cat.icon || '📦',
-            isActive: cat.isActive
-          }));
-        console.log('✅ Mapped categories:', activeCategories);
-        setCategories(activeCategories);
-      }
-    } catch (err) {
-      console.error('Error loading categories:', err);
-    }
-  }, []);
-
+  // Main data loading with cache-first strategy
   useEffect(() => {
     if (theaterId) {
-      Promise.all([loadTheater(theaterId), loadProducts(theaterId), loadCategories(theaterId)])
-        .finally(() => setLoading(false));
+      const cacheKey = `customerHome_${theaterId}`;
+      
+      // Check cache first for instant loading
+      const cached = getCachedData(cacheKey);
+      if (cached) {
+        console.log('⚡ [CustomerHome] Loading from cache');
+        if (cached.theater) setTheater(cached.theater);
+        if (cached.products) {
+          setProducts(cached.products);
+          const collections = groupProductsIntoCollections(cached.products);
+          setProductCollections(collections);
+        }
+        if (cached.categories) setCategories(cached.categories);
+        setLoading(false);
+      }
+      
+      // Fetch fresh data in parallel (background refresh)
+      const fetchFreshData = async () => {
+        try {
+          const [theaterRes, productsRes, categoriesRes] = await Promise.all([
+            fetch(`${config.api.baseUrl}/theaters/${theaterId}`),
+            fetch(`${config.api.baseUrl}/theater-products/${theaterId}`),
+            fetch(`${config.api.baseUrl}/theater-categories/${theaterId}`)
+          ]);
+          
+          const [theaterData, productsData, categoriesData] = await Promise.all([
+            theaterRes.json(),
+            productsRes.json(),
+            categoriesRes.json()
+          ]);
+          
+          // Process theater data
+          let freshTheater = null;
+          if (theaterData.success && theaterData.data) {
+            freshTheater = theaterData.data;
+            setTheater(freshTheater);
+          }
+          
+          // Process products data
+          let freshProducts = [];
+          if (productsData.success && productsData.data.products) {
+            freshProducts = productsData.data.products.map(p => {
+              let imageUrl = null;
+              if (p.images && Array.isArray(p.images) && p.images.length > 0) {
+                if (typeof p.images[0] === 'object' && p.images[0].url) {
+                  imageUrl = p.images[0].url;
+                } else if (typeof p.images[0] === 'string') {
+                  imageUrl = p.images[0];
+                }
+              } else if (p.productImage) {
+                imageUrl = p.productImage;
+              } else if (p.image) {
+                imageUrl = p.image;
+              }
+              
+              const isActive = p.isActive === true;
+              const trackStock = p.inventory?.trackStock !== false;
+              const currentStock = p.inventory?.currentStock || 0;
+              const hasStock = !trackStock || currentStock > 0;
+              const isAvailable = isActive && hasStock;
+              
+              return {
+                _id: p._id,
+                name: p.name || p.productName,
+                price: p.pricing?.salePrice || p.price || p.sellingPrice || 0,
+                description: p.description || '',
+                image: imageUrl,
+                categoryId: p.categoryId || (typeof p.category === 'object' ? p.category?._id : p.category),
+                category: typeof p.category === 'object' ? (p.category?.categoryName || p.category?.name) : p.category,
+                quantity: p.quantity || null,
+                size: p.size || null,
+                pricing: p.pricing,
+                taxRate: p.pricing?.taxRate || p.taxRate || 0,
+                gstType: p.gstType || 'EXCLUDE',
+                discountPercentage: p.pricing?.discountPercentage || p.discountPercentage || 0,
+                isActive: p.isActive,
+                status: p.status,
+                inventory: p.inventory,
+                currentStock: currentStock,
+                trackStock: trackStock,
+                isAvailable: isAvailable,
+              };
+            });
+            
+            setProducts(freshProducts);
+            const collections = groupProductsIntoCollections(freshProducts);
+            setProductCollections(collections);
+          }
+          
+          // Process categories data
+          let freshCategories = [];
+          if (categoriesData.success && categoriesData.data.categories) {
+            freshCategories = categoriesData.data.categories
+              .filter(cat => cat.isActive)
+              .slice(0, 6)
+              .map(cat => ({
+                _id: cat._id,
+                name: cat.categoryName || cat.name,
+                image: cat.imageUrl || cat.image,
+                icon: cat.icon || '📦',
+                isActive: cat.isActive
+              }));
+            setCategories(freshCategories);
+          }
+          
+          // Cache the fresh data
+          setCachedData(cacheKey, {
+            theater: freshTheater,
+            products: freshProducts,
+            categories: freshCategories
+          });
+          
+          // 🎨 AUTO-CACHE ALL PRODUCT IMAGES (LIKE OFFLINE POS)
+          if (freshProducts.length > 0) {
+            console.log(`🎨 [CustomerHome] Auto-caching ${freshProducts.length} product images...`);
+            cacheProductImages(freshProducts).catch(err => {
+              console.error('Error caching product images:', err);
+            });
+          }
+          
+          setLoading(false);
+        } catch (err) {
+          console.error('💥 [CustomerHome] Error loading data:', err);
+          setLoading(false);
+        }
+      };
+      
+      fetchFreshData();
     }
-  }, [theaterId, loadTheater, loadProducts, loadCategories]);
+  }, [theaterId]);
 
   // Auto-refresh products every 30 seconds to get admin updates
   useEffect(() => {
     if (!theaterId) return;
     
     const refreshInterval = setInterval(() => {
-      console.log('🔄 Auto-refreshing products...');
-      loadProducts(theaterId);
-      loadCategories(theaterId);
+      // Trigger data refresh by invalidating cache
+      const cacheKey = `customerHome_${theaterId}`;
+      sessionStorage.removeItem(cacheKey);
+      window.location.reload(); // Simple full reload to get fresh data
     }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [theaterId, loadProducts, loadCategories]);
+  }, [theaterId]);
 
   // Filter collections based on search query and selected category
   const filterProductCollections = useCallback(() => {
-    console.log('🔍 Filtering:', { 
-      selectedCategory, 
-      totalCollections: productCollections.length,
-      totalProducts: products.length
-    });
-    
+    console.log(`🔍 [CustomerHome] Filtering - Category: ${selectedCategory}, Search: "${searchQuery}"`);
+
     // For "All" category: show grouped collections
     if (selectedCategory === 'all') {
       const filtered = filterCollections(productCollections, searchQuery, selectedCategory);
-      console.log('✅ Showing grouped collections:', filtered.length);
+      console.log(`🎯 [CustomerHome] Filtered collections for "All": ${filtered.length} collections`);
+
       setFilteredCollections(filtered);
     } else {
       // For specific categories: show individual products
       // Filter by category ID (not name)
-      console.log('🔍 Selected category ID:', selectedCategory);
-      console.log('🔍 All product categories:', products.map(p => ({ name: p.name, categoryId: p.categoryId, category: p.category })));
-      
+
       let individualProducts = products.filter(p => {
         const matches = p.categoryId === selectedCategory;
-        console.log(`🔍 Comparing: "${p.categoryId}" === "${selectedCategory}" for product: ${p.name} - ${matches ? '✅' : '❌'}`);
+
         return matches;
       });
       
-      console.log('🔍 Filtered products:', individualProducts.length);
-      
+
       // Apply search filter
       if (searchQuery && searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
@@ -356,15 +351,16 @@ const CustomerHome = () => {
         }]
       }));
       
-      console.log('✅ Showing individual products:', productItems.length);
+
       setFilteredCollections(productItems);
     }
   }, [productCollections, products, selectedCategory, searchQuery, isVegOnly, selectedPriceRange]);
 
   // Update filtered collections when filters change
   useEffect(() => {
+    console.log('🔄 [CustomerHome] Filters changed, running filterProductCollections');
     filterProductCollections();
-  }, [filterProductCollections]);
+  }, [productCollections, products, selectedCategory, searchQuery, isVegOnly, selectedPriceRange]);
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
@@ -390,11 +386,10 @@ const CustomerHome = () => {
             const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
             startBarcodeScanning(video, barcodeDetector);
           } else {
-            console.log('BarcodeDetector not supported, using manual input');
-          }
+  }
         }
       } catch (error) {
-        console.error('Camera access error:', error);
+
         alert('❌ Unable to access camera. Please allow camera access or enter QR code data manually.');
         handleCloseQRScanner();
       }
@@ -417,8 +412,7 @@ const CustomerHome = () => {
   };
 
   const handleQRScanSuccess = async (decodedText) => {
-    console.log('🎯 QR Code scanned:', decodedText);
-    
+
     // Stop the camera
     stopCamera();
     
@@ -433,8 +427,7 @@ const CustomerHome = () => {
       
       if (scannedQrName) {
         // Verify QR code status with backend
-        console.log('🔍 Verifying QR code:', scannedQrName);
-        
+
         try {
           const verifyResponse = await fetch(
             `http://localhost:5000/api/single-qrcodes/verify-qr/${scannedQrName}?theaterId=${theaterId}`,
@@ -450,7 +443,7 @@ const CustomerHome = () => {
           
           if (!verifyResponse.ok || !verifyData.success || !verifyData.isActive) {
             // QR code is deactivated or not found
-            console.log('❌ QR Code is deactivated or not found');
+
             setShowQRScanner(false);
             
             // Redirect to error page
@@ -458,10 +451,8 @@ const CustomerHome = () => {
             return;
           }
           
-          console.log('✅ QR Code verified successfully:', verifyData);
-          
-        } catch (verifyError) {
-          console.error('❌ Error verifying QR code:', verifyError);
+  } catch (verifyError) {
+
           // If verification fails (network error), redirect to error page
           setShowQRScanner(false);
           navigate(`/qr-unavailable?theaterid=${theaterId}`);
@@ -494,7 +485,7 @@ const CustomerHome = () => {
         setShowQRScanner(false);
       }
     } catch (error) {
-      console.error('Error parsing QR code:', error);
+
       alert('❌ Invalid QR Code format.');
       setShowQRScanner(false);
     }
@@ -513,7 +504,6 @@ const CustomerHome = () => {
   };
 
   const handleQRScanError = (error) => {
-    console.error('QR Scan Error:', error);
   };
 
   const handleCloseQRScanner = () => {
@@ -522,9 +512,9 @@ const CustomerHome = () => {
   };
 
   const handleCategoryChange = (categoryId) => {
-    console.log('📂 Category changed to:', categoryId);
+
     // Store the category ID (not the name) for filtering, except for 'all'
-    console.log('📂 All categories:', categories.map(c => ({ id: c._id, name: c.name })));
+
     setSelectedCategory(categoryId === 'all' ? 'all' : categoryId);
     
     // Update URL to persist category selection on refresh
@@ -600,11 +590,7 @@ const CustomerHome = () => {
   const handleOrderHistory = () => {
     setShowProfileDropdown(false);
     
-    console.log('📱 Navigating to order history with:', {
-      theaterId,
-      theaterName: theater?.name
-    });
-    
+
     // Navigate to order history page with theater info in URL params
     // The order history page will handle login if needed
     const params = new URLSearchParams();
@@ -658,17 +644,22 @@ const CustomerHome = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showProfileDropdown]);
 
-  if (loading) return <div className="customer-loading"><div className="spinner"></div></div>;
+  if (loading) {
+    console.log('⏳ [CustomerHome] Still loading...');
+    return <div className="customer-loading"><div className="spinner"></div></div>;
+  }
 
   const totalItems = getTotalItems();
   const defaultEmojis = ['🍔', '🥤', '🥤', '🍿'];
   
-  // Debug: Log header values
-  console.log('📊 Header Display Values:', {
-    qrName,
-    seat,
-    screenName,
-    theaterName: theater?.name
+  // Debug: Log header values and filtered collections
+  console.log('🎯 [CustomerHome] Rendering with:', {
+    theater: theater?.name,
+    productsCount: products.length,
+    collectionsCount: productCollections.length,
+    filteredCollectionsCount: filteredCollections.length,
+    selectedCategory,
+    loading
   });
 
   return (
@@ -838,14 +829,14 @@ const CustomerHome = () => {
           >
             <div className="category-content">
               <div className="category-icon-large">
-                <OptimizedImage
-                  src="/images/cinema-combo.jpg.png"
+                <InstantImage
+                  src="https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?w=200&h=200&fit=crop&q=80"
                   alt="All Categories"
-                  width={48}
-                  height={48}
                   className="category-img"
-                  priority={true}
-                  lazy={false}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%236b7280" font-size="80"%3E🍿%3C/text%3E%3C/svg%3E';
+                  }}
                 />
               </div>
               <span className="category-name">All</span>
@@ -857,32 +848,34 @@ const CustomerHome = () => {
               ? (category.image.startsWith('http') ? category.image : `${config.api.baseUrl}${category.image}`) 
               : null;
             
-            // Fallback to default images based on category type/name
+            // Fallback to high-quality default images based on category type/name
             if (!categoryImgUrl) {
               const categoryLower = (category.name || '').toLowerCase();
               if (categoryLower.includes('pop') || categoryLower.includes('corn')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?w=100&h=100&fit=crop';
-              } else if (categoryLower.includes('sweet') || categoryLower.includes('dessert') || categoryLower.includes('candy')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=100&h=100&fit=crop';
+                categoryImgUrl = 'https://images.unsplash.com/photo-1585647347384-2593bc35786b?w=200&h=200&fit=crop&q=80';
               } else if (categoryLower.includes('burger') || categoryLower.includes('sandwich')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=100&h=100&fit=crop';
-              } else if (categoryLower.includes('pizza')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=100&h=100&fit=crop';
-              } else if (categoryLower.includes('drink') || categoryLower.includes('beverage') || categoryLower.includes('cola') || categoryLower.includes('soda')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=100&h=100&fit=crop';
-              } else if (categoryLower.includes('coffee')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=100&h=100&fit=crop';
-              } else if (categoryLower.includes('snack') || categoryLower.includes('chips')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1613919113640-25732ec5e61f?w=100&h=100&fit=crop';
+                categoryImgUrl = 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&h=200&fit=crop&q=80';
+              } else if (categoryLower.includes('french') || categoryLower.includes('fries')) {
+                categoryImgUrl = 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=200&h=200&fit=crop&q=80';
               } else if (categoryLower.includes('ice') || categoryLower.includes('cream')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=100&h=100&fit=crop';
+                categoryImgUrl = 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=200&h=200&fit=crop&q=80';
+              } else if (categoryLower.includes('pizza')) {
+                categoryImgUrl = 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=200&h=200&fit=crop&q=80';
+              } else if (categoryLower.includes('drink') || categoryLower.includes('beverage') || categoryLower.includes('cola') || categoryLower.includes('soda')) {
+                categoryImgUrl = 'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=200&h=200&fit=crop&q=80';
+              } else if (categoryLower.includes('coffee')) {
+                categoryImgUrl = 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=200&h=200&fit=crop&q=80';
+              } else if (categoryLower.includes('snack') || categoryLower.includes('chips')) {
+                categoryImgUrl = 'https://images.unsplash.com/photo-1613919113640-25732ec5e61f?w=200&h=200&fit=crop&q=80';
+              } else if (categoryLower.includes('sweet') || categoryLower.includes('dessert') || categoryLower.includes('candy')) {
+                categoryImgUrl = 'https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=200&h=200&fit=crop&q=80';
               } else if (categoryLower.includes('hot') || categoryLower.includes('dog')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1612392062798-2ba2c6bb84e0?w=100&h=100&fit=crop';
+                categoryImgUrl = 'https://images.unsplash.com/photo-1612392062798-2ba2c6bb84e0?w=200&h=200&fit=crop&q=80';
               } else if (categoryLower.includes('nachos')) {
-                categoryImgUrl = 'https://images.unsplash.com/photo-1582169296194-e4d644c48063?w=100&h=100&fit=crop';
+                categoryImgUrl = 'https://images.unsplash.com/photo-1582169296194-e4d644c48063?w=200&h=200&fit=crop&q=80';
               } else {
                 // Default food image
-                categoryImgUrl = 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=100&h=100&fit=crop';
+                categoryImgUrl = 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=200&h=200&fit=crop&q=80';
               }
             }
             
@@ -895,26 +888,54 @@ const CustomerHome = () => {
               >
                 <div className="category-content">
                   <div className="category-icon-large">
-                    <OptimizedImage
+                    <InstantImage
                       src={categoryImgUrl}
                       alt={category.name}
-                      width={48}
-                      height={48}
                       className="category-img"
-                      fallback="https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=100&h=100&fit=crop"
-                      priority={true}
-                      lazy={false}
-                      />
-                    </div>
-                    <span className="category-name">{category.name}</span>
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        // Simple emoji fallback
+                        const emoji = category.name.toLowerCase().includes('burger') ? '🍔' :
+                                     category.name.toLowerCase().includes('fries') ? '🍟' :
+                                     category.name.toLowerCase().includes('ice') ? '🍦' :
+                                     category.name.toLowerCase().includes('pizza') ? '🍕' :
+                                     category.name.toLowerCase().includes('pop') ? '🍿' :
+                                     category.name.toLowerCase().includes('drink') ? '🥤' :
+                                     category.name.toLowerCase().includes('coffee') ? '☕' : '🍽️';
+                        e.target.src = `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%236b7280" font-size="80"%3E${emoji}%3C/text%3E%3C/svg%3E`;
+                      }}
+                    />
                   </div>
-                </button>
-              );
-            })}
+                  <span className="category-name">{category.name}</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </header>
       <main className="customer-main">
        
+        {/* Banner Carousel - Theater-specific scrolling banners */}
+        {theaterId ? (
+          <BannerCarousel 
+            theaterId={theaterId}
+            autoScrollInterval={4000}
+          />
+        ) : (
+          <div style={{ 
+            padding: '12px 16px', 
+            margin: '16px', 
+            background: '#fee2e2', 
+            color: '#991b1b', 
+            borderRadius: '8px',
+            fontSize: '13px',
+            textAlign: 'center',
+            border: '1px solid #f87171'
+          }}>
+            ⚠️ Theater ID not found. Please scan a valid QR code.
+          </div>
+        )}
+
         {/* Filter Section - Only show when not in "All" category */}
         {selectedCategory !== 'all' && (
           <div className="filter-section">
@@ -990,15 +1011,18 @@ const CustomerHome = () => {
         {/* Products List - Collection Design */}
         <section className="products-section">
           <div className="products-list">
-            {filteredCollections.length > 0 ? (
-              filteredCollections.map((collection, index) => {
+            {(() => {
+              console.log('📋 [CustomerHome] Rendering products section:', {
+                filteredCollectionsLength: filteredCollections.length,
+                firstCollection: filteredCollections[0]
+              });
+              
+              if (filteredCollections.length > 0) {
+                return filteredCollections.map((collection, index) => {
                 const defaultVariant = getDefaultVariant(collection);
                 const imgUrl = defaultVariant?.image || collection.baseImage;
                 const product = defaultVariant?.originalProduct || defaultVariant;
                 const productQty = product ? getItemQuantity(product._id) : 0;
-                
-                // Priority load first 6 images (above the fold)
-                const isPriority = index < 6;
                 
                 // Check if ANY variant in the collection is available
                 const hasAvailableVariant = collection.variants?.some(variant => 
@@ -1010,17 +1034,7 @@ const CustomerHome = () => {
                 
                 // Debug logging
                 if (!isProductAvailable) {
-                  console.log(`🔴 Rendering out-of-stock: ${collection.name}`, {
-                    isCollection: collection.isCollection,
-                    hasAvailableVariant,
-                    productIsAvailable: product?.isAvailable,
-                    variants: collection.variants?.map(v => ({
-                      size: v.size,
-                      isAvailable: v.originalProduct?.isAvailable,
-                      currentStock: v.originalProduct?.currentStock
-                    }))
-                  });
-                }
+  }
                 
                 return (
                   <div 
@@ -1032,18 +1046,17 @@ const CustomerHome = () => {
                     {/* Image Container */}
                     <div className="product-image-container">
                       {imgUrl ? (
-                        <OptimizedImage
+                        <InstantImage
                           src={imgUrl && typeof imgUrl === 'string' 
                             ? (imgUrl.startsWith('http') ? imgUrl : `${config.api.baseUrl}${imgUrl}`) 
                             : null
                           }
                           alt={collection.name}
-                          width={100}
-                          height={100}
                           className="product-img"
-                          fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23f0f0f0' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-size='40'%3E🍽️%3C/text%3E%3C/svg%3E"
-                          priority={isPriority}
-                          lazy={!isPriority}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => {
+                            e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f0f0f0" width="100" height="100"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="40"%3E🍽️%3C/text%3E%3C/svg%3E';
+                          }}
                         />
                       ) : (
                         <div className="product-placeholder">
@@ -1143,12 +1156,16 @@ const CustomerHome = () => {
                     )}
                   </div>
                 );
-              })
-            ) : (
-              <div className="empty-products">
-                <p>No products found {searchQuery ? `for "${searchQuery}"` : 'in this category'}</p>
-              </div>
-            )}
+              });
+            } else {
+              console.warn('⚠️ [CustomerHome] No filtered collections to display');
+              return (
+                <div className="empty-products">
+                  <p>No products found {searchQuery ? `for "${searchQuery}"` : 'in this category'}</p>
+                </div>
+              );
+            }
+            })()}
           </div>
         </section>
       </main>

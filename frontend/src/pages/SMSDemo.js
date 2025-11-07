@@ -22,8 +22,7 @@ const SMSDemo = () => {
       const status = await notifications.getServiceStatus();
       setServiceStatus(status);
     } catch (error) {
-      console.error('Failed to load service status:', error);
-    }
+  }
   };
 
   // Handle OTP verification completion

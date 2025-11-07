@@ -56,9 +56,8 @@ const YearSelector = ({
           onYearChange(Math.max(...data.data.availableYears));
         }
       }
+  } catch (error) {
 
-    } catch (error) {
-      console.error('❌ Error fetching available years:', error);
       setError('Failed to load available years');
     } finally {
       setLoading(false);

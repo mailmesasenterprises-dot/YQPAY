@@ -64,7 +64,7 @@ router.post('/', [
         error: 'Theater not found'
       });
     }
-    
+
     const theaterName = theater.name || theater.theaterName || 'Unknown';
     console.log('🏛️ Theater name:', theaterName);
 
@@ -78,21 +78,21 @@ router.post('/', [
 
     // Find or create the single document for this theater
     let singleQR = await SingleQRCode.findOne({ theater: theaterId });
-    
+
     console.log('🔍 Looking for existing document with theater:', theaterId);
     console.log('🔍 Found existing document?', singleQR ? 'YES' : 'NO');
     if (singleQR) {
       console.log('📋 Existing document ID:', singleQR._id);
       console.log('📋 Current qrDetails count:', singleQR.qrDetails.length);
     }
-    
+
     // Determine which seats to generate
-    const seatsToGenerate = qrType === 'single' 
+    const seatsToGenerate = qrType === 'single'
       ? [null] // Single QR doesn't need seat
       : (seats && seats.length > 0 ? seats : [seat]); // Screen type: use seats array or single seat
-    
+
     console.log('🎯 Generating QR codes for seats:', seatsToGenerate);
-    
+
     if (qrType === 'single') {
       // ============ SINGLE QR CODE GENERATION ============
       // Generate single QR code
@@ -113,7 +113,7 @@ router.post('/', [
         seatClass: seatClass,
         qrCodeUrl: qrCodeResult.qrCodeUrl,
         qrCodeData: qrCodeResult.qrCodeData,
-        logoUrl: logoUrl || '',
+        logoUrl: qrCodeResult.logoUrl || logoUrl || '',
         logoType: logoType || 'default',
         scanCount: 0,
         seats: [], // Empty array for single type
@@ -145,17 +145,17 @@ router.post('/', [
         await singleQR.save();
         console.log('✅ New document created with single QR code');
       }
-      
+
     } else {
       // ============ SCREEN QR CODE GENERATION ============
       // Check if this qrName+seatClass combination already exists in the array
-      const existingScreenQR = singleQR ? 
-        singleQR.qrDetails.find(qr => 
-          qr.qrType === 'screen' && 
-          qr.qrName === qrName && 
+      const existingScreenQR = singleQR ?
+        singleQR.qrDetails.find(qr =>
+          qr.qrType === 'screen' &&
+          qr.qrName === qrName &&
           qr.seatClass === seatClass
         ) : null;
-      
+
       // Generate QR codes for each seat
       const generatedSeats = [];
       for (const seatId of seatsToGenerate) {
@@ -174,7 +174,7 @@ router.post('/', [
           seat: seatId,
           qrCodeUrl: qrCodeResult.qrCodeUrl,
           qrCodeData: qrCodeResult.qrCodeData,
-          logoUrl: logoUrl || '',
+          logoUrl: qrCodeResult.logoUrl || logoUrl || '',
           logoType: logoType || 'default',
           scanCount: 0,
           metadata: {
@@ -237,13 +237,13 @@ router.post('/', [
 
     // Populate theater details
     await singleQR.populate('theater', 'name location');
-    
+
     const totalGenerated = qrType === 'single' ? 1 : seatsToGenerate.length;
 
     res.status(201).json({
       success: true,
-      message: qrType === 'single' 
-        ? 'Single QR code created successfully' 
+      message: qrType === 'single'
+        ? 'Single QR code created successfully'
         : `${totalGenerated} Screen QR code(s) created successfully`,
       data: singleQR,
       count: totalGenerated
@@ -265,11 +265,11 @@ router.post('/', [
  */
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { 
-      theaterId, 
-      qrName, 
-      seatClass, 
-      isActive, 
+    const {
+      theaterId,
+      qrName,
+      seatClass,
+      isActive,
       limit = 100,
       skip = 0,
       sort = '-createdAt'
@@ -333,6 +333,11 @@ router.get('/theater/:theaterId', [
   param('theaterId').isMongoId().withMessage('Valid theater ID is required')
 ], async (req, res) => {
   try {
+    // 🚀 CRITICAL: Prevent browser caching of QR code data
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -351,7 +356,7 @@ router.get('/theater/:theaterId', [
 
     // Flatten qrDetails array from all documents into a single array
     const flattenedQRCodes = [];
-    
+
     singleQRCodes.forEach(doc => {
       if (doc.qrDetails && doc.qrDetails.length > 0) {
         doc.qrDetails.forEach(qrDetail => {
@@ -413,7 +418,7 @@ router.get('/:qrDetailId/download', authenticateToken, async (req, res) => {
 
     // Find the SingleQRCode document containing this QR detail
     const singleQR = await SingleQRCode.findOne({ 'qrDetails._id': qrDetailId });
-    
+
     if (!singleQR) {
       console.log('❌ SingleQRCode not found for detail ID:', qrDetailId);
       return res.status(404).json({
@@ -426,7 +431,7 @@ router.get('/:qrDetailId/download', authenticateToken, async (req, res) => {
 
     // Find the specific QR detail
     const qrDetail = singleQR.qrDetails.id(qrDetailId);
-    
+
     if (!qrDetail) {
       console.log('❌ QR detail not found in qrDetails array');
       return res.status(404).json({
@@ -439,14 +444,14 @@ router.get('/:qrDetailId/download', authenticateToken, async (req, res) => {
 
     // Get image URL - field name is qrCodeUrl (for single type) or check seats array (for screen type)
     let imageUrl = null;
-    
+
     if (qrDetail.qrType === 'single') {
       imageUrl = qrDetail.qrCodeUrl;
     } else if (qrDetail.qrType === 'screen' && qrDetail.seats && qrDetail.seats.length > 0) {
       // For screen type, use the first seat's QR code (or we could download all)
       imageUrl = qrDetail.seats[0].qrCodeUrl;
     }
-    
+
     if (!imageUrl) {
       console.log('❌ No image URL found. QR Type:', qrDetail.qrType);
       return res.status(404).json({
@@ -461,7 +466,7 @@ router.get('/:qrDetailId/download', authenticateToken, async (req, res) => {
     const https = require('https');
     const http = require('http');
     const url = require('url');
-    
+
     const parsedUrl = url.parse(imageUrl);
     const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
@@ -479,7 +484,7 @@ router.get('/:qrDetailId/download', authenticateToken, async (req, res) => {
       // Set headers for download
       const filename = `${qrDetail.qrName.replace(/[^a-zA-Z0-9\s]/g, '_').replace(/\s+/g, '_')}_QR.png`;
       console.log('📦 Sending file:', filename);
-      
+
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -488,7 +493,7 @@ router.get('/:qrDetailId/download', authenticateToken, async (req, res) => {
 
       // Pipe the image to response
       imageResponse.pipe(res);
-      
+
       console.log('✅ Download started successfully');
     }).on('error', (error) => {
       console.error('❌ Download error:', error);
@@ -652,7 +657,7 @@ router.put('/:id/details/:detailId', [
 
     // Get the existing QR detail
     const qrDetail = singleQR.qrDetails.id(detailId);
-    
+
     if (!qrDetail) {
       return res.status(404).json({
         success: false,
@@ -661,7 +666,7 @@ router.put('/:id/details/:detailId', [
     }
 
     // Check if we need to regenerate the QR code (if critical data changed)
-    const needsRegeneration = 
+    const needsRegeneration =
       (updates.qrName && updates.qrName !== qrDetail.qrName) ||
       (updates.seatClass && updates.seatClass !== qrDetail.seatClass) ||
       (updates.seat && updates.seat !== qrDetail.seat) ||
@@ -669,7 +674,7 @@ router.put('/:id/details/:detailId', [
 
     if (needsRegeneration) {
       console.log('🔄 Regenerating QR code due to data changes...');
-      
+
       // Store old QR code URL for deletion
       const oldQrCodeUrl = qrDetail.qrCodeUrl;
 
@@ -688,7 +693,7 @@ router.put('/:id/details/:detailId', [
       // Update with new QR code data
       updates.qrCodeUrl = qrData.qrCodeUrl;
       updates.qrCodeData = qrData.qrCodeData;
-      
+
       console.log('✅ New QR code generated:', qrData.qrCodeUrl);
 
       // Delete old QR code from GCS
@@ -712,8 +717,8 @@ router.put('/:id/details/:detailId', [
 
     res.json({
       success: true,
-      message: needsRegeneration 
-        ? 'QR code regenerated and updated successfully' 
+      message: needsRegeneration
+        ? 'QR code regenerated and updated successfully'
         : 'QR detail updated successfully',
       data: singleQR
     });
@@ -911,38 +916,35 @@ router.post('/:id/details/:detailId/seats', [
     let qrCodeData = '';
     let finalLogoUrl = null;
     let finalLogoType = 'theater';
-    
+
     if (!finalQRCodeUrl) {
       try {
         const { generateSingleQRCode } = require('../utils/singleQRGenerator');
         const Theater = require('../models/Theater');
-        
+
         // Get theater details
         const theater = await Theater.findById(singleQR.theater);
-        
-        // Check if there are existing seats with logos - use the same logo settings
+
+        // Determine logo type and URL
         finalLogoType = qrDetail.logoType || 'theater';
-        
-        // Look for existing seats with logo information
         const existingSeatsWithLogo = qrDetail.seats?.filter(s => s.logoUrl || s.logoType) || [];
+
         if (existingSeatsWithLogo.length > 0) {
-          // Use logo settings from the first existing seat
           const referenceSeat = existingSeatsWithLogo[0];
           finalLogoUrl = referenceSeat.logoUrl;
           finalLogoType = referenceSeat.logoType || 'theater';
-          console.log('📋 Using logo from existing seat:', { 
-            seat: referenceSeat.seat, 
-            logoUrl: finalLogoUrl, 
-            logoType: finalLogoType 
+          console.log('📋 Using logo from existing seat:', {
+            seat: referenceSeat.seat,
+            logoUrl: finalLogoUrl,
+            logoType: finalLogoType
           });
         } else {
-          // No existing seats with logo - get from qrDetail or settings
           const { getQRSettings } = require('../utils/qrCodeGenerator');
           const settings = await getQRSettings(singleQR.theater, finalLogoType);
           finalLogoUrl = qrDetail.logoUrl || settings.logoUrl;
         }
-        
-        console.log('🎨 Generating QR for new seat:', { 
+
+        console.log('🎨 Generating QR for new seat:', {
           theaterId: singleQR.theater,
           theaterName: theater?.name,
           qrName: qrDetail.qrName,
@@ -951,8 +953,7 @@ router.post('/:id/details/:detailId/seats', [
           logoUrl: finalLogoUrl,
           logoType: finalLogoType
         });
-        
-        // Generate QR code with text embedding using singleQRGenerator
+
         const result = await generateSingleQRCode({
           theaterId: singleQR.theater,
           theaterName: theater?.name || 'theater',
@@ -963,36 +964,56 @@ router.post('/:id/details/:detailId/seats', [
           logoType: finalLogoType,
           userId: req.user?.id || 'system'
         });
-        
+
         finalQRCodeUrl = result.qrCodeUrl;
         qrCodeData = result.qrCodeData;
-        
+
         console.log('✅ Generated QR code for new seat with text embedding:', finalQRCodeUrl);
-        
+
       } catch (qrError) {
         console.error('❌ Failed to generate QR code:', qrError);
-        // Set qrCodeData even if generation fails
-        const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-        qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(qrDetail.qrName)}&seat=${encodeURIComponent(seat)}&type=screen`;
+
+        // ✅ FIXED URL GENERATION
+        let baseUrl;
+
+        if (process.env.NODE_ENV === 'production') {
+          baseUrl = process.env.BASE_URL?.trim() || 'https://yqpaynow.com';
+        } else {
+          baseUrl = process.env.FRONTEND_URL?.trim();
+        }
+
+        qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(
+          qrDetail.qrName
+        )}&seat=${encodeURIComponent(seat)}&type=screen`;
       }
     } else {
-      // If QR URL is provided, generate the qrCodeData
-      const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-      qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(qrDetail.qrName)}&seat=${encodeURIComponent(seat)}&type=screen`;
+      // ✅ FIXED URL GENERATION (same as above)
+      let baseUrl;
+
+      if (process.env.NODE_ENV === 'production') {
+        baseUrl = process.env.BASE_URL?.trim() || 'https://yqpaynow.com';
+      } else {
+        baseUrl = process.env.FRONTEND_URL?.trim();
+      }
+
+      qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(
+        qrDetail.qrName
+      )}&seat=${encodeURIComponent(seat)}&type=screen`;
     }
 
-    // Add new seat to the array with required qrCodeData field
+    // Add new seat data
     qrDetail.seats.push({
       seat: seat,
       qrCodeUrl: finalQRCodeUrl || '',
-      qrCodeData: qrCodeData, // Required field
-      logoUrl: finalLogoUrl || '', // Store logo URL used for this seat
-      logoType: finalLogoType || 'theater', // Store logo type used for this seat
+      qrCodeData: qrCodeData,
+      logoUrl: finalLogoUrl || '',
+      logoType: finalLogoType || 'theater',
       isActive: isActive,
       scanCount: 0,
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
+
 
     // Save the document
     await singleQR.save();
@@ -1137,7 +1158,7 @@ router.delete('/:id', [
     if (permanent === 'true') {
       // Permanent delete
       const singleQR = await SingleQRCode.findByIdAndDelete(req.params.id);
-      
+
       if (!singleQR) {
         return res.status(404).json({
           success: false,
@@ -1217,7 +1238,7 @@ router.delete('/:id/details/:detailId', [
 
     // Get the QR detail before deletion to access qrCodeUrl
     const qrDetail = singleQR.qrDetails.id(detailId);
-    
+
     if (!qrDetail) {
       return res.status(404).json({
         success: false,

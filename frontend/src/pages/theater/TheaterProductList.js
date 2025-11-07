@@ -8,17 +8,29 @@ import { ActionButton, ActionButtons } from '../../components/ActionButton';
 import DateFilter from '../../components/DateFilter';
 import { useModal } from '../../contexts/ModalContext';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
+import { getCachedData, setCachedData, clearCachePattern } from '../../utils/cacheUtils';
+import { getImageSrc } from '../../utils/globalImageCache'; // 🚀 Instant image loading
+import InstantImage from '../../components/InstantImage'; // 🚀 Instant image component
 import '../../styles/TheaterList.css';
 import '../../styles/QRManagementPage.css';
 
-// Lazy Loading Product Image Component
+// Lazy Loading Product Image Component WITH INSTANT CACHE
 const LazyProductImage = React.memo(({ src, alt, className, style, fallback = '/placeholder-product.png' }) => {
-  const [imageSrc, setImageSrc] = useState(fallback);
-  const [isLoading, setIsLoading] = useState(true);
+  // 🚀 INSTANT: Check cache first synchronously
+  const cachedSrc = src ? getImageSrc(src) : fallback;
+  const [imageSrc, setImageSrc] = useState(cachedSrc || fallback);
+  const [isLoading, setIsLoading] = useState(!cachedSrc);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef(null);
 
   useEffect(() => {
+    // If already cached, no need for lazy loading
+    if (cachedSrc) {
+      setImageSrc(cachedSrc);
+      setIsLoading(false);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
@@ -45,7 +57,7 @@ const LazyProductImage = React.memo(({ src, alt, className, style, fallback = '/
     }
 
     return () => observer.disconnect();
-  }, [src, fallback]);
+  }, [src, fallback, cachedSrc]);
 
   return (
     <div className="lazy-image-container" style={style}>
@@ -89,6 +101,9 @@ const TableSkeleton = React.memo(({ count = 10 }) => (
         <td className="category-cell">
           <div className="skeleton-line skeleton-small"></div>
         </td>
+        <td className="category-cell">
+          <div className="skeleton-line skeleton-small"></div>
+        </td>
         <td className="price-cell">
           <div className="skeleton-line skeleton-small"></div>
         </td>
@@ -120,11 +135,10 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
 
     
     if (!isToggling && onToggle) {
-      console.log('🎛️ Calling onToggle function...');
+
       onToggle(product, newValue);
     } else {
-      console.log('🎛️ Toggle blocked:', { isToggling, hasOnToggle: !!onToggle });
-    }
+  }
   }, [product, onToggle, isToggling]);
 
   return (
@@ -180,7 +194,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
 SimpleToggle.displayName = 'SimpleToggle';
 
 // Product Row Component - FIXED with toggle progress state
-const ProductRow = React.memo(({ product, index, theaterId, categories = [], productToggleStates, toggleInProgress, onView, onEdit, onDelete, onToggle, onManageStock }) => {
+const ProductRow = React.memo(({ product, index, theaterId, categories = [], kioskTypes = [], productToggleStates, toggleInProgress, onView, onEdit, onDelete, onToggle, onManageStock }) => {
   const globalIndex = index + 1;
   
   // Format price
@@ -216,13 +230,24 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], pro
   let categoryName = 'Uncategorized';
   let category = null;
   
+  // Debug: Log what we receive
+  if (index === 0) { // Only log for first product to avoid spam
+    console.log('🔍 ProductRow Render Debug:');
+    console.log('Product:', product.name);
+    console.log('Product categoryId:', product.categoryId);
+    console.log('Categories prop:', categories);
+    console.log('Categories length:', categories?.length);
+    console.log('KioskTypes prop:', kioskTypes);
+    console.log('KioskTypes length:', kioskTypes?.length);
+  }
+  
   // Try to get category from different sources
-  if (product.category && typeof product.category === 'object') {
-    // Category is populated object
-    categoryName = product.category.categoryName || product.category.name || 'Uncategorized';
-  } else if (product.categoryId && typeof product.categoryId === 'object') {
+  if (product.categoryId && typeof product.categoryId === 'object' && product.categoryId.categoryName) {
     // CategoryId is populated object
     categoryName = product.categoryId.categoryName || product.categoryId.name || 'Uncategorized';
+  } else if (product.category && typeof product.category === 'object' && product.category.categoryName) {
+    // Category is populated object
+    categoryName = product.category.categoryName || product.category.name || 'Uncategorized';
   } else if ((product.categoryId || product.category) && categories && categories.length > 0) {
     // Category/CategoryId is just an ID string, look up in categories array
     const catId = product.categoryId || product.category;
@@ -235,13 +260,6 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], pro
   const stockStatus = getStockStatus(stockQuantity, lowStockAlert);
 
   // Debug logging for image and category
-  console.log(`🎨 Product ${product.name}:`, {
-    productImage,
-    categoryName,
-    rawCategory: product.category,
-    rawCategoryId: product.categoryId,
-    images: product.images
-  });
 
   return (
     <tr className={`${!product.isActive ? 'inactive-row' : ''}`}>
@@ -303,6 +321,27 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], pro
       <td>
         <div className="category-badge">
           {categoryName}
+        </div>
+      </td>
+
+      {/* Kiosk Type */}
+      <td>
+        <div className="category-badge">
+          {(() => {
+            if (!product.kioskType) {
+              console.log(`❌ Product "${product.name}" has NO kioskType`);
+              return '—';
+            }
+            if (!Array.isArray(kioskTypes) || kioskTypes.length === 0) {
+              console.log(`⚠️ KioskTypes array is empty or not loaded yet. Product: "${product.name}", kioskType ID: ${product.kioskType}`);
+              return '—';
+            }
+            console.log(`🔍 Looking for kioskType ${product.kioskType} in array of ${kioskTypes.length} items for product "${product.name}"`);
+            console.log('Available kioskType IDs:', kioskTypes.map(kt => kt._id));
+            const found = kioskTypes.find(kt => kt._id?.toString() === product.kioskType?.toString());
+            console.log(`${found ? '✅ Found' : '❌ NOT Found'} kioskType for product "${product.name}":`, found);
+            return found?.name || '—';
+          })()}
         </div>
       </td>
 
@@ -385,9 +424,13 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], pro
   // Always re-render if product data changed
   if (prevProps.product._id !== nextProps.product._id) return false;
   
+  // Check if categories or kioskTypes arrays changed
+  if (prevProps.categories?.length !== nextProps.categories?.length) return false;
+  if (prevProps.kioskTypes?.length !== nextProps.kioskTypes?.length) return false;
+  
   // Check if stock balance changed (current month overall balance)
   if (prevProps.stockBalance !== nextProps.stockBalance) {
-    console.log(`📦 Stock balance changed for ${nextProps.product.name}: ${prevProps.stockBalance} → ${nextProps.stockBalance}`);
+
     return false;
   }
   
@@ -395,7 +438,7 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], pro
   const prevStock = prevProps.product.inventory?.currentStock ?? prevProps.product.stockQuantity ?? 0;
   const nextStock = nextProps.product.inventory?.currentStock ?? nextProps.product.stockQuantity ?? 0;
   if (prevStock !== nextStock) {
-    console.log(`📦 Stock changed for ${nextProps.product.name}: ${prevStock} → ${nextStock}`);
+
     return false;
   }
   
@@ -419,17 +462,15 @@ const TheaterProductList = () => {
   const navigate = useNavigate();
   const modal = useModal();
   
-  console.log('🎭 TheaterProductList - theaterId from URL:', theaterId);
-  
+
   // AUTO-SET AUTHENTICATION TOKEN - PERMANENT FIX FOR NAVIGATION
   useEffect(() => {
     const currentToken = localStorage.getItem('authToken');
     if (!currentToken) {
-      console.log('🔧 Auto-setting working authentication token for product management...');
+
       const workingToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDY0ZTliMzE0NWE0NWUzN2ZiMGUyMyIsInVzZXJuYW1lIjoiVGhlYXRlcjEyMyIsInVzZXJUeXBlIjoidGhlYXRlcl91c2VyIiwidGhlYXRlcklkIjoiNjhkMzdlYTY3Njc1MmI4Mzk5NTJhZjgxIiwidGhlYXRlciI6IjY4ZDM3ZWE2NzY3NTJiODM5OTUyYWY4MSIsImlhdCI6MTc1OTM4ODE4MCwiZXhwIjoxNzU5NDc0NTgwfQ.N1D7GZEBI0V9ZZ-doHB9cHfnLMuEXWI2n-GMOF8Zftw";
       localStorage.setItem('authToken', workingToken);
-      console.log('✅ Authentication token set for seamless navigation!');
-    }
+  }
   }, []);
   
   // PERFORMANCE MONITORING: Track page performance metrics
@@ -438,6 +479,7 @@ const TheaterProductList = () => {
   // State management
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [kioskTypes, setKioskTypes] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [productToggleStates, setProductToggleStates] = useState({}); // Add toggle states tracking
   const [toggleInProgress, setToggleInProgress] = useState({}); // Track ongoing toggle operations
@@ -469,13 +511,13 @@ const TheaterProductList = () => {
   const [sortBy, setSortBy] = useState('name');
   const [sortOrder, setSortOrder] = useState('asc');
 
-  // Date filtering state
+  // Date filtering state - default to current date only
   const [showDateFilterModal, setShowDateFilterModal] = useState(false);
   const [dateFilter, setDateFilter] = useState({
-    type: 'all',
+    type: 'date',
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
-    selectedDate: null,
+    selectedDate: new Date().toISOString().split('T')[0], // Current date
     startDate: null,
     endDate: null
   });
@@ -505,12 +547,12 @@ const TheaterProductList = () => {
   // Network status monitoring
   useEffect(() => {
     const handleOnline = () => {
-      console.log('🌐 Network: Back online');
+
       setNetworkStatus(prev => ({ ...prev, isOnline: true, lastError: null }));
     };
     
     const handleOffline = () => {
-      console.log('🌐 Network: Gone offline');
+
       setNetworkStatus(prev => ({ ...prev, isOnline: false, lastError: 'Network disconnected' }));
     };
     
@@ -525,16 +567,7 @@ const TheaterProductList = () => {
 
   // ✅ TOGGLE PRODUCT STATUS HANDLER - NETWORK RESILIENT VERSION
   const handleProductToggleChange = useCallback(async (product, newStatus) => {
-    console.log('🚨 TOGGLE START: Function called with:', { 
-      productId: product._id, 
-      productName: product.name,
-      newStatus,
-      currentState: { isActive: product.isActive, isAvailable: product.isAvailable }
-    });
-    console.log('🚨 CONFIG CHECK: config.api.baseUrl =', config.api.baseUrl);
-    console.log('🚨 THEATER ID:', theaterId);
-    console.log('🌐 Network Status:', networkStatus);
-    
+
     // Check network connectivity first
     if (!networkStatus.isOnline) {
       modal.alert({
@@ -549,12 +582,11 @@ const TheaterProductList = () => {
     let shouldProceed = true;
     setToggleInProgress(prev => {
       if (prev[product._id]) {
-        console.log(`⏳ Toggle already in progress for ${product.name} - ignoring request`);
-        console.log('⏳ Current toggleInProgress state:', prev);
+
         shouldProceed = false;
         return prev; // No change
       }
-      console.log('🚀 Starting toggle operation for:', product.name);
+
       return { ...prev, [product._id]: true };
     });
     
@@ -563,15 +595,11 @@ const TheaterProductList = () => {
     }
 
     try {
-      console.log('🚨 TOGGLE DEBUG: Starting toggle process');
-      console.log(`🔄 Toggling product: ${product.name} to ${newStatus ? 'LIVE' : 'OFFLINE'}`);
-      console.log('🔄 Product ID:', product._id);
-      console.log('🔄 Current product state:', { isActive: product.isActive, isAvailable: product.isAvailable });
-      
+
       // STEP 1: Update local states immediately for instant UI feedback
       setProductToggleStates(prev => {
         const newState = { ...prev, [product._id]: newStatus };
-        console.log('🔄 Updated toggle states:', { [product._id]: newStatus });
+
         return newState;
       });
 
@@ -589,21 +617,11 @@ const TheaterProductList = () => {
         throw new Error('Authentication token not found');
       }
 
-      console.log('📡 Making API call to update product status...');
-      console.log('🌐 API URL:', `${config.api.baseUrl}/theater-products/${theaterId}/${product._id}`);
-      console.log('📝 Request body:', JSON.stringify({ isActive: newStatus, isAvailable: newStatus }));
-      console.log('🔑 Auth token exists:', !!authToken);
-      console.log('🔑 Auth token preview:', authToken ? authToken.substring(0, 50) + '...' : 'NONE');
-      console.log('🔑 Auth token length:', authToken ? authToken.length : 0);
-      
+
       // Decode and check token payload
       try {
         const tokenPayload = JSON.parse(atob(authToken.split('.')[1]));
-        console.log('🔑 Token payload:', tokenPayload);
-        console.log('🔑 Token expires at:', new Date(tokenPayload.exp * 1000));
-        console.log('🔑 Current time:', new Date());
-        console.log('🔑 Token valid:', tokenPayload.exp * 1000 > Date.now());
-        
+
         // Check if token is expired
         if (tokenPayload.exp * 1000 <= Date.now()) {
           throw new Error('Authentication token has expired. Please login again.');
@@ -612,8 +630,7 @@ const TheaterProductList = () => {
         if (e.message.includes('expired')) {
           throw e;
         }
-        console.error('🔑 Failed to decode token:', e);
-      }
+  }
       
       // Enhanced fetch with retry logic and timeout
       const maxRetries = 3;
@@ -622,8 +639,7 @@ const TheaterProductList = () => {
       
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          console.log(`🔄 Attempt ${attempt}/${maxRetries} - Making API request...`);
-          
+
           // Create AbortController for timeout
           const abortController = new AbortController();
           const timeoutId = setTimeout(() => {
@@ -646,22 +662,15 @@ const TheaterProductList = () => {
           
           clearTimeout(timeoutId);
           
-          console.log('📊 API Response status:', response.status);
-          console.log('📊 API Response ok:', response.ok);
-          console.log('📊 API Response headers:', Object.fromEntries(response.headers.entries()));
-          
+
           if (response.ok) {
             const data = await response.json();
-            console.log('✅ API Response data:', data);
-            console.log('✅ API Response success flag:', data.success);
-            
+
             if (data.success) {
-              console.log('🎉 Product status updated successfully!');
-              console.log('🎉 Updated product data:', data.product);
-              
+
               // STEP 3: Update from server response to ensure consistency
               if (data.product) {
-                console.log('🔄 Updating local state with server response...');
+
                 setProducts(prevProducts => 
                   prevProducts.map(p => 
                     p._id === product._id 
@@ -671,7 +680,7 @@ const TheaterProductList = () => {
                 );
                 
                 const newToggleState = data.product.isActive && data.product.isAvailable;
-                console.log('🔄 New toggle state will be:', newToggleState);
+
                 setProductToggleStates(prev => ({
                   ...prev,
                   [product._id]: newToggleState
@@ -690,10 +699,7 @@ const TheaterProductList = () => {
             }
           } else {
             const errorText = await response.text();
-            console.error('❌ API Error Response Status:', response.status);
-            console.error('❌ API Error Response Text:', errorText);
-            console.error('❌ API Error Response Headers:', Object.fromEntries(response.headers.entries()));
-            
+
             // Handle specific HTTP errors
             if (response.status === 401) {
               throw new Error('Authentication failed. Please login again.');
@@ -715,20 +721,20 @@ const TheaterProductList = () => {
           
           // Update network status based on error type
           if (error.name === 'AbortError') {
-            console.error(`❌ Attempt ${attempt}: Request timeout after ${timeoutMs}ms`);
+
             lastError = new Error(`Request timeout after ${timeoutMs / 1000} seconds`);
             setNetworkStatus(prev => ({ ...prev, lastError: 'Request timeout' }));
           } else if (error.message.includes('Failed to fetch')) {
-            console.error(`❌ Attempt ${attempt}: Network connection failed`);
+
             lastError = new Error('Network connection failed. Please check your internet connection.');
             setNetworkStatus(prev => ({ ...prev, lastError: 'Connection failed' }));
           } else if (error.message.includes('Authentication') || error.message.includes('expired')) {
-            console.error(`❌ Attempt ${attempt}: Authentication error - ${error.message}`);
+
             setNetworkStatus(prev => ({ ...prev, lastError: 'Authentication error' }));
             // Don't retry authentication errors
             throw error;
           } else {
-            console.error(`❌ Attempt ${attempt}: ${error.message}`);
+
             setNetworkStatus(prev => ({ ...prev, lastError: error.message }));
           }
           
@@ -739,16 +745,12 @@ const TheaterProductList = () => {
           
           // Wait before retry (exponential backoff)
           const retryDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          console.log(`⏳ Waiting ${retryDelay}ms before retry...`);
+
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
     } catch (error) {
-      console.error('❌ Error toggling product status:', error);
-      console.error('❌ Error stack:', error.stack);
-      console.error('❌ Error name:', error.name);
-      console.error('❌ Error message:', error.message);
-      
+
       // STEP 4: Revert local state on error
       setProductToggleStates(prev => ({
         ...prev,
@@ -787,13 +789,12 @@ const TheaterProductList = () => {
       });
     } finally {
       // STEP 5: ALWAYS clear the toggle progress state (critical for preventing stuck states)
-      console.log(`🧹 CLEANUP: Clearing toggle progress for ${product.name}`);
+
       setToggleInProgress(prev => {
-        console.log('🧹 CLEANUP: Previous state:', prev);
+
         const newState = { ...prev };
         delete newState[product._id];
-        console.log('🧹 CLEANUP: New state:', newState);
-        console.log(`🔓 Toggle operation completed for ${product.name}`);
+
         return newState;
       });
     }
@@ -818,17 +819,14 @@ const TheaterProductList = () => {
     // Check if token exists
     const token = localStorage.getItem('authToken');
     if (!token) {
-      console.error('❌ No authToken found in localStorage');
+
       setError('Authentication required. Please login first.');
       setLoading(false);
       return;
     }
 
     try {
-      console.log('🚀 Fetching products...', { theaterId, page, search, category, status, stock });
-      console.log('🔑 Using token:', token?.substring(0, 20) + '...');
-      console.log('🌐 API Base URL:', config.api.baseUrl);
-      
+
       // Cancel previous request
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -849,8 +847,7 @@ const TheaterProductList = () => {
 
       const baseUrl = `${config.api.baseUrl}/theater-products/${theaterId}?${params.toString()}`;
       
-      console.log('🔥 DEBUGGING: Fetching from', baseUrl);
-      
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -862,12 +859,11 @@ const TheaterProductList = () => {
         }
       });
 
-      console.log('🔥 DEBUGGING: Response status', response.status);
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           // Handle no products found gracefully
-          console.log('ℹ️ No products found for this theater (404)');
+
           if (!isMountedRef.current) return;
           setProducts([]);
           setTotalItems(0);
@@ -881,33 +877,29 @@ const TheaterProductList = () => {
 
       const data = await response.json();
       
-      console.log('🔥 DEBUGGING: Raw API response', data);
-      
+
       if (!isMountedRef.current) return;
 
       if (data.success) {
         const products = data.data?.products || [];
-        console.log('🔥 DEBUGGING: Products extracted', products);
-        console.log('🔥 DEBUGGING: Products count', products.length);
-        
+
         // Log each product's ID and FULL DATA for debugging
         products.forEach((product, index) => {
-          console.log(`🆔 Product ${index + 1}: "${product.name}" - ID: ${product._id}`);
-          console.log(`   🖼️ Images:`, product.images);
-          console.log(`   🖼️ productImage field:`, product.productImage);
-          console.log(`   🏷️ Category ID:`, product.categoryId);
-          console.log(`   🏷️ Category object:`, product.category);
+
           if (product.productType) {
-            console.log(`   └─ ProductType ID: ${product.productType._id || product.productType}`);
-          }
+  }
           // Log FULL inventory object
-          console.log(`   📦 FULL INVENTORY DATA:`, product.inventory);
-          console.log(`   📦 quantity field (raw):`, product.quantity); // NEW: Log raw quantity field
-          console.log(`   📦 stockQuantity field:`, product.stockQuantity);
+          console.log(`Product "${product.name}":`, {
+            categoryId: product.categoryId,
+            kioskType: product.kioskType,
+            categoryIdType: typeof product.categoryId,
+            kioskTypeType: typeof product.kioskType
+          });
+
           const stockValue = product.inventory?.currentStock ?? product.stockQuantity ?? 0;
-          console.log(`   📦 Stock: ${stockValue} (from ${product.inventory?.currentStock !== undefined ? 'inventory.currentStock' : 'stockQuantity'})`);
-        });
+  });
         
+        console.log('All products loaded:', products);
         setProducts(products);
         
         // Initialize toggle states for all products
@@ -916,22 +908,19 @@ const TheaterProductList = () => {
           toggleStates[product._id] = product.isActive && product.isAvailable;
         });
         setProductToggleStates(toggleStates);
-        console.log('🔄 Initialized toggle states:', toggleStates);
-        
+
         // Batch pagination state updates
         const paginationData = data.data?.pagination || {};
         setTotalItems(paginationData.total || products.length);
         setTotalPages(paginationData.pages || Math.ceil(products.length / itemsPerPage));
         setCurrentPage(page);
         
-        console.log('✅ Products loaded successfully:', products.length);
-      } else {
+  } else {
         throw new Error(data.message || 'Failed to load products');
       }
     } catch (error) {
       if (error.name !== 'AbortError' && isMountedRef.current) {
-        console.error('🔥 DEBUGGING: ERROR loading products:', error);
-        console.error('🔥 DEBUGGING: ERROR stack:', error.stack);
+
         setError('Failed to load products. Please try again.');
         setProducts([]);
       }
@@ -942,9 +931,18 @@ const TheaterProductList = () => {
     }
   }, [theaterId, itemsPerPage, sortBy, sortOrder, authHeaders, modal]);
 
-  // Fetch categories
+  // Fetch categories with caching
   const fetchCategories = useCallback(async () => {
     if (!isMountedRef.current || !theaterId) return;
+    
+    const cacheKey = `theaterCategories_${theaterId}`;
+    const cached = getCachedData(cacheKey, 300000); // 5-minute cache for categories
+    
+    if (cached && isMountedRef.current) {
+      console.log('⚡ [Categories] Loading from cache');
+      setCategories(cached);
+      return;
+    }
     
     try {
       const response = await fetch(`${config.api.baseUrl}/theater-categories/${theaterId}?limit=100`, {
@@ -952,25 +950,71 @@ const TheaterProductList = () => {
       });
 
       if (!response.ok) {
-        console.warn('Failed to fetch categories');
+        console.error('Failed to fetch categories:', response.status);
         return;
       }
 
       const data = await response.json();
+      console.log('Categories Response:', data);
       if (data.success && isMountedRef.current) {
         const categories = data.data?.categories || [];
-        console.log('✅ Categories loaded:', categories.length);
-        console.log('🔍 Categories structure:', JSON.stringify(categories[0], null, 2));
+        console.log('Setting Categories:', categories);
         setCategories(categories);
+        setCachedData(cacheKey, categories);
       }
     } catch (error) {
-      console.error('❌ Error fetching categories:', error);
-    }
+      console.error('Error fetching categories:', error);
+  }
   }, [theaterId, authHeaders]);
 
-  // Fetch product types
+  // Fetch kiosk types with caching
+  const fetchKioskTypes = useCallback(async () => {
+    if (!isMountedRef.current || !theaterId) return;
+    
+    const cacheKey = `theaterKioskTypes_${theaterId}`;
+    const cached = getCachedData(cacheKey, 300000); // 5-minute cache
+    
+    if (cached && isMountedRef.current) {
+      console.log('⚡ [KioskTypes] Loading from cache');
+      setKioskTypes(cached);
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${config.api.baseUrl}/theater-kiosk-types/${theaterId}?limit=100`, {
+        headers: authHeaders
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch kiosk types:', response.status);
+        return;
+      }
+
+      const data = await response.json();
+      console.log('Kiosk Types Response:', data);
+      if (data.success && isMountedRef.current) {
+        const kioskTypes = data.data?.kioskTypes || [];
+        console.log('Setting Kiosk Types:', kioskTypes);
+        setKioskTypes(kioskTypes);
+        setCachedData(cacheKey, kioskTypes);
+      }
+    } catch (error) {
+      console.error('Error fetching kiosk types:', error);
+  }
+  }, [theaterId, authHeaders]);
+
+  // Fetch product types with caching
   const fetchProductTypes = useCallback(async () => {
     if (!isMountedRef.current || !theaterId) return;
+    
+    const cacheKey = `theaterProductTypes_${theaterId}`;
+    const cached = getCachedData(cacheKey, 300000); // 5-minute cache
+    
+    if (cached && isMountedRef.current) {
+      console.log('⚡ [ProductTypes] Loading from cache');
+      setProductTypes(cached);
+      return;
+    }
     
     try {
       const response = await fetch(`${config.api.baseUrl}/theater-product-types/${theaterId}`, {
@@ -978,7 +1022,7 @@ const TheaterProductList = () => {
       });
 
       if (!response.ok) {
-        console.warn('Failed to fetch product types');
+
         return;
       }
 
@@ -986,11 +1030,10 @@ const TheaterProductList = () => {
       if (data.success && isMountedRef.current) {
         const productTypes = data.data?.productTypes || [];
         setProductTypes(productTypes);
-        console.log('✅ Product types loaded:', productTypes.length);
-      }
+        setCachedData(cacheKey, productTypes);
+  }
     } catch (error) {
-      console.error('❌ Error fetching product types:', error);
-    }
+  }
   }, [theaterId, authHeaders]);
 
   // ✅ REMOVED: fetchProductStockBalances function
@@ -1001,8 +1044,7 @@ const TheaterProductList = () => {
     if (!isMountedRef.current || !theaterId || !productList || productList.length === 0) return;
     
     try {
-      console.log('📊 Fetching stock balances for', productList.length, 'products...');
-      
+
       const currentDate = new Date();
       const year = currentDate.getFullYear();
       const month = currentDate.getMonth() + 1;
@@ -1022,60 +1064,54 @@ const TheaterProductList = () => {
               if (data.success && data.data?.statistics) {
                 const overallBalance = data.data.statistics.closingBalance || 0;
                 balances[product._id] = Math.max(0, overallBalance);
-                console.log(`  ✅ ${product.name}: Overall Balance = ${balances[product._id]}`);
-              } else {
+  } else {
                 balances[product._id] = 0;
-                console.log(`  ⚠️ ${product.name}: No stock data, defaulting to 0`);
-              }
+  }
             } else {
               balances[product._id] = 0;
-              console.log(`  ⚠️ ${product.name}: API error, defaulting to 0`);
-            }
+  }
           } catch (err) {
             balances[product._id] = 0;
-            console.error(`  ❌ Error fetching balance for ${product.name}:`, err);
-          }
+  }
         })
       );
       
       if (isMountedRef.current) {
         setProductStockBalances(balances);
-        console.log('✅ Stock balances loaded for', Object.keys(balances).length, 'products');
-      }
+  }
     } catch (error) {
-      console.error('❌ Error fetching product stock balances:', error);
-    }
+  }
   }, [theaterId, authHeaders]);
   */
 
   // Load data on component mount and when dependencies change
   useEffect(() => {
-    console.log('🔥 DEBUGGING: Initial useEffect triggered', { theaterId });
-    
+
     if (!theaterId) {
-      console.error('🔥 DEBUGGING: No theaterId provided');
+
       setError('Theater ID is missing. Please check the URL.');
       setLoading(false);
       return;
     }
 
     if (!isMountedRef.current) {
-      console.log('🔥 DEBUGGING: Component not mounted, returning');
+
       return;
     }
 
     const loadData = async () => {
-      console.log('🔥 DEBUGGING: Starting data load for theaterId:', theaterId);
+
       setLoading(true);
       setError('');
       
       try {
         // Load data sequentially to avoid race conditions
-        await fetchProducts(1, '', '', 'all', 'all');
+        await fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter);
         await fetchCategories();
+        await fetchKioskTypes();
         await fetchProductTypes();
       } catch (error) {
-        console.error('❌ Error loading data:', error);
+
         setError(error.message || 'Failed to load data');
       }
       // Note: Loading is set to false in fetchProducts
@@ -1089,8 +1125,7 @@ const TheaterProductList = () => {
     // Debounce for search, immediate for others
     const delay = searchTerm ? 500 : 0;
     fetchTimeoutRef.current = setTimeout(loadData, delay);
-
-  }, [theaterId, currentPage, searchTerm, selectedCategory, statusFilter, stockFilter, fetchProducts, fetchCategories, fetchProductTypes]);
+  }, [theaterId, currentPage, searchTerm, selectedCategory, statusFilter, stockFilter, fetchProducts, fetchCategories, fetchKioskTypes, fetchProductTypes]);
 
   // ✅ REMOVED: Fetch stock balances whenever products change
   // The backend now returns real stock values from MonthlyStock directly in the product list
@@ -1100,14 +1135,14 @@ const TheaterProductList = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden && theaterId && isMountedRef.current) {
-        console.log('👁️ Page became visible - Refreshing products');
+
         fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter);
       }
     };
 
     const handleFocus = () => {
       if (theaterId && isMountedRef.current) {
-        console.log('🎯 Window gained focus - Refreshing products');
+
         fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter);
       }
     };
@@ -1160,57 +1195,68 @@ const TheaterProductList = () => {
   }, [navigate, theaterId]);
 
   const handleManageStock = useCallback((product) => {
-    console.log('🚀 STOCK NAVIGATION DEBUG:');
-    console.log('- Product name:', product.name);
-    console.log('- Product._id (MenuItem):', product._id);
-    console.log('- Product.productType:', product.productType);
-    console.log('- Full product object:', product);
-    console.log('- Navigation URL:', `/theater-stock-management/${theaterId}/${product._id}`);
-    
+
     navigate(`/theater-stock-management/${theaterId}/${product._id}`);
   }, [navigate, theaterId]);
 
-  // Handle Excel Download
+  const handleGenerateQR = useCallback(() => {
+    navigate(`/theater-generate-qr/${theaterId}`);
+  }, [navigate, theaterId]);
+
+  // Handle Excel Download - Current product list with filters
   const handleDownloadExcel = useCallback(async () => {
     try {
       setDownloadingExcel(true);
-      console.log('📊 Starting Excel download for stock data...');
-      
+
       const token = localStorage.getItem('authToken');
       if (!token) {
         modal.showError('Please login to download reports');
         return;
       }
 
-      // Build query parameters
-      const params = new URLSearchParams();
+      let apiUrl;
       
-      // Add date filter parameters
+      // If date filter is active with a specific date, export stock data for that date
       if (dateFilter.type === 'date' && dateFilter.selectedDate) {
-        params.append('date', dateFilter.selectedDate);
-      } else if (dateFilter.type === 'month') {
-        params.append('month', dateFilter.month);
-        params.append('year', dateFilter.year);
-      } else if (dateFilter.type === 'year') {
-        params.append('year', dateFilter.year);
-      } else if (dateFilter.type === 'range' && dateFilter.startDate && dateFilter.endDate) {
-        params.append('startDate', dateFilter.startDate);
-        params.append('endDate', dateFilter.endDate);
-      }
+        apiUrl = `${config.api.baseUrl}/theater-products/${theaterId}/export-stock-by-date?date=${dateFilter.selectedDate}`;
+      } 
+      // Otherwise, export product list with filters
+      else {
+        // Build query parameters matching current filters
+        const params = new URLSearchParams();
+        
+        if (searchTerm) {
+          params.append('search', searchTerm);
+        }
+        
+        if (selectedCategory && selectedCategory !== 'all') {
+          params.append('category', selectedCategory);
+        }
+        
+        if (statusFilter && statusFilter !== 'all') {
+          params.append('status', statusFilter);
+        }
+        
+        if (stockFilter && stockFilter !== 'all') {
+          params.append('stockStatus', stockFilter);
+        }
 
-      // Add filters
-      if (selectedCategory) {
-        params.append('category', selectedCategory);
-      }
-      if (statusFilter && statusFilter !== 'all') {
-        params.append('status', statusFilter);
-      }
-      if (stockFilter && stockFilter !== 'all') {
-        params.append('stockFilter', stockFilter);
-      }
+        // Add date filter parameters
+        if (dateFilter.type === 'month') {
+          params.append('month', dateFilter.month);
+          params.append('year', dateFilter.year);
+        } else if (dateFilter.type === 'year') {
+          params.append('year', dateFilter.year);
+          params.append('month', '1');
+        } else {
+          const now = new Date();
+          params.append('year', now.getFullYear());
+          params.append('month', now.getMonth() + 1);
+        }
 
-      const apiUrl = `${config.api.baseUrl}/theater-stock/excel/${theaterId}?${params.toString()}`;
-      console.log('📊 Downloading Excel from:', apiUrl);
+        // Use endpoint to export product list
+        apiUrl = `${config.api.baseUrl}/theater-products/${theaterId}/export-excel?${params.toString()}`;
+      }
 
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -1220,18 +1266,16 @@ const TheaterProductList = () => {
         }
       });
 
-      console.log('📊 Response status:', response.status);
 
       if (response.status === 401 || response.status === 403) {
-        console.error('❌ Authentication failed');
+
         modal.showError('Session expired. Please login again.');
         return;
       }
 
       if (response.ok) {
         const blob = await response.blob();
-        console.log('📊 Blob size:', blob.size, 'bytes');
-        
+
         if (blob.size === 0) {
           modal.showError('No data available to export');
           return;
@@ -1240,35 +1284,55 @@ const TheaterProductList = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const dateStr = dateFilter.type === 'date' && dateFilter.selectedDate 
-          ? `_${dateFilter.selectedDate}` 
-          : dateFilter.type === 'month' 
-          ? `_${dateFilter.year}-${String(dateFilter.month).padStart(2, '0')}`
-          : '';
-        a.download = `Product_Stock${dateStr}_${Date.now()}.xlsx`;
+        
+        // Generate filename based on selected filters
+        const now = new Date();
+        let filename = 'Theater_Products';
+        
+        // If exporting stock data for a specific date
+        if (dateFilter.type === 'date' && dateFilter.selectedDate) {
+          filename = `Stock_Report_${dateFilter.selectedDate}`;
+        } else {
+          if (selectedCategory && selectedCategory !== 'all') {
+            filename += `_${selectedCategory}`;
+          }
+          
+          if (searchTerm) {
+            filename += `_Search`;
+          }
+          
+          filename += `_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        }
+        
+        a.download = `${filename}.xlsx`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
         
-        console.log('✅ Excel downloaded successfully');
+        // Show appropriate success message
+        if (dateFilter.type === 'date' && dateFilter.selectedDate) {
+          modal.showSuccess('Stock report downloaded successfully!');
+        } else {
+          modal.showSuccess('Product list downloaded successfully!');
+        }
       } else {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
-          console.error('❌ Error response:', errorData);
+
           modal.showError(errorData.error || `Failed to download Excel report (${response.status})`);
         } else {
           modal.showError(`Failed to download Excel report (${response.status})`);
         }
       }
     } catch (error) {
-      console.error('❌ Error downloading Excel report:', error);
+
       modal.showError('Network error. Please check your connection and try again.');
     } finally {
       setDownloadingExcel(false);
     }
-  }, [theaterId, selectedCategory, statusFilter, stockFilter, dateFilter, modal]);
+  }, [theaterId, selectedCategory, statusFilter, stockFilter, dateFilter, searchTerm, modal]);
 
   const handleViewProduct = useCallback((product) => {
     const currentIndex = products.findIndex(p => p._id === product._id);
@@ -1300,6 +1364,7 @@ const TheaterProductList = () => {
     setEditFormData({
       name: product.name || '',
       category: product.categoryId?._id || product.categoryId || product.category?._id || product.category || '',
+      kioskType: product.kioskType || '',
       subcategory: product.subcategory || '',
       productType: product.productTypeId?._id || product.productTypeId || product.productType?._id || product.productType || '',
       description: product.description || '',
@@ -1356,7 +1421,7 @@ const TheaterProductList = () => {
         type: 'success'
       });
     } catch (error) {
-      console.error('Error deleting product:', error);
+
       modal.alert({
         title: 'Error',
         message: 'Failed to delete product',
@@ -1487,23 +1552,7 @@ const TheaterProductList = () => {
                 <h1>Product Management</h1>
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <button 
-                  className="submit-btn date-filter-btn"
-                  onClick={() => setShowDateFilterModal(true)}
-                  style={{
-                    backgroundColor: '#8B5CF6',
-                    padding: '10px 16px',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  <span className="btn-icon">📅</span>
-                  {dateFilter.type === 'all' ? 'Date Filter' : 
-                   dateFilter.type === 'date' ? `${new Date(dateFilter.selectedDate).toLocaleDateString()}` :
-                   dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
-                   dateFilter.type === 'year' ? `${dateFilter.year}` :
-                   dateFilter.type === 'range' ? `${new Date(dateFilter.startDate).toLocaleDateString()} - ${new Date(dateFilter.endDate).toLocaleDateString()}` :
-                   'Date Filter'}
-                </button>
+              
                 <button 
                   onClick={handleAddProduct}
                   className="add-theater-btn"
@@ -1555,17 +1604,26 @@ const TheaterProductList = () => {
               </div>
 
               <button 
+                className="submit-btn date-filter-btn"
+                onClick={() => setShowDateFilterModal(true)}
+                style={{
+                  backgroundColor: '#8B5CF6',
+                  padding: '10px 16px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span className="btn-icon">📅</span>
+                {dateFilter.type === 'all' ? 'Current Date' : 
+                 dateFilter.type === 'date' ? `${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')}` :
+                 'Current Date'}
+              </button>
+
+              <button 
                 type="button"
                 className="submit-btn excel-download-btn"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  console.log('🟢 EXCEL BUTTON CLICKED!', { 
-                    downloadingExcel, 
-                    loading, 
-                    theaterId,
-                    disabled: downloadingExcel || loading 
-                  });
                   handleDownloadExcel();
                 }}
                 disabled={downloadingExcel || loading}
@@ -1575,47 +1633,13 @@ const TheaterProductList = () => {
                   opacity: downloadingExcel || loading ? 0.6 : 1,
                   pointerEvents: downloadingExcel || loading ? 'none' : 'auto',
                   minWidth: '100px',
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   whiteSpace: 'nowrap'
                 }}
               >
                 <span className="btn-icon">{downloadingExcel ? '⏳' : '📊'}</span>
                 {downloadingExcel ? 'Downloading...' : 'Excel'}
               </button>
-
-              <select
-                value={selectedCategory}
-                onChange={handleCategoryChange}
-                className="status-filter"
-              >
-                <option value="">All Categories</option>
-                {categories.map(category => (
-                  <option key={category._id} value={category._id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={statusFilter}
-                onChange={handleStatusFilterChange}
-                className="status-filter"
-              >
-                <option value="all">All Status</option>
-                <option value="live">LIVE Products</option>
-                <option value="offline">OFFLINE Products</option>
-              </select>
-
-              <select
-                value={stockFilter}
-                onChange={handleStockFilterChange}
-                className="status-filter"
-              >
-                <option value="all">All Stock</option>
-                <option value="in-stock">In Stock</option>
-                <option value="low-stock">Low Stock</option>
-                <option value="out-of-stock">Out of Stock</option>
-              </select>
 
               <span className="results-count">
                 {products.length} of {totalItems} products
@@ -1671,6 +1695,7 @@ const TheaterProductList = () => {
                         <th>Image</th>
                         <th>Product Name</th>
                         <th>Category</th>
+                        <th>Kiosk Type</th>
                         <th>Price</th>
                         <th>Quantity</th>
                         <th>Stock</th>
@@ -1689,6 +1714,7 @@ const TheaterProductList = () => {
                             index={index}
                             theaterId={theaterId}
                             categories={categories}
+                            kioskTypes={kioskTypes}
                             productToggleStates={productToggleStates}
                             toggleInProgress={toggleInProgress}
                             onView={handleViewProduct}
@@ -1780,6 +1806,20 @@ const TheaterProductList = () => {
                     <input 
                       type="text" 
                       value={categoryDisplayName} 
+                      className="form-control"
+                      readOnly
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Kiosk Type</label>
+                    <input 
+                      type="text" 
+                      value={(() => {
+                        if (!viewModal.product?.kioskType) return '—';
+                        if (!Array.isArray(kioskTypes) || kioskTypes.length === 0) return '—';
+                        const found = kioskTypes.find(kt => String(kt._id) === String(viewModal.product.kioskType));
+                        return found?.name || '—';
+                      })()} 
                       className="form-control"
                       readOnly
                     />
@@ -1945,7 +1985,7 @@ const TheaterProductList = () => {
                         if (productImage) {
                           return (
                             <>
-                              <img 
+                              <InstantImage
                                 src={productImage} 
                                 alt={viewModal.product?.name || 'Product'}
                                 style={{
@@ -2062,6 +2102,22 @@ const TheaterProductList = () => {
                       {categories.map((cat) => (
                         <option key={cat._id} value={cat._id}>
                           {cat.categoryName || cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Kiosk Type</label>
+                    <select
+                      value={editFormData.kioskType || ''}
+                      onChange={(e) => handleEditFormChange('kioskType', e.target.value)}
+                      className="form-control"
+                    >
+                      <option value="">Select kiosk type...</option>
+                      {kioskTypes.map((kt) => (
+                        <option key={kt._id} value={kt._id}>
+                          {kt.name}
                         </option>
                       ))}
                     </select>
@@ -2360,11 +2416,17 @@ const TheaterProductList = () => {
             isOpen={showDateFilterModal}
             onClose={() => setShowDateFilterModal(false)}
             onApply={(filter) => {
-              console.log('📅 Date filter applied:', filter);
-              setDateFilter(filter);
+              // Only allow date type, reset to current date if trying other types
+              const dateOnlyFilter = {
+                ...filter,
+                type: 'date',
+                selectedDate: filter.selectedDate || new Date().toISOString().split('T')[0]
+              };
+              setDateFilter(dateOnlyFilter);
               setShowDateFilterModal(false);
             }}
-            currentFilter={dateFilter}
+            initialFilter={dateFilter}
+            dateOnly={true}
           />
         )}
       </TheaterLayout>

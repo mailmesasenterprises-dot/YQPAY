@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import './LoginHowItWorksSlider.css';
+import CachedImage from './CachedImage'; // Global image caching
+import '../styles/components/LoginHowItWorksSlider.css';
 
 // Import first 5 images from How It Works
 import scanQRImage from '../home/images/Scan QR Code.jpg';
@@ -38,7 +39,7 @@ const LoginHowItWorksSlider = () => {
             key={image.id}
             className={`login-slider-image ${activeStep === index ? 'active' : ''}`}
           >
-            <img src={image.src} alt={image.alt} />
+            <CachedImage src={image.src} alt={image.alt} />
           </div>
         ))}
       </div>

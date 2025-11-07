@@ -45,11 +45,9 @@ function TheaterReports() {
         const data = await response.json();
         setMyStats(data.stats);
       } else {
-        console.error('Failed to fetch stats');
-      }
+  }
     } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
+  }
   };
 
   // ✅ Download Full Report (Theater Admin only)
@@ -93,7 +91,7 @@ function TheaterReports() {
         setError(errorData.error || 'Failed to download report');
       }
     } catch (error) {
-      console.error('Error downloading report:', error);
+
       setError('Failed to download report. Please try again.');
     } finally {
       setLoading(false);
@@ -140,7 +138,7 @@ function TheaterReports() {
         setError(errorData.error || 'Failed to download Excel report');
       }
     } catch (error) {
-      console.error('Error downloading Excel report:', error);
+
       setError('Failed to download Excel report. Please try again.');
     } finally {
       setLoading(false);
@@ -188,7 +186,7 @@ function TheaterReports() {
         setError(errorData.error || 'Failed to download report');
       }
     } catch (error) {
-      console.error('Error downloading report:', error);
+
       setError('Failed to download report. Please try again.');
     } finally {
       setLoading(false);

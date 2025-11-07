@@ -40,28 +40,26 @@ class ApiService {
     };
 
     try {
-      console.log(`🌐 API Request: ${options.method || 'GET'} ${url}`);
-      
+
       const response = await fetch(url, config);
       
-      console.log(`📡 API Response: ${response.status} ${response.statusText}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ 
           error: 'Network error', 
           message: response.statusText 
         }));
         
-        console.error('❌ API Error:', errorData);
+
         throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('✅ API Success:', data.success ? 'Data received' : 'Response received');
+
       return data;
       
     } catch (error) {
-      console.error(`🔥 API Request Failed: ${options.method || 'GET'} ${url}`, error);
+
       throw error;
     }
   }

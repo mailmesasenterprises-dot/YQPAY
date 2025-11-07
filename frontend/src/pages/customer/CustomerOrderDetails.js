@@ -37,14 +37,6 @@ const CustomerOrderDetails = () => {
         order.customerInfo?.phone === phoneNumber
       );
 
-      console.log('📦 Found Order:', foundOrder);
-      console.log('💰 Order Totals:', {
-        subtotal: foundOrder?.subtotal,
-        tax: foundOrder?.tax,
-        total: foundOrder?.total,
-        totalDiscount: foundOrder?.totalDiscount
-      });
-      console.log('🛒 Order Items:', foundOrder?.items);
 
       if (!foundOrder) throw new Error('Order not found');
       setOrder(foundOrder);

@@ -39,8 +39,7 @@ const ProtectedRoute = ({ children }) => {
 
   // If no access and we have a first accessible page, redirect
   if (!hasAccess && firstAccessiblePage) {
-    console.log('🚫 Redirecting to first accessible page:', firstAccessiblePage);
-    return <Navigate to={firstAccessiblePage} replace />;
+  return <Navigate to={firstAccessiblePage} replace />;
   }
 
   // If no access and no first accessible page, show error

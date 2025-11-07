@@ -62,7 +62,7 @@ const RoleAccessManagement = () => {
   // Load active pages from pageaccesses collection database for specific theater
   const loadActivePages = useCallback(async () => {
     if (!theaterId) {
-      console.warn('⚠️ No theaterId provided, cannot load pages');
+
       setActivePages([]);
       return [];
     }
@@ -79,8 +79,7 @@ const RoleAccessManagement = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 Page access response for theater:', theaterId, data);
-        
+
         // ✅ NEW: Backend returns data.data.pageAccessList (array-based structure per theater)
         if (data.success && data.data && data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
           const pages = data.data.pageAccessList
@@ -91,11 +90,11 @@ const RoleAccessManagement = () => {
               description: pageAccess.description || `Access to ${pageAccess.pageName}`,
               route: pageAccess.route
             }));
-          console.log(`✅ Active pages loaded for theater ${theaterId}:`, pages.length);
+
           setActivePages(pages);
           return pages;
         } else {
-          console.warn('⚠️ No page access data found for this theater:', data);
+
           setActivePages([]);
           return [];
         }
@@ -103,7 +102,7 @@ const RoleAccessManagement = () => {
         throw new Error(`HTTP ${response.status}: Failed to fetch pages from database`);
       }
     } catch (error) {
-      console.error('❌ Error loading active pages:', error);
+
       setActivePages([]);
       return [];
     }
@@ -135,17 +134,16 @@ const RoleAccessManagement = () => {
       }
       
       const data = await response.json();
-      console.log('🏢 Theater API response:', data);
-      
+
       // ✅ FIX: Backend returns data.data, not data.theater
       if (data.success && data.data) {
-        console.log('✅ Theater loaded:', data.data.name || data.data.theaterName);
+
         setTheater(data.data);
       } else {
         throw new Error('Theater not found');
       }
     } catch (error) {
-      console.error('❌ Theater fetch error:', error);
+
       showError(`Failed to load theater details: ${error.message}`);
       setTheater(null);
     } finally {
@@ -243,8 +241,7 @@ const RoleAccessManagement = () => {
       if (theaterId && theaterId !== 'null' && theaterId !== 'undefined') {
         url += `&theaterId=${theaterId}`;
       } else {
-        console.log('🔒 SECURITY: Loading global roles only (no theater specified)');
-      }
+  }
       
       const response = await fetch(url, {
         method: 'GET',
@@ -310,11 +307,7 @@ const RoleAccessManagement = () => {
   };
 
   const editRolePermission = (role) => {
-    console.log('🔧 Edit role permission called');
-    console.log('📝 Role:', role.name, 'ID:', role._id);
-    console.log('📊 Active pages available:', activePages.length);
-    console.log('🔒 Role permissions:', role.permissions?.length || 0);
-    
+
     // Check if active pages are loaded
     if (activePages.length === 0) {
       showError('Page permissions are still loading. Please wait a moment and try again.');
@@ -333,8 +326,7 @@ const RoleAccessManagement = () => {
       };
     });
     
-    console.log('✅ Prepared permissions:', permissions.length);
-    
+
     setFormData({
       roleId: role._id,
       permissions: permissions
@@ -372,8 +364,7 @@ const RoleAccessManagement = () => {
   // Submit handler for create/edit
   const handleSubmitRolePermission = async (isEdit = false) => {
     const startTime = Date.now();
-    console.log('🚀 [ROLE UPDATE] Starting at', new Date().toISOString());
-    
+
     try {
       // For editing role permissions, we update the role's permissions array
       if (isEdit && selectedRolePermission) {
@@ -384,15 +375,7 @@ const RoleAccessManagement = () => {
           permissions: formData.permissions
         };
         
-        console.log('📤 Updating role permissions:', {
-          roleId: selectedRolePermission._id,
-          roleName: selectedRolePermission.name,
-          isDefault: selectedRolePermission.isDefault,
-          permissionsCount: formData.permissions.length,
-          url: url,
-          hasAuthToken: !!localStorage.getItem('authToken')
-        });
-        
+
         const fetchStartTime = Date.now();
         const response = await fetch(url, {
           method: 'PUT',
@@ -407,13 +390,11 @@ const RoleAccessManagement = () => {
         });
         const fetchDuration = Date.now() - fetchStartTime;
         
-        console.log(`⏱️ Fetch completed in ${fetchDuration}ms, status: ${response.status}`);
-        
+
         if (response.ok) {
           const data = await response.json();
           
-          console.log('✅ Role permissions updated successfully:', data);
-          
+
           // Reload the role permissions data to get the latest state from server
           await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
           
@@ -439,12 +420,7 @@ const RoleAccessManagement = () => {
         } else {
           const errorData = await response.json();
           
-          console.error('❌ Failed to update role permissions:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData: errorData
-          });
-          
+
           // ✅ Enhanced error messages based on status code
           if (response.status === 401) {
             showError('Authentication required. Please login again.');
@@ -476,11 +452,7 @@ const RoleAccessManagement = () => {
         setShowCreateModal(false);
       }
     } catch (error) {
-      console.error('❌ Error saving role permissions:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack
-      });
+
       showError(`Failed to save role permissions: ${error.message}. Please check your internet connection and try again.`);
     }
   };
@@ -756,7 +728,7 @@ const RoleAccessManagement = () => {
                       className="form-control"
                     >
                       <option value="">Select a role...</option>
-                      {console.log('🔍 activeRoles in dropdown:', activeRoles) || activeRoles.map((role) => (
+                      {activeRoles.map((role) => (
                         <option key={role._id} value={role._id}>
                           {role.name}
                         </option>

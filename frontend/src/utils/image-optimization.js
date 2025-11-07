@@ -301,13 +301,11 @@ export const imagePerformanceMonitor = {
       const loadTime = performance.now() - startTime;
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`🖼️ Image loaded: ${imageUrl.split('/').pop()} - ${loadTime.toFixed(2)}ms`);
-      }
+  }
       
       // Log slow images
       if (loadTime > 2000) {
-        console.warn(`🐌 Slow image load: ${imageUrl} - ${loadTime.toFixed(2)}ms`);
-      }
+  }
       
       return loadTime;
     };
@@ -322,8 +320,7 @@ export const imagePerformanceMonitor = {
     const oversizeRatio = naturalSize / displaySize;
     
     if (oversizeRatio > 2) {
-      console.warn(`📏 Oversized image detected: ${img.src} - ${oversizeRatio.toFixed(2)}x larger than display size`);
-    }
+  }
     
     return {
       naturalSize,

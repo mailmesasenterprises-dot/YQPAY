@@ -4,9 +4,6 @@ const TheaterUserArray = require('../models/TheaterUserArray');
 const bcrypt = require('bcryptjs');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { body, validationResult, param, query } = require('express-validator');
-
-console.log('🔧 TheaterUserArray routes file loaded successfully!');
-
 /**
  * @route   GET /api/theater-users-array
  * @desc    Get theater users for a theater (array-based structure)
@@ -21,13 +18,10 @@ router.get('/', [
   query('search').optional().isString().withMessage('Search must be string')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/theater-users-array - Request received');
-    console.log('Query params:', req.query);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -51,11 +45,8 @@ router.get('/', [
       search,
       isActive: isActive !== undefined ? isActive === 'true' : undefined
     });
-
-    console.log(`✅ Found ${result.users.length} users for theater ${theaterId}`);
-    console.log('🔢 First user PIN check:', result.users.length > 0 ? result.users[0].pin : 'No users');
     if (result.users.length > 0) {
-      console.log('📦 First user object:', JSON.stringify(result.users[0], null, 2));
+
     }
 
     res.json({
@@ -98,8 +89,7 @@ router.post('/', [
   body('isEmailVerified').optional().isBoolean().withMessage('isEmailVerified must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 POST /api/theater-users-array - Create user (theaterId in body)');
-    
+
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -125,28 +115,11 @@ router.post('/', [
       profileImage = null
     } = req.body;
 
-    console.log('🔍 Creating user with data:', {
-      theaterId,
-      username: username.trim(),
-      email: email.trim(),
-      fullName: fullName.trim(),
-      phoneNumber: phoneNumber.trim(),
-      role,
-      isActive,
-      isEmailVerified
-    });
-
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log('✅ Password hashed');
-
     // Find or create users document for theater
-    console.log('🔍 Finding or creating users document for theater:', theaterId);
     let usersDoc = await TheaterUserArray.findOrCreateByTheater(theaterId);
-    console.log('✅ Users document found/created. Current users:', usersDoc.users.length);
-
     // Add new user
-    console.log('🔍 Adding new user to array...');
     const newUser = await usersDoc.addUser({
       username: username.trim(),
       email: email.trim(),
@@ -161,13 +134,8 @@ router.post('/', [
       profileImage,
       createdBy: req.user?.userId || null
     });
-    console.log('✅ User added to array with PIN:', newUser.pin);
-
     // Populate theater info (field is theaterId, not theater)
     await usersDoc.populate('theaterId', 'name location');
-
-    console.log(`✅ User "${username}" created for theater ${theaterId}`);
-
     res.status(201).json({
       success: true,
       message: 'Theater user created successfully',
@@ -218,8 +186,6 @@ router.put('/:userId', [
   body('isEmailVerified').optional().isBoolean().withMessage('isEmailVerified must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📝 PUT /api/theater-users-array/:userId - Update user');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -252,9 +218,6 @@ router.put('/:userId', [
 
     // Populate theater info
     await usersDoc.populate('theaterId', 'name location');
-
-    console.log(`✅ User ${userId} updated successfully`);
-
     res.json({
       success: true,
       message: 'Theater user updated successfully',
@@ -287,8 +250,6 @@ router.delete('/:userId', [
   query('permanent').optional().isBoolean().withMessage('Permanent must be boolean')
 ], async (req, res) => {
   try {
-    console.log('🗑️ DELETE /api/theater-users-array/:userId - Delete user');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -317,11 +278,10 @@ router.delete('/:userId', [
     if (permanent === 'false') {
       // Soft deletion (deactivate) - only if explicitly requested
       result = await usersDoc.deleteUser(userId);
-      console.log(`✅ User ${userId} deactivated (soft delete)`);
+
     } else {
       // Permanent deletion (default) - remove from array
       result = await usersDoc.permanentDeleteUser(userId);
-      console.log(`✅ User ${userId} permanently deleted from array`);
     }
 
     // Populate theater info
@@ -357,8 +317,6 @@ router.get('/:userId', [
   query('theaterId').isMongoId().withMessage('Valid theater ID is required')
 ], async (req, res) => {
   try {
-    console.log('📋 GET /api/theater-users-array/:userId - Get specific user');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -389,9 +347,6 @@ router.get('/:userId', [
         message: 'User not found'
       });
     }
-
-    console.log(`✅ User ${userId} found`);
-
     res.json({
       success: true,
       data: {
@@ -422,8 +377,6 @@ router.post('/:userId/login', [
   body('theaterId').isMongoId().withMessage('Valid theater ID is required')
 ], async (req, res) => {
   try {
-    console.log('🔐 POST /api/theater-users-array/:userId/login - Update last login');
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -448,9 +401,6 @@ router.post('/:userId/login', [
 
     // Update last login
     const updatedUser = await usersDoc.updateLastLogin(userId);
-
-    console.log(`✅ Last login updated for user ${userId}`);
-
     res.json({
       success: true,
       message: 'Last login updated successfully',

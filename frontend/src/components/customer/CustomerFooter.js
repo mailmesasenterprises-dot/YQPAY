@@ -24,8 +24,7 @@ const CustomerFooter = ({
         return Array.isArray(items) ? items.reduce((total, item) => total + (item.quantity || 0), 0) : 0;
       }
     } catch (error) {
-      console.error('Error reading cart for footer display:', error);
-    }
+  }
     return 0;
   });
 

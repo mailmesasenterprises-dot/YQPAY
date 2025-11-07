@@ -68,9 +68,8 @@ const MonthSelector = ({
           onMonthChange(Math.max(...data.data.availableMonths));
         }
       }
+  } catch (error) {
 
-    } catch (error) {
-      console.error('❌ Error fetching available months:', error);
       setError('Failed to load available months');
     } finally {
       setLoading(false);

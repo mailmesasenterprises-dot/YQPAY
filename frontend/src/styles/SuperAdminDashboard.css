@@ -7,6 +7,9 @@
   padding: 0;
   width: 100%;
   max-width: 100%;
+  background: var(--background-light);
+  min-height: 100vh;
+  position: relative;
 }
 
 /* ============================================
@@ -21,6 +24,9 @@
   justify-content: center;
   min-height: 400px;
   text-align: center;
+  background: var(--background-light);
+  position: relative;
+  z-index: 2;
 }
 
 .sadmin-spinner {
@@ -114,7 +120,13 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
-.sadmin-stat-card:hover {
+/* Remove hover effect from Total Theaters card */
+.sadmin-card-logout {
+  transition: none;
+  cursor: default;
+}
+
+.sadmin-stat-card:not(.sadmin-card-logout):hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }

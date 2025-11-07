@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import './VerticalPageHeader.css';
+import '../styles/components/VerticalPageHeader.css';
 
 const VerticalPageHeader = ({
   title,

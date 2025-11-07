@@ -10,9 +10,6 @@ const router = express.Router();
 router.get('/:theaterId', authenticateToken, async (req, res) => {
   try {
     const { theaterId } = req.params;
-    
-    console.log(`🎭 Fetching dashboard data for theater: ${theaterId}`);
-    
     // TODO: Implement proper data fetching from database
     // For now, return mock data to test the connection
     
@@ -44,18 +41,13 @@ router.get('/:theaterId', authenticateToken, async (req, res) => {
     let theater = null;
     try {
       theater = await Theater.findById(theaterId).select('name email phone address');
-      console.log(`✅ Found theater: ${theater?.name || 'Unknown'}`);
     } catch (dbError) {
-      console.log(`⚠️ Could not fetch theater from DB: ${dbError.message}`);
       theater = {
         _id: theaterId,
         name: 'Demo Theater',
         email: 'demo@theater.com'
       };
     }
-    
-    console.log(`📊 Returning dashboard data for theater: ${theater?.name}`);
-    
     res.json({
       success: true,
       stats,

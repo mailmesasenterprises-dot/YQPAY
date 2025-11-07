@@ -38,25 +38,20 @@ export const AuthProvider = ({ children }) => {
           const parsedUser = JSON.parse(userData);
           const parsedRolePermissions = storedRolePermissions ? JSON.parse(storedRolePermissions) : [];
           
-          console.log('� AUTH: Restoring session from localStorage');
-          console.log('👤 User:', parsedUser.username || parsedUser.name);
-          console.log('🎭 Role:', storedUserType);
-          console.log('🏢 Theater ID:', storedTheaterId);
-          
+
           setUser(parsedUser);
           setUserType(storedUserType || 'admin');
           setTheaterId(storedTheaterId);
           setRolePermissions(parsedRolePermissions);
           setIsAuthenticated(true);
           
-          console.log('✅ AUTH: Session restored successfully');
-          
+
           // Optional: Validate token in background (don't block UI or logout on failure)
           // This is fire-and-forget - if it fails, user stays logged in
           validateTokenInBackground(token);
           
         } catch (parseError) {
-          console.error('❌ AUTH: Failed to parse session data:', parseError);
+
           // Only clear if data is corrupted
           localStorage.removeItem('authToken');
           localStorage.removeItem('user');
@@ -66,7 +61,7 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(false);
         }
       } else {
-        console.log('ℹ️ AUTH: No saved session found');
+
         setIsAuthenticated(false);
       }
       
@@ -91,14 +86,13 @@ export const AuthProvider = ({ children }) => {
         clearTimeout(timeoutId);
         
         if (!response.ok) {
-          console.warn('⚠️ AUTH: Token validation failed in background (user remains logged in)');
+
           // Don't logout - just log the warning
           // User will be logged out when they try to make an API call
         } else {
-          console.log('✅ AUTH: Token validated successfully in background');
-        }
+  }
       } catch (error) {
-        console.warn('⚠️ AUTH: Background token validation error:', error.message);
+
         // Don't logout on network errors - user stays authenticated
       }
     };

@@ -1,6 +1,6 @@
 import React from 'react';
 import useNetworkStatus from '../hooks/useNetworkStatus';
-import './OfflineNotice.css';
+import '../styles/components/OfflineNotice.css';
 
 /**
  * Component that displays an offline notice banner when network is unavailable

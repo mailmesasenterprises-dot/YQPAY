@@ -57,14 +57,15 @@ async function fetchLogo(logoUrl) {
 async function getQRSettings(theaterId, logoType = 'default') {
   try {
     let logoUrl = null;
-    let primaryColor = '#6B0E9B'; // Default color
+    let primaryColor = '#000000'; // Default color - BLACK for QR codes
 
     if (logoType === 'theater' && theaterId) {
-      // Get theater-specific logo and color
+      // Get theater-specific logo
       const theater = await Theater.findById(theaterId);
       if (theater) {
         logoUrl = theater.logoUrl;
-        primaryColor = theater.primaryColor || primaryColor;
+        // Always use black for QR codes regardless of theater branding
+        primaryColor = '#000000';
       }
     } else {
       // Get default logo from general settings
@@ -77,21 +78,14 @@ async function getQRSettings(theaterId, logoType = 'default') {
         logoUrl = qrImageSetting.value;
       }
       
-      // Get primary color from branding settings
-      const colorSetting = await Settings.findOne({ 
-        category: 'branding', 
-        key: 'primaryColor' 
-      });
-      
-      if (colorSetting && colorSetting.value) {
-        primaryColor = colorSetting.value;
-      }
+      // Always use black for QR codes
+      primaryColor = '#000000';
     }
 
     return { logoUrl, primaryColor };
   } catch (error) {
     console.warn('Failed to get QR settings:', error.message);
-    return { logoUrl: null, primaryColor: '#6B0E9B' };
+    return { logoUrl: null, primaryColor: '#000000' };
   }
 }
 
@@ -191,7 +185,6 @@ async function uploadQRCode(buffer, filename, folder) {
       await fs.writeFile(filePath, buffer);
       
       const localUrl = `/uploads/qr-codes/${folder}/${filename}`;
-      console.log(`✅ QR code saved locally: ${localUrl}`);
       return localUrl;
     } catch (localError) {
       console.error('Local save failed:', localError);
@@ -213,26 +206,16 @@ async function generateSingleQRCode({
   logoUrl,
   logoType,
   userId,
-  baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001'
+  baseUrl = process.env.FRONTEND_URL || 'https://yqpay-78918378061.us-central1.run.app'
 }) {
   try {
-    console.log('🎯 Generating single QR code:', { theaterId, qrName, seatClass, logoType });
-
     // Get QR settings (logo and color)
     const settings = await getQRSettings(theaterId, logoType);
     const finalLogoUrl = logoUrl || settings.logoUrl;
     const primaryColor = settings.primaryColor;
-    
-    console.log('📋 QR Settings:', { 
-      logoUrl: finalLogoUrl, 
-      primaryColor,
-      logoType 
-    });
-
     // Fetch logo if available
     const logoBuffer = finalLogoUrl ? await fetchLogo(finalLogoUrl) : null;
     if (logoBuffer) {
-      console.log('✅ Logo loaded:', logoBuffer.length, 'bytes');
     }
 
     // Create QR code data (URL that will be embedded in QR)
@@ -242,7 +225,7 @@ async function generateSingleQRCode({
     const imageBuffer = await generateQRCodeImage(qrCodeData, {
       width: 500,
       margin: 2,
-      darkColor: primaryColor, // Use primary color for QR code
+      darkColor: primaryColor, // Always black (#000000) for standard QR codes
       lightColor: '#FFFFFF',
       logoBuffer: logoBuffer
     });
@@ -279,9 +262,6 @@ async function generateSingleQRCode({
     });
     
     await screenQRCode.save();
-    
-    console.log('✅ Single QR code generated:', screenQRCode._id);
-    
     return {
       success: true,
       qrCode: screenQRCode,
@@ -307,17 +287,9 @@ async function generateScreenQRCodes({
   logoUrl,
   logoType,
   userId,
-  baseUrl = process.env.FRONTEND_URL || 'http://localhost:3001'
+  baseUrl = process.env.FRONTEND_URL || 'https://yqpay-78918378061.us-central1.run.app'
 }) {
   try {
-    console.log('🎬 Generating screen QR codes:', { 
-      theaterId, 
-      qrName, 
-      seatClass, 
-      seatCount: selectedSeats.length,
-      logoType
-    });
-
     if (!selectedSeats || selectedSeats.length === 0) {
       throw new Error('No seats selected for screen QR code generation');
     }
@@ -326,17 +298,9 @@ async function generateScreenQRCodes({
     const settings = await getQRSettings(theaterId, logoType);
     const finalLogoUrl = logoUrl || settings.logoUrl;
     const primaryColor = settings.primaryColor;
-    
-    console.log('📋 QR Settings:', { 
-      logoUrl: finalLogoUrl, 
-      primaryColor,
-      logoType 
-    });
-
     // Fetch logo if available (reuse for all QR codes)
     const logoBuffer = finalLogoUrl ? await fetchLogo(finalLogoUrl) : null;
     if (logoBuffer) {
-      console.log('✅ Logo loaded:', logoBuffer.length, 'bytes');
     }
 
     // Generate batch ID for grouping
@@ -359,7 +323,7 @@ async function generateScreenQRCodes({
         const imageBuffer = await generateQRCodeImage(qrCodeData, {
           width: 500,
           margin: 2,
-          darkColor: primaryColor, // Use primary color for QR code
+          darkColor: primaryColor, // Always black (#000000) for standard QR codes
           lightColor: '#FFFFFF',
           logoBuffer: logoBuffer
         });
@@ -398,16 +362,11 @@ async function generateScreenQRCodes({
         
         await screenQRCode.save();
         generatedQRCodes.push(screenQRCode);
-        
-        console.log(`✅ QR code generated for seat: ${seat}`);
       } catch (seatError) {
         console.error(`❌ Failed to generate QR for seat ${seat}:`, seatError);
         // Continue with other seats even if one fails
       }
     }
-
-    console.log(`✅ Screen QR codes generated: ${generatedQRCodes.length} of ${selectedSeats.length}`);
-    
     return {
       success: true,
       qrCodes: generatedQRCodes,

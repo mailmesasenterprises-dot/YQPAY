@@ -11,9 +11,9 @@ export const ensureAuthentication = () => {
   const currentToken = localStorage.getItem('authToken');
   
   if (!currentToken) {
-    console.log('🔧 ensureAuthentication: Setting working token...');
+
     localStorage.setItem('authToken', WORKING_AUTH_TOKEN);
-    console.log('✅ ensureAuthentication: Token set successfully');
+
     return WORKING_AUTH_TOKEN;
   }
   
@@ -37,7 +37,7 @@ export const getAuthHeaders = () => {
  */
 export const handleAuthError = async (response, originalRequest) => {
   if (response.status === 401) {
-    console.log('🔄 handleAuthError: Token expired, refreshing...');
+
     localStorage.setItem('authToken', WORKING_AUTH_TOKEN);
     
     // Retry the original request with new token
@@ -51,7 +51,7 @@ export const handleAuthError = async (response, originalRequest) => {
     });
     
     if (retryResponse.ok) {
-      console.log('✅ handleAuthError: Retry successful');
+
       return retryResponse;
     }
   }

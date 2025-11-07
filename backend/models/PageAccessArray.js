@@ -168,12 +168,9 @@ pageAccessArraySchema.pre('save', function(next) {
  * Static method: Find or create by theater ID
  */
 pageAccessArraySchema.statics.findOrCreateByTheater = async function(theaterId) {
-  console.log('🔍 findOrCreateByTheater - Model collection name:', this.collection.name);
-  
   let pageAccessDoc = await this.findOne({ theater: theaterId });
   
   if (!pageAccessDoc) {
-    console.log('📝 Creating new PageAccessArray document for theater:', theaterId);
     pageAccessDoc = new this({
       theater: theaterId,
       pageAccessList: [],
@@ -184,11 +181,8 @@ pageAccessArraySchema.statics.findOrCreateByTheater = async function(theaterId) 
         lastUpdated: new Date()
       }
     });
-    console.log('💾 Saving to collection:', pageAccessDoc.collection.name);
     await pageAccessDoc.save();
-    console.log('✅ Document saved successfully');
   } else {
-    console.log('✅ Found existing document in collection:', pageAccessDoc.collection.name);
   }
   
   return pageAccessDoc;
@@ -276,15 +270,13 @@ pageAccessArraySchema.statics.getByTheater = async function(theaterId, options =
  * Instance method: Add page to theater
  */
 pageAccessArraySchema.methods.addPage = async function(pageData) {
-  console.log('🔍 addPage method called with:', JSON.stringify(pageData, null, 2));
-  
+
   // Check if page already exists
   const exists = this.pageAccessList.find(p => 
     p.page === pageData.page
   );
   
   if (exists) {
-    console.log('⚠️ Page already exists, updating instead...');
     // Update existing page
     Object.assign(exists, pageData);
     exists.updatedAt = new Date();
@@ -297,12 +289,9 @@ pageAccessArraySchema.methods.addPage = async function(pageData) {
     };
     
     this.pageAccessList.push(newPage);
-    console.log('✅ Page added to array');
   }
   
   await this.save();
-  console.log('💾 Document saved');
-  
   return this.pageAccessList[this.pageAccessList.length - 1];
 };
 
@@ -314,9 +303,6 @@ pageAccessArraySchema.methods.updatePage = async function(pageId, updateData) {
   if (!page) {
     throw new Error('Page not found');
   }
-  
-  console.log('🔧 Updating page:', pageId, updateData);
-  
   // Update page properties
   Object.keys(updateData).forEach(key => {
     if (updateData[key] !== undefined) {

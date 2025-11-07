@@ -135,8 +135,7 @@ export const dynamicImport = {
         if (entry.isIntersecting) {
           importFunc().then((module) => {
             // Component loaded when visible
-            console.log('Component loaded on visibility:', module.default.name);
-          });
+  });
           observer.disconnect();
         }
       });
@@ -158,14 +157,12 @@ export const bundleAnalyzer = {
    * Log bundle loading performance
    */
   logChunkLoad: (chunkName) => {
-    console.log(`📦 Loading chunk: ${chunkName} at ${new Date().toISOString()}`);
-    
+
     const startTime = performance.now();
     
     return () => {
       const loadTime = performance.now() - startTime;
-      console.log(`✅ Chunk ${chunkName} loaded in ${loadTime.toFixed(2)}ms`);
-    };
+  };
   },
   
   /**
@@ -180,8 +177,7 @@ export const bundleAnalyzer = {
           .then(response => {
             const size = response.headers.get('content-length');
             if (size) {
-              console.log(`📊 Bundle size: ${script.src.split('/').pop()} - ${(size / 1024).toFixed(2)}KB`);
-            }
+  }
           })
           .catch(console.error);
       });

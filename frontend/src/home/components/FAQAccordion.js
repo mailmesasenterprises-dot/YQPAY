@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import '../css/FAQAccordion.css';
+import '../../styles/home/FAQAccordion.css';
 
 const FAQAccordion = () => {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -110,10 +110,10 @@ const FAQAccordion = () => {
               </p>
 
               <div className="faq-content-footer">
-                <button className="faq-learn-more">
+                {/* <button className="faq-learn-more">
                   Learn More
                   <span className="arrow-icon">→</span>
-                </button>
+                </button> */}
                 <div className="faq-counter">
                   <span className="counter-current">0{activeIndex + 1}</span>
                   <span className="counter-divider">/</span>

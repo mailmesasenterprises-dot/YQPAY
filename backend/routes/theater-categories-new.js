@@ -37,9 +37,6 @@ router.get('/:theaterId', [
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
     const searchTerm = req.query.q || '';
-
-    console.log('🔍 Fetching categories for theater:', theaterId);
-
     // Find category document for this theater
     let categoryDoc = await Category.findOne({ theater: theaterId });
     
@@ -56,7 +53,6 @@ router.get('/:theaterId', [
         isActive: true
       });
       await categoryDoc.save();
-      console.log('✅ Created new category document for theater');
     }
 
     let categories = categoryDoc.categoryList || [];
@@ -84,8 +80,6 @@ router.get('/:theaterId', [
 
     // Apply pagination
     const paginatedCategories = categories.slice(skip, skip + limit);
-
-    console.log(`✅ Found ${paginatedCategories.length} categories (${total} total)`);
 
     res.json({
       success: true,
@@ -136,9 +130,6 @@ router.post('/:theaterId', [
 
     const { theaterId } = req.params;
     const { categoryName, categoryType, isActive, sortOrder, kioskTypeId } = req.body;
-
-    console.log('🔥 Creating category:', { theaterId, categoryName, categoryType, kioskTypeId, hasImage: !!req.file });
-
     // Find or create category document for this theater
     let categoryDoc = await Category.findOne({ theater: theaterId });
     if (!categoryDoc) {
@@ -178,9 +169,6 @@ router.post('/:theaterId', [
     if (req.file) {
       try {
         const folder = `categories/${theaterId}/${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        console.log(`📤 Uploading category image to GCS folder: ${folder}`);
-        
         const imageUrl = await uploadFile(
           req.file.buffer,
           req.file.originalname,
@@ -189,7 +177,6 @@ router.post('/:theaterId', [
         );
         
         newCategory.imageUrl = imageUrl;
-        console.log(`✅ Image uploaded successfully`);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
@@ -202,9 +189,6 @@ router.post('/:theaterId', [
     // Add category to list
     categoryDoc.categoryList.push(newCategory);
     await categoryDoc.save();
-
-    console.log('✅ Category created successfully:', newCategory._id);
-
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
@@ -241,9 +225,6 @@ router.put('/:theaterId/:categoryId', [
 
     const { theaterId, categoryId } = req.params;
     const { categoryName, categoryType, isActive, sortOrder, removeImage, kioskTypeId } = req.body;
-    
-    console.log('🔥 Updating category:', { categoryId, kioskTypeId, hasImage: !!req.file, removeImage });
-    
     // Find category document
     const categoryDoc = await Category.findOne({ theater: theaterId });
     if (!categoryDoc) {
@@ -289,7 +270,6 @@ router.put('/:theaterId/:categoryId', [
       if (category.imageUrl) {
         try {
           await deleteFile(category.imageUrl);
-          console.log('✅ Old image deleted from GCS');
         } catch (deleteError) {
           console.warn('⚠️  Could not delete old image:', deleteError.message);
         }
@@ -302,7 +282,6 @@ router.put('/:theaterId/:categoryId', [
         if (category.imageUrl) {
           try {
             await deleteFile(category.imageUrl);
-            console.log('✅ Old image deleted from GCS');
           } catch (deleteError) {
             console.warn('⚠️  Could not delete old image:', deleteError.message);
           }
@@ -319,7 +298,6 @@ router.put('/:theaterId/:categoryId', [
         );
         
         category.imageUrl = imageUrl;
-        console.log(`✅ Image uploaded successfully`);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
@@ -330,9 +308,6 @@ router.put('/:theaterId/:categoryId', [
     }
 
     await categoryDoc.save();
-
-    console.log('✅ Category updated successfully:', category._id);
-
     res.json({
       success: true,
       message: 'Category updated successfully',
@@ -358,9 +333,6 @@ router.delete('/:theaterId/:categoryId', [
 ], async (req, res) => {
   try {
     const { theaterId, categoryId } = req.params;
-    
-    console.log('🔥 Deleting category:', { theaterId, categoryId });
-    
     // Find category document
     const categoryDoc = await Category.findOne({ theater: theaterId });
     if (!categoryDoc) {
@@ -383,7 +355,6 @@ router.delete('/:theaterId/:categoryId', [
     if (category.imageUrl) {
       try {
         await deleteFile(category.imageUrl);
-        console.log('✅ Category image deleted from GCS');
       } catch (deleteError) {
         console.warn('⚠️  Could not delete category image:', deleteError.message);
       }
@@ -395,7 +366,6 @@ router.delete('/:theaterId/:categoryId', [
         if (item.imageUrl) {
           try {
             await deleteFile(item.imageUrl);
-            console.log(`✅ Item image deleted from GCS: ${item.itemName}`);
           } catch (deleteError) {
             console.warn(`⚠️  Could not delete item image: ${item.itemName}`);
           }
@@ -406,9 +376,6 @@ router.delete('/:theaterId/:categoryId', [
     // Remove category from list
     categoryDoc.categoryList.pull(categoryId);
     await categoryDoc.save();
-
-    console.log('✅ Category permanently deleted:', categoryId);
-
     res.json({
       success: true,
       message: 'Category deleted successfully'

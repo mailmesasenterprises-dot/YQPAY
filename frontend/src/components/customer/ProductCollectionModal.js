@@ -1,7 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useCart } from '../../contexts/CartContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import './ProductCollectionModal.css';
+import InstantImage from '../InstantImage'; // 🚀 Instant image loading
+import '../../styles/components/customer/ProductCollectionModal.css';
 
 const ProductCollectionModal = ({ collection, isOpen, onClose }) => {
   const { addItem, removeItem, getItemQuantity, totalItems } = useCart();
@@ -112,11 +113,10 @@ const ProductCollectionModal = ({ collection, isOpen, onClose }) => {
 
           {/* Center Product Image */}
           <div className={`center-product-image slide-from-${slideDirection}`} key={selectedImage || collection.baseImage}>
-            <img 
+            <InstantImage
               src={selectedImage || collection.baseImage} 
               alt={collection.name}
               loading="eager"
-              fetchpriority="high"
               onError={(e) => { 
                 e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="300"%3E%3Crect fill="%23f0f0f0" width="300" height="300"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="80"%3E🍿%3C/text%3E%3C/svg%3E'; 
               }}
@@ -154,7 +154,7 @@ const ProductCollectionModal = ({ collection, isOpen, onClose }) => {
                   disabled={!isAvailable}
                 >
                   <div className="variant-image-circle">
-                    <img 
+                    <InstantImage
                       src={variant.image || collection.baseImage} 
                       alt={variant.sizeLabel || variant.size}
                       onError={(e) => { 
@@ -236,7 +236,7 @@ const ProductCollectionModal = ({ collection, isOpen, onClose }) => {
 
         </div>
         <div className="background-blur-image">
-          <img 
+          <InstantImage
             src={selectedImage || collection.baseImage} 
             alt="background" 
             onError={(e) => { 

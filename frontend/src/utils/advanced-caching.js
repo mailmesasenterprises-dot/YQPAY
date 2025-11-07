@@ -27,7 +27,7 @@ class AdvancedCacheManager {
       // 1. Check memory cache first (fastest)
       const memoryResult = this.getFromMemory(key);
       if (memoryResult && !this.isExpired(memoryResult)) {
-        console.log(`🚀 Cache HIT (memory): ${key}`);
+
         return memoryResult.data;
       }
 
@@ -35,7 +35,7 @@ class AdvancedCacheManager {
       if ('caches' in window) {
         const swResult = await this.getFromServiceWorker(key);
         if (swResult) {
-          console.log(`💾 Cache HIT (service worker): ${key}`);
+
           // Store in memory for faster access
           this.setInMemory(key, swResult, options.ttl);
           return swResult;
@@ -45,15 +45,15 @@ class AdvancedCacheManager {
       // 3. Check localStorage cache
       const localResult = this.getFromLocalStorage(key);
       if (localResult && !this.isExpired(localResult)) {
-        console.log(`💿 Cache HIT (localStorage): ${key}`);
+
         this.setInMemory(key, localResult.data, options.ttl);
         return localResult.data;
       }
 
-      console.log(`❌ Cache MISS: ${key}`);
+
       return null;
     } catch (error) {
-      console.error('Cache get error:', error);
+
       return null;
     }
   }
@@ -83,11 +83,8 @@ class AdvancedCacheManager {
       if (options.localStorage !== false && this.canStoreInLocalStorage(data)) {
         this.setInLocalStorage(key, cacheItem);
       }
-
-      console.log(`✅ Cache SET: ${key} (TTL: ${ttl}ms)`);
-    } catch (error) {
-      console.error('Cache set error:', error);
-    }
+  } catch (error) {
+  }
   }
 
   /**
@@ -121,8 +118,7 @@ class AdvancedCacheManager {
         return await response.json();
       }
     } catch (error) {
-      console.error('Service Worker cache get error:', error);
-    }
+  }
     return null;
   }
 
@@ -137,8 +133,7 @@ class AdvancedCacheManager {
       });
       await cache.put(key, response);
     } catch (error) {
-      console.error('Service Worker cache set error:', error);
-    }
+  }
   }
 
   /**
@@ -149,7 +144,7 @@ class AdvancedCacheManager {
       const item = localStorage.getItem(`cache_${key}`);
       return item ? JSON.parse(item) : null;
     } catch (error) {
-      console.error('localStorage get error:', error);
+
       return null;
     }
   }
@@ -158,8 +153,7 @@ class AdvancedCacheManager {
     try {
       localStorage.setItem(`cache_${key}`, JSON.stringify(cacheItem));
     } catch (error) {
-      console.error('localStorage set error:', error);
-    }
+  }
   }
 
   /**
@@ -343,7 +337,7 @@ export const cachedFetch = async (url, options = {}) => {
 
     return data;
   } catch (error) {
-    console.error('Cached fetch error:', error);
+
     throw error;
   }
 };
@@ -365,10 +359,8 @@ export const preloadWithCache = {
 
     try {
       await Promise.all(promises);
-      console.log('✅ API endpoints preloaded:', endpoints.length);
-    } catch (error) {
-      console.error('Preload error:', error);
-    }
+  } catch (error) {
+  }
   },
 
   /**

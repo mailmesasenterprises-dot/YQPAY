@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import config from '../config';
-import './Messages.css';
+import '../styles/pages/Messages.css';
 
 const Messages = () => {
   const location = useLocation();
@@ -25,11 +25,6 @@ const Messages = () => {
     try {
       const token = localStorage.getItem('authToken');
       
-      console.log('🎭 Fetching theaters...', {
-        url: `${config.api.baseUrl}/chat/theaters`,
-        hasToken: !!token,
-        tokenPreview: token ? `${token.substring(0, 20)}...` : 'none'
-      });
 
       const response = await fetch(`${config.api.baseUrl}/chat/theaters`, {
         headers: {
@@ -38,24 +33,20 @@ const Messages = () => {
         }
       });
       
-      console.log('📡 Theater fetch response:', response.status, response.statusText);
-      
+
       const data = await response.json();
       
-      console.log('🎭 Theater data received:', data);
-      
+
       if (response.status === 403 || response.status === 401) {
-        console.error('❌ Authentication error:', data);
+
         return;
       }
       
       // Handle both array response and {success, data} response
       const theaterList = Array.isArray(data) ? data : (data.data || []);
       setTheaters(theaterList);
-      console.log(`✅ Set ${theaterList.length} theaters`);
-    } catch (error) {
-      console.error('❌ Error fetching theaters:', error);
-    }
+  } catch (error) {
+  }
   }, []);
 
   // Fetch messages for selected theater
@@ -77,8 +68,7 @@ const Messages = () => {
         setTimeout(scrollToBottom, 100);
       }
     } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
+  }
   }, []);
 
   // Mark messages as read
@@ -98,8 +88,7 @@ const Messages = () => {
       // Refresh theater list to update unread counts
       fetchTheaters();
     } catch (error) {
-      console.error('Error marking messages as read:', error);
-    }
+  }
   }, [fetchTheaters]);
 
   // Send message
@@ -131,8 +120,7 @@ const Messages = () => {
         fetchMessages(selectedTheater._id);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
-    } finally {
+  } finally {
       setSending(false);
     }
   };
@@ -226,16 +214,7 @@ const Messages = () => {
                 onClick={() => handleSelectTheater(theater)}
               >
                 <div className="theater-logo">
-                  {theater.logoUrl ? (
-                    <img 
-                      src={theater.logoUrl} 
-                      alt={theater.name}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextSibling.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
+                  
                   <div 
                     className="logo-placeholder"
                     style={{ display: theater.logoUrl ? 'none' : 'flex' }}

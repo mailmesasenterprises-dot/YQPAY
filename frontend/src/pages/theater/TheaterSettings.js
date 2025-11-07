@@ -14,15 +14,7 @@ function TheaterSettings() {
   const { user, theaterId: userTheaterId, userType } = useAuth();
   
   // Add immediate debug logging
-  console.log('=== TheaterSettings Component Debug ===');
-  console.log('theaterId from useParams:', theaterId);
-  console.log('userTheaterId from AuthContext:', userTheaterId);
-  console.log('userType:', userType);
-  console.log('user object:', user);
-  console.log('localStorage theaterId:', localStorage.getItem('theaterId'));
-  console.log('localStorage userType:', localStorage.getItem('userType'));
-  console.log('========================================');
-  
+
   const [activeTab, setActiveTab] = useState('profile');
   const [theaterData, setTheaterData] = useState({
     _id: '',
@@ -49,8 +41,7 @@ function TheaterSettings() {
 
   // Function to clear all caches and refresh
   const handleRefreshAndClearCache = () => {
-    console.log('🔄 Refreshing and clearing all caches...');
-    
+
     // Clear localStorage
     const authToken = localStorage.getItem('authToken');
     const userId = localStorage.getItem('userId');
@@ -139,12 +130,7 @@ function TheaterSettings() {
   };
 
   useEffect(() => {
-    console.log('TheaterSettings useEffect - Debug Info:');
-    console.log('- theaterId from URL:', theaterId);
-    console.log('- userTheaterId from AuthContext:', userTheaterId);
-    console.log('- userType:', userType);
-    console.log('- user:', user);
-    
+
     // TEMPORARY: For existing sessions without theater ID, try to get it from user data
     let effectiveTheaterId = theaterId || userTheaterId;
     
@@ -152,36 +138,33 @@ function TheaterSettings() {
     if (!effectiveTheaterId && user) {
       if (user.assignedTheater) {
         effectiveTheaterId = user.assignedTheater._id || user.assignedTheater;
-        console.log('Found theater ID in user.assignedTheater:', effectiveTheaterId);
-      } else if (user.theater) {
+  } else if (user.theater) {
         effectiveTheaterId = user.theater._id || user.theater;
-        console.log('Found theater ID in user.theater:', effectiveTheaterId);
-      }
+  }
     }
     
-    console.log('Effective theater ID:', effectiveTheaterId);
-    
+
     // Security check: Ensure user can only access their assigned theater
     if (userType === 'theater-admin' && userTheaterId && theaterId !== userTheaterId) {
       // Redirect to their own theater settings if trying to access another theater
-      console.log('Redirecting to correct theater settings:', userTheaterId);
+
       navigate(`/theater/settings/${userTheaterId}`);
       return;
     }
 
     // If no theaterId in URL but we found one, redirect to proper URL
     if (!theaterId && effectiveTheaterId) {
-      console.log('No theaterId in URL, redirecting to:', effectiveTheaterId);
+
       navigate(`/theater/settings/${effectiveTheaterId}`);
       return;
     }
 
     // If theaterId exists, fetch that theater's data
     if (effectiveTheaterId) {
-      console.log('Fetching theater data for:', effectiveTheaterId);
+
       fetchTheaterData(effectiveTheaterId);
     } else {
-      console.log('No theaterId found - showing demo data');
+
       setError('Theater ID not found. Please login again.');
       // For development: Show demo data if no theater ID
       setTheaterData({
@@ -207,13 +190,11 @@ function TheaterSettings() {
       setLoading(true);
       setError('');
       
-      console.log('🔍 Fetching theater data for ID:', theaterIdToFetch);
-      
+
       const token = localStorage.getItem('authToken');
       const url = `${config.api.baseUrl}/theaters/${theaterIdToFetch}`;
       
-      console.log('📡 Fetching from URL:', url);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -222,20 +203,18 @@ function TheaterSettings() {
         },
       });
 
-      console.log('📥 Response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('❌ API Error:', errorData);
+
         throw new Error(errorData.error || 'Failed to fetch theater data');
       }
 
       const data = await response.json();
-      console.log('✅ Theater data received:', data);
-      
+
       // ✅ FIX: Backend returns data.data, not data.theater
       if (data.success && data.data) {
-        console.log('✅ Setting theater data:', data.data);
+
         setTheaterData({
           _id: data.data._id || theaterIdToFetch,
           name: data.data.name || '',
@@ -252,11 +231,11 @@ function TheaterSettings() {
           description: data.data.description || ''
         });
       } else {
-        console.error('❌ Invalid data structure:', data);
+
         setError('Invalid data received from server');
       }
     } catch (err) {
-      console.error('❌ Error fetching theater data:', err);
+
       setError(`Unable to load theater data: ${err.message}`);
     } finally {
       setLoading(false);
@@ -268,13 +247,11 @@ function TheaterSettings() {
       setLoading(true);
       setError('');
       
-      console.log('💾 Saving theater data:', theaterData);
-      
+
       const token = localStorage.getItem('authToken');
       const url = `${config.api.baseUrl}/theaters/${theaterId}`;
       
-      console.log('📡 Saving to URL:', url);
-      
+
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -284,17 +261,15 @@ function TheaterSettings() {
         body: JSON.stringify(theaterData),
       });
 
-      console.log('📥 Save response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('❌ Save error:', errorData);
+
         throw new Error(errorData.error || 'Failed to save theater data');
       }
 
       const data = await response.json();
-      console.log('✅ Save response:', data);
-      
+
       if (data.success) {
         alert('✅ Theater data saved successfully!');
         // Refresh the data
@@ -303,7 +278,7 @@ function TheaterSettings() {
         setError(data.message || 'Failed to save theater data');
       }
     } catch (error) {
-      console.error('❌ Error saving theater data:', error);
+
       setError(`Unable to save theater data: ${error.message}`);
     } finally {
       setLoading(false);
@@ -314,11 +289,10 @@ function TheaterSettings() {
     try {
       setLoading(true);
       // Google Cloud Storage upload will be implemented
-      console.log(`Uploading ${documentType}:`, file);
+
       setDocuments(prev => ({ ...prev, [documentType]: file }));
     } catch (error) {
-      console.error('Error uploading file:', error);
-    } finally {
+  } finally {
       setLoading(false);
     }
   };

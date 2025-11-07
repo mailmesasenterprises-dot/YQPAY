@@ -4,14 +4,13 @@ import config from '../config';
 import '../styles/SuperAdminDashboard.css';
 
 const Dashboard = () => {
-  console.log('🎯 Dashboard component rendered');
-  
+
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    console.log('🎯 Dashboard useEffect triggered');
+
     loadDashboardData();
     
     // Refresh data every 30 seconds
@@ -23,12 +22,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('authToken');
       
-      console.log('🔍 Dashboard Debug:', {
-        token: token ? 'Token exists' : 'No token',
-        apiUrl: config.api.baseUrl,
-        endpoint: `${config.api.baseUrl}/dashboard/super-admin-stats`
-      });
-      
+
       if (!token) {
         setError('Authentication token not found');
         setLoading(false);
@@ -43,22 +37,16 @@ const Dashboard = () => {
         }
       });
 
-      console.log('📡 API Response:', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText
-      });
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('❌ API Error Response:', errorData);
+
         throw new Error(`Failed to fetch dashboard data: ${response.statusText}`);
       }
 
       const result = await response.json();
       
-      console.log('✅ Dashboard Data:', result);
-      
+
       if (result.success) {
         setStats(result.data);
         setError(null);
@@ -66,7 +54,7 @@ const Dashboard = () => {
         throw new Error(result.error || 'Failed to load dashboard data');
       }
     } catch (err) {
-      console.error('❌ Error loading dashboard data:', err);
+
       setError(err.message);
     } finally {
       setLoading(false);
@@ -75,7 +63,7 @@ const Dashboard = () => {
 
   // Loading state
   if (loading) {
-    console.log('🎯 Dashboard: Rendering loading state');
+
     return (
       <AdminLayout pageTitle="Dashboard" currentPage="dashboard">
         <div className="sadmin-wrapper">
@@ -90,7 +78,7 @@ const Dashboard = () => {
 
   // Error state
   if (error) {
-    console.log('🎯 Dashboard: Rendering error state:', error);
+
     return (
       <AdminLayout pageTitle="Dashboard" currentPage="dashboard">
         <div className="sadmin-wrapper">
@@ -109,7 +97,7 @@ const Dashboard = () => {
 
   // No data state
   if (!stats) {
-    console.log('🎯 Dashboard: Rendering no data state');
+
     return (
       <AdminLayout pageTitle="Dashboard" currentPage="dashboard">
         <div className="sadmin-wrapper">
@@ -124,8 +112,7 @@ const Dashboard = () => {
     );
   }
 
-  console.log('🎯 Dashboard: Rendering main dashboard with stats');
-  
+
   return (
     <AdminLayout pageTitle="Dashboard" currentPage="dashboard">
       <div className="sadmin-wrapper">

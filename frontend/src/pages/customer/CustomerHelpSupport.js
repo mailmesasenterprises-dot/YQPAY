@@ -31,8 +31,7 @@ const CustomerHelpSupport = () => {
         setTheater(data.data);
       }
     } catch (err) {
-      console.error('Error fetching theater info:', err);
-    } finally {
+  } finally {
       setLoading(false);
     }
   };
@@ -97,8 +96,8 @@ const CustomerHelpSupport = () => {
           onClick={handleBack}
           type="button"
         >
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
         <div className="header-content-wrapper">

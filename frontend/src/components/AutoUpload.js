@@ -2,22 +2,14 @@ import React, { useState } from 'react';
 import config from '../config';
 
 // Debug: Check if config is loaded properly
-console.log('🔧 AutoUpload config check:', {
-  configExists: !!config,
-  apiExists: !!config?.api,
-  baseUrl: config?.api?.baseUrl
-});
 
 // Early validation of config
 if (!config) {
-  console.error('❌ Config is not loaded in AutoUpload component');
-}
+  }
 if (!config?.api) {
-  console.error('❌ Config.api is not defined in AutoUpload component');
-}
+  }
 if (!config?.api?.baseUrl) {
-  console.error('❌ Config.api.baseUrl is not defined in AutoUpload component');
-}
+  }
 
 /**
  * Smart AutoUpload Component
@@ -106,12 +98,7 @@ const AutoUpload = ({
       if (config && config.api && config.api.baseUrl) {
         baseUrl = config.api.baseUrl;
       } else {
-        console.warn('⚠️ Config not properly loaded, using fallback URL:', {
-          configExists: !!config,
-          apiExists: !!config?.api,
-          baseUrl: config?.api?.baseUrl
-        });
-        
+
         // Fallback to common development URLs
         const fallbackUrls = [
           'http://localhost:5000/api',
@@ -119,10 +106,8 @@ const AutoUpload = ({
         ];
         
         baseUrl = fallbackUrls[0]; // Use first fallback
-        console.log('🔄 Using fallback baseUrl:', baseUrl);
-      }
+  }
       
-      console.log('🌐 Using API baseUrl:', baseUrl);
 
       // Try GCS upload first, fallback to local if GCS is not configured
       let response = await fetch(`${baseUrl}/upload/image`, {
@@ -133,8 +118,7 @@ const AutoUpload = ({
       // If GCS upload fails, try local upload as fallback
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.log(`⚠️ GCS upload failed (${response.status}), trying local upload for ${uploadType}:`, errorData.message);
-        
+
         // Create new FormData for local upload
         const localFormData = new FormData();
         localFormData.append('image', file);
@@ -142,25 +126,22 @@ const AutoUpload = ({
         localFormData.append('folderSubtype', folderMapping.folderSubtype);
         localFormData.append('uploadType', uploadType);
         
-        console.log(`🔄 Attempting local upload to: ${baseUrl}/upload-local/image`);
-        
+
         response = await fetch(`${baseUrl}/upload-local/image`, {
           method: 'POST',
           body: localFormData
         });
         
-        console.log(`📡 Local upload response status: ${response.status}`);
-      }
+  }
 
       if (response.ok) {
         const result = await response.json();
-        console.log(`✅ AutoUpload Success (${uploadType}):`, result);
-        
+
         // Extract URL from response - handle both GCS and local responses
         const signedUrl = result.data?.data?.publicUrl || result.data?.publicUrl || result.publicUrl;
         
         if (!signedUrl) {
-          console.error('Upload response:', result);
+
           throw new Error('Upload successful but no URL returned');
         }
 
@@ -178,14 +159,12 @@ const AutoUpload = ({
             type: file.type
           }
         });
-
-      } else {
+  } else {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Upload failed');
       }
+  } catch (error) {
 
-    } catch (error) {
-      console.error(`❌ AutoUpload Error (${uploadType}):`, error);
       onError && onError(error.message || 'Upload failed');
     } finally {
       setUploading(false);

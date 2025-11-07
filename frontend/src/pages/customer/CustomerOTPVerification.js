@@ -102,13 +102,10 @@ const CustomerOTPVerification = () => {
     setError('');
 
     try {
-      console.log('🔍 Verifying OTP:', otpString);
-      console.log('📞 Phone:', phoneNumber);
-      
+
       // Call actual API to verify OTP - Use dynamic API URL
       const apiUrl = `${config.api.baseUrl}/sms/verify-otp`;
-      console.log('🌐 API URL:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -122,11 +119,9 @@ const CustomerOTPVerification = () => {
       });
 
       const result = await response.json();
-      console.log('📥 Verification Response:', result);
 
       if (result.success) {
-        console.log('✅ OTP verified successfully!');
-        
+
         // Save phone number to localStorage for order history
         localStorage.setItem('customerPhone', phoneNumber);
         
@@ -143,7 +138,7 @@ const CustomerOTPVerification = () => {
         inputRefs.current[0]?.focus();
       }
     } catch (err) {
-      console.error('❌ Verification Error:', err);
+
       setError('Failed to verify OTP. Please try again.');
       setOtp(['', '', '', '']);
       inputRefs.current[0]?.focus();
@@ -159,12 +154,10 @@ const CustomerOTPVerification = () => {
     setError('');
     
     try {
-      console.log('🔄 Resending OTP to:', phoneNumber);
-      
+
       // Call API to resend OTP - Use dynamic API URL
       const apiUrl = `${config.api.baseUrl}/sms/send-otp`;
-      console.log('🌐 API URL:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -177,11 +170,9 @@ const CustomerOTPVerification = () => {
       });
 
       const result = await response.json();
-      console.log('📥 Resend Response:', result);
 
       if (result.success) {
-        console.log('✅ OTP resent successfully!');
-        
+
         // Reset timer
         setResendTimer(30);
         setCanResend(false);
@@ -202,12 +193,11 @@ const CustomerOTPVerification = () => {
         });
       }, 1000);
       } else {
-        console.error('❌ Failed to resend OTP:', result.message);
+
         setError(result.message || 'Failed to resend OTP. Please try again.');
       }
+  } catch (err) {
 
-    } catch (err) {
-      console.error('❌ Resend OTP Error:', err);
       setError('Failed to resend OTP. Please try again.');
     } finally {
       setLoading(false);
@@ -235,7 +225,7 @@ const CustomerOTPVerification = () => {
           type="button"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
         <h1 className="otp-title">Verify OTP</h1>

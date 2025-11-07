@@ -21,7 +21,6 @@ const getCachedData = (key) => {
       localStorage.removeItem(key);
     }
   } catch (error) {
-    console.error('Cache read error:', error);
   }
   return null;
 };
@@ -31,7 +30,6 @@ const setCachedData = (key, data, ttl = 5 * 60 * 1000) => {
     const expiry = Date.now() + ttl;
     localStorage.setItem(key, JSON.stringify({ data, expiry }));
   } catch (error) {
-    console.error('Cache write error:', error);
   }
 };
 
@@ -143,7 +141,7 @@ const AddTheater = React.memo(() => {
   useEffect(() => {
     const token = config.helpers.getAuthToken();
     if (!token) {
-      console.warn('⚠️ No authentication token found!');
+
       modal.showError(
         'Authentication Required',
         'You must be logged in to add a theater. Please login first.',
@@ -160,8 +158,7 @@ const AddTheater = React.memo(() => {
         const parsed = JSON.parse(savedData);
         setFormData(parsed);
       } catch (error) {
-        console.error('Failed to parse saved form data:', error);
-      }
+  }
     }
     
     // Cleanup function to cancel any pending requests
@@ -306,8 +303,7 @@ const AddTheater = React.memo(() => {
     const { name, files: fileList } = e.target;
     const file = fileList[0];
     
-    console.log('📎 File change event:', { name, file: file?.name, size: file?.size, type: file?.type });
-    
+
     // File validation
     if (file) {
       const maxSize = 10 * 1024 * 1024; // 10MB (increased for PDFs)
@@ -315,7 +311,7 @@ const AddTheater = React.memo(() => {
       
       if (file.size > maxSize) {
         const errorMsg = 'File size must be less than 10MB';
-        console.error('❌ File size error:', errorMsg);
+
         setErrors(prev => ({
           ...prev,
           [name]: errorMsg
@@ -326,7 +322,7 @@ const AddTheater = React.memo(() => {
       
       if (!allowedTypes.includes(file.type)) {
         const errorMsg = 'Only JPEG, PNG, JPG, GIF, WEBP, and PDF files are allowed';
-        console.error('❌ File type error:', errorMsg);
+
         setErrors(prev => ({
           ...prev,
           [name]: errorMsg
@@ -335,8 +331,7 @@ const AddTheater = React.memo(() => {
         return;
       }
       
-      console.log('✅ File validated successfully:', file.name);
-      
+
       // Clear any previous error for this field
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -350,7 +345,7 @@ const AddTheater = React.memo(() => {
         ...prev,
         [name]: file
       };
-      console.log('📂 Updated files state:', Object.keys(updated).filter(k => updated[k]).map(k => `${k}: ${updated[k].name}`));
+
       return updated;
     });
   }, []);
@@ -463,12 +458,11 @@ const AddTheater = React.memo(() => {
     }
     
     if (isSubmitting) {
-      console.log('⚠️ Form already submitting, ignoring...');
+
       return; // Prevent double submission
     }
     
-    console.log('📝 Form submitted with data:', formData);
-    
+
     if (!formValidationStatus.isValid) {
       
       // Scroll to first error field
@@ -502,8 +496,7 @@ const AddTheater = React.memo(() => {
       formDataToSend.append('email', formData.email);
       formDataToSend.append('phone', formData.phone);
       
-      console.log('🔑 Generated username:', generatedUsername);
-      
+
       // Add address fields (backend expects 'address' which maps to 'street')
       formDataToSend.append('address', formData.address); // Backend maps this to address.street
       formDataToSend.append('city', formData.city);
@@ -533,7 +526,7 @@ const AddTheater = React.memo(() => {
       if (formData.website) formDataToSend.append('website', formData.website);
       
       // Add files to FormData
-      console.log('📎 Adding files to FormData:', files);
+
       if (files.theaterPhoto) formDataToSend.append('theaterPhoto', files.theaterPhoto);
       if (files.logo) formDataToSend.append('logo', files.logo);
       if (files.aadharCard) formDataToSend.append('aadharCard', files.aadharCard);
@@ -542,7 +535,6 @@ const AddTheater = React.memo(() => {
       if (files.fssaiCertificate) formDataToSend.append('fssaiCertificate', files.fssaiCertificate);
       if (files.agreementCopy) formDataToSend.append('agreementCopy', files.agreementCopy);
 
-      console.log('📤 Sending FormData with files...');
 
       // Submit theater data with abort controller and authentication
       abortControllerRef.current = new AbortController();
@@ -580,8 +572,7 @@ const AddTheater = React.memo(() => {
       }
 
       const result = await response.json();
-      console.log('✅ Theater created successfully:', result);
-      
+
       // Clear saved form data on success
       clearSavedFormData();
       
@@ -626,10 +617,9 @@ const AddTheater = React.memo(() => {
       }
       
       // Navigate back to theater list
-      console.log('🔄 Navigating to /theaters...');
-      navigate('/theaters', { replace: true });
 
-    } catch (error) {
+      navigate('/theaters', { replace: true });
+  } catch (error) {
       if (error.name === 'AbortError') {
         return;
       }

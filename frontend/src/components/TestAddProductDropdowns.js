@@ -14,22 +14,14 @@ const TestAddProductDropdowns = () => {
   // Get effective theater ID
   const effectiveTheaterId = authTheaterId || user?.theater?._id || user?.assignedTheater?._id || '68d37ea676752b839952af81';
 
-  console.log('🧪 Test Component - Theater ID sources:', {
-    urlTheaterId,
-    authTheaterId,
-    userTheaterId: user?.theater?._id,
-    effectiveTheaterId,
-    user: user ? { id: user.id, username: user.username } : null
-  });
 
   useEffect(() => {
     const testAPIs = async () => {
-      console.log('🔧 Testing APIs in test component...');
+
       setLoading(true);
       
       const token = localStorage.getItem('authToken');
-      console.log('Token exists:', token ? 'YES' : 'NO');
-      
+
       if (!token) {
         setErrors({ auth: 'No auth token found' });
         setLoading(false);
@@ -38,17 +30,16 @@ const TestAddProductDropdowns = () => {
 
       try {
         // First test if we can reach the API at all
-        console.log('🔍 Testing API connectivity...');
+
         const healthResponse = await fetch(`${config.api.baseUrl}/health`);
-        console.log('Health check response:', healthResponse.status);
-        
+
         if (!healthResponse.ok) {
           setErrors({ connectivity: 'Cannot reach backend API' });
           setLoading(false);
           return;
         }
         // Test Categories API
-        console.log('📋 Testing Categories API...');
+
         const categoriesResponse = await fetch(`${config.api.baseUrl}/theater-categories-simple/${effectiveTheaterId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -56,24 +47,18 @@ const TestAddProductDropdowns = () => {
           }
         });
 
-        console.log('Categories Response Status:', categoriesResponse.status);
+
         const categoriesData = await categoriesResponse.json();
-        console.log('Categories Response Data:', categoriesData);
 
         if (categoriesResponse.ok && categoriesData.success) {
           setCategories(categoriesData.data.categories || []);
-          console.log('✅ Categories loaded:', categoriesData.data.categories?.length || 0);
-        } else {
-          console.error('❌ Categories API failed:', {
-            status: categoriesResponse.status,
-            statusText: categoriesResponse.statusText,
-            data: categoriesData
-          });
+  } else {
+
           setErrors(prev => ({ ...prev, categories: `Categories API error: ${categoriesData.message || 'Unknown error'}` }));
         }
 
         // Test Product Types API  
-        console.log('🏷️ Testing Product Types API...');
+
         const productTypesResponse = await fetch(`${config.api.baseUrl}/theater-product-types-simple/${effectiveTheaterId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -81,24 +66,17 @@ const TestAddProductDropdowns = () => {
           }
         });
 
-        console.log('Product Types Response Status:', productTypesResponse.status);
+
         const productTypesData = await productTypesResponse.json();
-        console.log('Product Types Response Data:', productTypesData);
 
         if (productTypesResponse.ok && productTypesData.success) {
           setProductTypes(productTypesData.data.productTypes || []);
-          console.log('✅ Product Types loaded:', productTypesData.data.productTypes?.length || 0);
-        } else {
-          console.error('❌ Product Types API failed:', {
-            status: productTypesResponse.status,
-            statusText: productTypesResponse.statusText,
-            data: productTypesData
-          });
+  } else {
+
           setErrors(prev => ({ ...prev, productTypes: `Product Types API error: ${productTypesData.message || 'Unknown error'}` }));
         }
+  } catch (error) {
 
-      } catch (error) {
-        console.error('❌ API Test Error:', error);
         setErrors({ general: `Network error: ${error.message}` });
       } finally {
         setLoading(false);
@@ -108,7 +86,7 @@ const TestAddProductDropdowns = () => {
     if (effectiveTheaterId) {
       testAPIs();
     } else {
-      console.error('❌ No theater ID available');
+
       setErrors({ theaterId: 'No theater ID available' });
       setLoading(false);
     }

@@ -278,12 +278,12 @@ const QRManagement = () => {
           totalQRs: totalCanteenQRs + totalScreenQRs
         });
       } else {
-        setError('Failed to load QR management data');
+        setError('Failed to load  data');
       }
     } catch (error) {
       // Handle AbortError gracefully
       if (error.name === 'AbortError') {
-        console.log('QR Management request was cancelled');
+
         return;
       }
       setError('Failed to load QR management data');

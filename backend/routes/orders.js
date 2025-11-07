@@ -15,6 +15,8 @@ const router = express.Router();
  */
 async function recordStockUsage(theaterId, productId, quantity, orderDate) {
   try {
+    console.log(`🔍 [STOCK USAGE] Recording usage - ProductID: ${productId}, Quantity: ${quantity}, Date: ${orderDate}`);
+    
     const entryDate = new Date(orderDate);
     const year = entryDate.getFullYear();
     const monthNumber = entryDate.getMonth() + 1;
@@ -25,9 +27,12 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
       theaterId,
       productId
     }).sort({ year: 1, monthNumber: 1 });
+    
+    console.log(`📦 [STOCK USAGE] Found ${allMonthlyDocs.length} monthly documents for this product`);
 
     let remainingToDeduct = quantity;
     const deductionDetails = []; // Track which stocks were deducted from
+    let usedFromCarryForward = 0; // Track how much came from previous months
 
     // Helper function to check if stock is expired
     const isStockExpired = (expireDate) => {
@@ -42,7 +47,10 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
     // FIFO: Process each month's stock details from oldest to newest
     for (const monthlyDoc of allMonthlyDocs) {
       if (remainingToDeduct <= 0) break;
-
+      
+      // Check if this is a previous month (carry forward stock)
+      const isCarryForwardMonth = (monthlyDoc.year < year) || 
+                                   (monthlyDoc.year === year && monthlyDoc.monthNumber < monthNumber);
       for (let i = 0; i < monthlyDoc.stockDetails.length; i++) {
         if (remainingToDeduct <= 0) break;
 
@@ -60,12 +68,29 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
             const deductAmount = Math.min(remainingToDeduct, availableStock);
             entry.usedStock = (entry.usedStock || 0) + deductAmount;
             
+            // Track if this came from carry forward (previous month)
+            if (isCarryForwardMonth) {
+              usedFromCarryForward += deductAmount;
+            }
+            
+            // NEW: Record usage history with month information
+            if (!entry.usageHistory) {
+              entry.usageHistory = [];
+            }
+            entry.usageHistory.push({
+              year: year,
+              month: monthNumber,
+              quantity: deductAmount,
+              orderDate: entryDate
+            });
+            
             // Track deduction details for logging
             deductionDetails.push({
               date: entry.date,
               batchNumber: entry.batchNumber,
               deducted: deductAmount,
-              expireDate: entry.expireDate
+              expireDate: entry.expireDate,
+              isCarryForward: isCarryForwardMonth
             });
 
             remainingToDeduct -= deductAmount;
@@ -74,7 +99,6 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
             monthlyDoc.markModified('stockDetails');
             await monthlyDoc.save();
 
-            console.log(`  📦 FIFO Deduction: ${deductAmount} units from ${new Date(entry.date).toLocaleDateString()} (Batch: ${entry.batchNumber || 'N/A'})`);
           }
         }
       }
@@ -112,15 +136,21 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
       fifoDetails: deductionDetails // Store FIFO details for reference
     };
 
+    console.log(`✅ [STOCK USAGE] Created SOLD entry with quantity: ${quantity}, balance: ${newEntry.balance}`);
+    console.log(`📋 [STOCK USAGE] FIFO deduction details:`, deductionDetails);
+
     // Add to stock details
     currentMonthDoc.stockDetails.push(newEntry);
     
+    // NEW: Update usedCarryForwardStock if we used stock from previous months
+    if (usedFromCarryForward > 0) {
+      currentMonthDoc.usedCarryForwardStock = (currentMonthDoc.usedCarryForwardStock || 0) + usedFromCarryForward;
+    } else {
+
+    }
+    
     // Save the document (pre-save hook will update totals)
     await currentMonthDoc.save();
-
-    console.log(`  ✅ Recorded FIFO stock usage: ${quantity} units of product ${productId}`);
-    console.log(`  📋 Deduction details:`, deductionDetails);
-    
     return currentMonthDoc;
   } catch (error) {
     console.error(`  ⚠️ Failed to record stock usage in MonthlyStock:`, error.message);
@@ -141,27 +171,22 @@ router.post('/theater', [
   body('items.*.quantity').isInt({ min: 1 }).withMessage('Quantity must be at least 1')
 ], async (req, res) => {
   try {
-    console.log('\n🎯 ===== ORDER CREATION REQUEST =====');
-    console.log('📦 Request Body:', JSON.stringify(req.body, null, 2));
-    console.log('🔍 Theater ID:', req.body.theaterId);
-    console.log('🔍 Customer Name:', req.body.customerName);
-    console.log('🔍 Payment Method:', req.body.paymentMethod);
-    console.log('🔍 Items Count:', req.body.items?.length);
-    
+    // ✅ CRITICAL: Create single orderDate to ensure consistency across order and stock tracking
+    const orderDate = new Date();
+
+
+
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation Errors:', JSON.stringify(errors.array(), null, 2));
+
       return res.status(400).json({
         error: 'Validation failed',
         details: errors.array()
       });
     }
 
-    const { theaterId, items, customerInfo, customerName, tableNumber, specialInstructions, orderNotes, paymentMethod, qrName, seat } = req.body;
-
-    console.log('🔍 QR Name:', qrName);
-    console.log('🔍 Seat:', seat);
-
+    const { theaterId, items, customerInfo, customerName, tableNumber, specialInstructions, orderNotes, paymentMethod, qrName, seat, source } = req.body;
     // Handle both customerInfo and customerName formats
     const finalCustomerInfo = customerInfo || {
       name: customerName || 'Walk-in Customer'
@@ -216,17 +241,7 @@ router.post('/theater', [
       // Check stock (use array structure fields)
       const currentStock = product.inventory?.currentStock ?? 0;
       const trackStock = product.inventory?.trackStock ?? true;
-      
-      console.log(`🔍 Product Inventory Check for ${product.name}:`, {
-        productId: productObjectId.toString(),
-        inventoryExists: !!product.inventory,
-        currentStock,
-        trackStock,
-        rawTrackStock: product.inventory?.trackStock,
-        isActive: product.isActive,
-        isAvailable: product.isAvailable
-      });
-      
+
       if (trackStock && currentStock < item.quantity) {
         return res.status(400).json({
           error: `Insufficient stock for ${product.name}`,
@@ -251,15 +266,9 @@ router.post('/theater', [
       // Update stock in the array
       if (trackStock) {
         const newStock = currentStock - item.quantity;
-        
-        console.log(`📦 Stock Update for ${product.name}:`, {
-          productId: productObjectId.toString(),
-          currentStock,
-          orderQuantity: item.quantity,
-          newStock,
-          trackStock
-        });
-        
+
+        console.log(`📊 [ORDER] Updating stock for ${product.name}: ${currentStock} -> ${newStock} (deducting ${item.quantity})`);
+
         const updateResult = await db.collection('productlist').updateOne(
           {
             theater: theaterIdObjectId,
@@ -273,17 +282,13 @@ router.post('/theater', [
           }
         );
         
-        console.log(`✅ Stock update result:`, {
-          matched: updateResult.matchedCount,
-          modified: updateResult.modifiedCount,
-          acknowledged: updateResult.acknowledged
-        });
-
+        console.log(`🔄 [ORDER] Calling recordStockUsage with quantity: ${item.quantity}`);
+        
         // ✅ Record stock usage in MonthlyStock collection
-        await recordStockUsage(theaterId, productObjectId, item.quantity, new Date());
+        // Use the same orderDate for consistency
+        await recordStockUsage(theaterId, productObjectId, item.quantity, orderDate);
         
       } else {
-        console.log(`⚠️ Stock tracking disabled for ${product.name}`);
       }
     }
 
@@ -291,25 +296,16 @@ router.post('/theater', [
     const taxRate = 0.18; // 18% GST
     const taxAmount = subtotal * taxRate;
     const total = subtotal + taxAmount;
-
-    console.log('💰 Order Totals:', { subtotal, taxAmount, total });
     
-    // Determine order source early for logging
-    const orderSource = (qrName || seat) ? 'qr_code' : 'pos';
+    // Determine order source with priority:
+    // 1. Explicit source from request body (kiosk, pos, qr_code)
+    // 2. If qrName or seat exists, it's qr_code
+    // 3. Default to pos
+    const orderSource = source || ((qrName || seat) ? 'qr_code' : 'pos');
     
-    console.log('📝 Creating order with data:', {
-      theaterId,
-      customerInfo: finalCustomerInfo,
-      itemsCount: orderItems.length,
-      payment: { method: paymentMethod || 'cash', status: 'pending' },
-      source: orderSource,
-      qrName,
-      seat,
-      staffUsername: req.user?.username || 'anonymous'
-    });
+    console.log(`📦 Order source determined: ${orderSource} (explicit: ${source}, qrName: ${qrName}, seat: ${seat})`);
     
     // 🔍 DEBUG: Check what's in req.user
-    console.log('🔍 DEBUG req.user:', JSON.stringify(req.user, null, 2));
 
     // Generate order number
     const now = new Date();
@@ -330,8 +326,6 @@ router.post('/theater', [
     }
     
     const orderNumber = `ORD-${dateStr}-${(todayOrdersCount + 1).toString().padStart(4, '0')}`;
-    console.log('📝 Generated orderNumber:', orderNumber);
-
     // Create staff info object
     let staffInfo = null;
     if (req.user) {
@@ -340,12 +334,8 @@ router.post('/theater', [
         username: req.user.username,
         role: req.user.role
       };
-      console.log('👤 Staff Info Created:', staffInfo);
     } else {
-      console.log('⚠️ No req.user found - order will have null staffInfo');
     }
-
-    console.log('📱 Order Source:', orderSource, '(based on qrName:', qrName, 'seat:', seat, ')');
 
     // Create order object for array
     const newOrder = {
@@ -371,14 +361,11 @@ router.post('/theater', [
       qrName: qrName || null,  // ✅ Store QR Name
       seat: seat || null,      // ✅ Store Seat
       timestamps: {
-        placedAt: new Date()
+        placedAt: orderDate  // Use consistent orderDate
       },
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: orderDate,  // Use consistent orderDate
+      updatedAt: orderDate   // Use consistent orderDate
     };
-
-    console.log('💾 Saving order to array-based structure...');
-    
     // Use findOneAndUpdate with $push to add order to array
     const updatedTheaterOrders = await TheaterOrders.findOneAndUpdate(
       { theater: theaterId },
@@ -390,8 +377,8 @@ router.post('/theater', [
           'metadata.totalRevenue': total
         },
         $set: {
-          'metadata.lastOrderDate': new Date(),
-          updatedAt: new Date()
+          'metadata.lastOrderDate': orderDate,  // Use consistent orderDate
+          updatedAt: orderDate  // Use consistent orderDate
         }
       },
       {
@@ -403,11 +390,6 @@ router.post('/theater', [
 
     // Get the saved order (last item in array)
     const savedOrder = updatedTheaterOrders.orderList[updatedTheaterOrders.orderList.length - 1];
-    
-    console.log('✅ Order saved successfully! Order Number:', savedOrder.orderNumber);
-    console.log('👤 Staff:', savedOrder.staffInfo?.username || 'anonymous');
-    console.log('📊 Status:', savedOrder.status);
-
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
@@ -442,10 +424,6 @@ router.get('/theater/:theaterId', [
   try {
     const { theaterId } = req.params;
     const { status, limit = 50, source } = req.query;
-
-    console.log('📥 Fetching orders for theater:', theaterId);
-    console.log('Filters:', { status, limit, source });
-
     // Validate theater ID
     if (!mongoose.Types.ObjectId.isValid(theaterId)) {
       return res.status(400).json({
@@ -484,9 +462,6 @@ router.get('/theater/:theaterId', [
     if (limit) {
       orders = orders.slice(0, parseInt(limit));
     }
-
-    console.log(`✅ Found ${orders.length} orders for theater`);
-
     res.status(200).json({
       success: true,
       orders,
@@ -572,12 +547,11 @@ router.get('/theater-nested', [
   query('month').optional().isInt({ min: 1, max: 12 }),
   query('year').optional().isInt({ min: 2020, max: 2030 })
 ], async (req, res) => {
-  console.log('🎬 theater-nested endpoint HIT!', req.query);
   try {
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors in theater-nested:', errors.array());
+
       return res.status(400).json({
         error: 'Invalid request parameters',
         details: errors.array()
@@ -620,9 +594,6 @@ router.get('/theater-nested', [
       // Always use user's theaterId for theater users
       theaterId = req.user.theaterId;
     }
-
-    console.log('🎬 Fetching theater orders for:', { theaterId, page, limit, search, statusFilter, dateFilter, monthFilter, yearFilter });
-
     // Find the theater orders document
     const theaterOrders = await TheaterOrders.findOne({ theater: theaterId })
       .populate('theater', 'name location')
@@ -657,29 +628,15 @@ router.get('/theater-nested', [
       const isSuperAdmin = userType === 'super_admin' || userType === 'admin';
       const isTheaterAdmin = userType === 'theater_admin';
       const isTheaterUser = userType === 'theater_user';
-      
-      console.log('🔐 Role-based filtering:', {
-        role: req.user.role,
-        userType: req.user.userType,
-        effectiveType: userType,
-        isSuperAdmin,
-        isTheaterAdmin,
-        isTheaterUser,
-        userId: req.user.userId
-      });
-      
       // Super Admin and Theater Admin see ALL orders
       if (isSuperAdmin || isTheaterAdmin) {
-        console.log('✅ Admin access - showing all orders');
         // No filtering needed
       } 
       // Theater User (staff) only sees their own orders
       else if (isTheaterUser && req.user.userId) {
-        console.log('👤 Staff access - filtering to own orders only');
         filteredOrders = filteredOrders.filter(order => 
           order.staffInfo && String(order.staffInfo.staffId) === String(req.user.userId)
         );
-        console.log(`📊 Filtered from ${theaterOrders.orderList.length} to ${filteredOrders.length} orders`);
       }
     }
 
@@ -745,15 +702,6 @@ router.get('/theater-nested', [
     // Apply pagination
     const paginatedOrders = filteredOrders.slice(skip, skip + limit);
     const totalPages = Math.ceil(filteredOrders.length / limit);
-
-    console.log('📊 Theater orders summary:', {
-      total: filteredOrders.length,
-      page,
-      limit,
-      returned: paginatedOrders.length,
-      summary
-    });
-
     res.json({
       success: true,
       data: paginatedOrders,
@@ -935,15 +883,9 @@ router.get('/excel/:theaterId',
     try {
       const { theaterId } = req.params;
       const { date, month, year, startDate, endDate, status, source } = req.query;
-
-      console.log(`📊 Generating Excel report for theater: ${theaterId}`);
-      console.log(`   Filters:`, { date, month, year, startDate, endDate, status, source });
-
       // Get theater orders document - FIX: Use 'theater' field not 'theaterId'
       const theaterOrders = await TheaterOrders.findOne({ theater: new mongoose.Types.ObjectId(theaterId) });
-      
-      console.log(`🔍 Theater Orders Found:`, theaterOrders ? `Yes (${theaterOrders.orderList?.length || 0} orders)` : 'No');
-      
+
       if (!theaterOrders || !theaterOrders.orderList || theaterOrders.orderList.length === 0) {
         return res.status(404).json({
           success: false,
@@ -952,24 +894,20 @@ router.get('/excel/:theaterId',
       }
 
       let filteredOrders = [...theaterOrders.orderList];
-      console.log(`📝 Initial orders count: ${filteredOrders.length}`);
-
-      // Apply source filter (qr_code for online orders, pos for POS orders)
+      // Apply source filter (qr_code for online orders, pos/kiosk for POS orders)
       if (source) {
         const beforeFilter = filteredOrders.length;
-        console.log(`🔍 Filtering by source: '${source}'`);
-        console.log(`🔍 Sample order sources:`, filteredOrders.slice(0, 3).map(o => ({ 
-          orderNo: o.orderNumber, 
-          source: o.source,
-          hasSource: !!o.source 
-        })));
         
-        filteredOrders = filteredOrders.filter(order => order.source === source);
-        console.log(`  📱 Filtered by source '${source}': ${beforeFilter} → ${filteredOrders.length} orders`);
+        // Support comma-separated sources (e.g., "pos,kiosk")
+        const sources = source.split(',').map(s => s.trim().toLowerCase());
+
+        filteredOrders = filteredOrders.filter(order => {
+          const orderSource = (order.source || '').toLowerCase();
+          return sources.includes(orderSource);
+        });
         
         if (filteredOrders.length === 0) {
-          console.log(`⚠️ No orders found with source='${source}'. Available sources:`, 
-            [...new Set(theaterOrders.orderList.map(o => o.source || 'undefined'))]);
+
         }
       }
 
@@ -980,19 +918,16 @@ router.get('/excel/:theaterId',
         selectedDate.setHours(0, 0, 0, 0);
         const nextDay = new Date(selectedDate);
         nextDay.setDate(nextDay.getDate() + 1);
-        
-        console.log(`📅 Date filter: ${selectedDate.toISOString()} to ${nextDay.toISOString()}`);
 
         const beforeFilter = filteredOrders.length;
         filteredOrders = filteredOrders.filter(order => {
           const orderDate = new Date(order.createdAt);
           const matches = orderDate >= selectedDate && orderDate < nextDay;
           if (!matches) {
-            console.log(`  ❌ Order ${order.orderNumber} excluded - Date: ${orderDate.toISOString()}`);
+
           }
           return matches;
         });
-        console.log(`  Filtered from ${beforeFilter} to ${filteredOrders.length} orders by date`);
       } else if (startDate && endDate) {
         // Date range filter
         const start = new Date(startDate);
@@ -1025,26 +960,17 @@ router.get('/excel/:theaterId',
       const isSuperAdmin = userType === 'super_admin' || userType === 'admin';
       const isTheaterAdmin = userType === 'theater_admin';
       const isTheaterUser = userType === 'theater_user';
-      
-      console.log(`👤 User: ${req.user.username}, Type: ${userType}, Role: ${req.user.role}`);
-      console.log(`📊 Before role filtering: ${filteredOrders.length} orders`);
-
       // Super Admin and Theater Admin see ALL orders
       if (isSuperAdmin || isTheaterAdmin) {
-        console.log('✅ Admin access - showing all orders in Excel');
       } 
       // Theater User (staff) only sees their own orders
       else if (isTheaterUser && req.user.userId) {
-        console.log(`👤 Staff access - filtering to own orders only (userId: ${req.user.userId})`);
+
         const beforeFilter = filteredOrders.length;
         filteredOrders = filteredOrders.filter(order => 
           order.staffInfo && String(order.staffInfo.staffId) === String(req.user.userId)
         );
-        console.log(`   Filtered from ${beforeFilter} to ${filteredOrders.length} orders for staff member`);
       }
-
-      console.log(`✅ Found ${filteredOrders.length} orders for Excel export`);
-
       // Create Excel workbook
       const workbook = new ExcelJS.Workbook();
       workbook.creator = req.user.username || 'System';
@@ -1256,9 +1182,6 @@ router.get('/excel/:theaterId',
       // Write to response
       await workbook.xlsx.write(res);
       res.end();
-
-      console.log(`✅ Excel file generated successfully with ${totalOrders} orders`);
-
     } catch (error) {
       console.error('❌ Excel export error:', error);
       res.status(500).json({

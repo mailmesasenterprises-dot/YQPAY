@@ -1,5 +1,5 @@
 import React from 'react';
-import './ProductModal.css';
+import '../../styles/components/customer/ProductModal.css';
 
 const ProductModal = ({ product, isOpen, onClose, onAddToCart, cartQuantity = 0 }) => {
   if (!isOpen || !product) return null;

@@ -10,6 +10,11 @@ const QRScanner = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Set browser title
+  useEffect(() => {
+    document.title = 'QR Scanner - YQPayNow';
+  }, []);
+
   useEffect(() => {
     // Check if QR data is passed via URL parameters or location state
     const urlParams = new URLSearchParams(location.search);

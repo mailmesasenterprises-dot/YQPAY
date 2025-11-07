@@ -11,7 +11,7 @@
  */
 export const hasPageAccess = (rolePermissions = [], pageKey) => {
   if (!rolePermissions || !Array.isArray(rolePermissions) || rolePermissions.length === 0) {
-    console.log(`🔒 No role permissions found for page access check: ${pageKey}`);
+
     return false;
   }
 
@@ -27,7 +27,7 @@ export const hasPageAccess = (rolePermissions = [], pageKey) => {
     );
   });
 
-  console.log(`🔒 Page access check for "${pageKey}": ${hasAccess ? 'ALLOWED' : 'DENIED'}`);
+
   return hasAccess;
 };
 
@@ -39,7 +39,7 @@ export const hasPageAccess = (rolePermissions = [], pageKey) => {
  */
 export const filterNavigationByPermissions = (navigationItems = [], rolePermissions = []) => {
   if (!rolePermissions || rolePermissions.length === 0) {
-    console.log('🔒 No role permissions found, showing no navigation items');
+
     return [];
   }
 
@@ -49,8 +49,10 @@ export const filterNavigationByPermissions = (navigationItems = [], rolePermissi
       'dashboard': 'TheaterDashboardWithId',
       'order-interface': 'TheaterOrderInterface',
       'online-pos': 'OnlinePOSInterface',
+      'offline-pos': 'OfflinePOSInterface', // ✅ Offline POS
       'order-history': 'TheaterOrderHistory',
       'online-order-history': 'OnlineOrderHistory', // ✅ Online Orders (QR Code orders only)
+      'kiosk-order-history': 'KioskOrderHistory', // ✅ Kiosk Orders (POS orders only)
       'staff-order-history': 'StaffOrderHistory', // Staff can see only their own orders
       'products': 'TheaterProductList',
       'add-product': 'TheaterAddProductWithId', 
@@ -59,6 +61,7 @@ export const filterNavigationByPermissions = (navigationItems = [], rolePermissi
       'product-types': 'TheaterProductTypes',
       'messages': 'TheaterMessages', // ✅ Messages (Chat with Super Admin)
       'reports': 'TheaterReports', // ✅ NEW
+      'banner': 'TheaterBanner', // ✅ Theater Banner
       'theater-roles': 'TheaterRoles', // ✅ Theater Roles Management
       'theater-role-access': 'TheaterRoleAccess', // ✅ Theater Role Access Management
       'qr-code-names': 'TheaterQRCodeNames', // ✅ Theater QR Code Names
@@ -70,15 +73,13 @@ export const filterNavigationByPermissions = (navigationItems = [], rolePermissi
 
     const pageKey = pageMapping[item.id];
     if (!pageKey) {
-      console.log(`🔒 No page mapping found for navigation item: ${item.id}`);
+
       return false;
     }
 
     return hasPageAccess(rolePermissions, pageKey);
   });
 
-  console.log(`🔒 Filtered navigation: ${filteredItems.length}/${navigationItems.length} items allowed`);
-  console.log('🔒 Allowed items:', filteredItems.map(item => item.label));
 
   return filteredItems;
 };
@@ -101,6 +102,6 @@ export const getUserAccessiblePages = (rolePermissions = []) => {
     }
   });
 
-  console.log('🔒 User accessible pages:', accessiblePages);
+
   return accessiblePages;
 };

@@ -414,6 +414,7 @@ body .filter-controls {
 /* Photo Cell */
 .photo-cell {
   padding: 12px !important;
+  text-align: center !important;
 }
 
 .theater-photo-thumb {
@@ -423,9 +424,10 @@ body .filter-controls {
   overflow: hidden;
   background: var(--background-light);
   border: 2px solid var(--border-color);
-  display: flex;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
+  margin: 0 auto;
 }
 
 .theater-photo-thumb img {

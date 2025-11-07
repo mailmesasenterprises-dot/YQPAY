@@ -19,16 +19,12 @@ router.get('/', [optionalAuth], async (req, res) => {
       search = '', 
       isActive 
     } = req.query;
-
-    console.log('📋 GET /api/roles - Query params:', { theaterId, page, limit, search, isActive });
-
     const query = {};
 
     // Filter by theater (map theaterId param to theater field)
     if (theaterId) {
       try {
         query.theater = new mongoose.Types.ObjectId(theaterId);
-        console.log('🎭 Filtering by theater:', theaterId);
       } catch (error) {
         return res.status(400).json({
           success: false,
@@ -40,7 +36,6 @@ router.get('/', [optionalAuth], async (req, res) => {
     // Filter by active status
     if (isActive !== undefined && isActive !== '') {
       query.isActive = isActive === 'true';
-      console.log('✅ Filtering by isActive:', query.isActive);
     }
 
     // Search filter
@@ -50,12 +45,10 @@ router.get('/', [optionalAuth], async (req, res) => {
         { description: { $regex: search.trim(), $options: 'i' } },
         { normalizedName: { $regex: search.trim(), $options: 'i' } }
       ];
-      console.log('🔍 Search term:', search.trim());
+
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    console.log('📊 Final query:', JSON.stringify(query));
 
     // Execute query with pagination
     const [roles, totalItems] = await Promise.all([
@@ -67,9 +60,6 @@ router.get('/', [optionalAuth], async (req, res) => {
         .lean(),
       Role.countDocuments(query)
     ]);
-
-    console.log(`✅ Found ${roles.length} roles out of ${totalItems} total`);
-
     const totalPages = Math.ceil(totalItems / parseInt(limit));
 
     res.json({
@@ -177,9 +167,6 @@ router.post('/', [authenticateToken], async (req, res) => {
 
     // Populate theater details
     await role.populate('theater', 'name location');
-
-    console.log('✅ Role created successfully:', role._id);
-
     res.status(201).json({
       success: true,
       message: 'Role created successfully',
@@ -203,40 +190,23 @@ router.post('/', [authenticateToken], async (req, res) => {
 router.put('/:id', [authenticateToken], async (req, res) => {
   const startTime = Date.now();
   try {
-    console.log('🔄 [ROLE UPDATE] Request started:', {
-      roleId: req.params.id,
-      body: req.body,
-      user: req.user?.id || 'unknown'
-    });
-    
     const { id } = req.params;
     const { name, description, permissions, isGlobal, priority, isActive } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log('❌ [ROLE UPDATE] Invalid ID format:', id);
       return res.status(400).json({
         success: false,
         error: 'Invalid role ID format'
       });
     }
-
-    console.log('🔍 [ROLE UPDATE] Finding role in database...');
     const role = await Role.findById(id);
 
     if (!role) {
-      console.log('❌ [ROLE UPDATE] Role not found:', id);
       return res.status(404).json({
         success: false,
         error: 'Role not found'
       });
     }
-    
-    console.log('✅ [ROLE UPDATE] Role found:', {
-      name: role.name,
-      isDefault: role.isDefault,
-      currentPermissions: role.permissions.length
-    });
-
     // 🛡️ ENHANCED PROTECTION: Special handling for default Theater Admin roles
     if (role.isDefault) {
       // Check if this is a permission-only update
@@ -249,8 +219,6 @@ router.put('/:id', [authenticateToken], async (req, res) => {
 
       // ✅ ALLOW: Permission-only updates for default roles
       if (isPermissionOnlyUpdate) {
-        console.log('🔓 Allowing permission-only update for default role:', role.name);
-        
         role.permissions = permissions;
         
         // Also allow isActive toggle (optional)
@@ -260,9 +228,6 @@ router.put('/:id', [authenticateToken], async (req, res) => {
         
         await role.save();
         await role.populate('theater', 'name location');
-        
-        console.log('✅ Default role permissions updated successfully:', role._id);
-        
         return res.json({
           success: true,
           message: 'Theater Admin permissions updated successfully',
@@ -271,7 +236,6 @@ router.put('/:id', [authenticateToken], async (req, res) => {
       }
 
       // ❌ BLOCK: All other edits for default roles
-      console.log('🛡️ Blocking non-permission update for default role:', role.name);
       return res.status(403).json({
         success: false,
         error: 'Default Theater Admin role is protected. Only page access permissions can be updated. Role name, description, and other properties cannot be modified.',
@@ -305,8 +269,6 @@ router.put('/:id', [authenticateToken], async (req, res) => {
     await role.populate('theater', 'name location');
 
     const duration = Date.now() - startTime;
-    console.log(`✅ [ROLE UPDATE] Role updated successfully in ${duration}ms:`, role._id);
-
     res.json({
       success: true,
       message: 'Role updated successfully',
@@ -360,9 +322,6 @@ router.delete('/:id', [authenticateToken], async (req, res) => {
 
     // Hard delete - permanently remove from database
     await Role.findByIdAndDelete(id);
-
-    console.log('✅ Role permanently deleted:', role._id);
-
     res.json({
       success: true,
       message: 'Role permanently deleted',

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import '../css/HowItWorksSliderNew.css';
+import '../../styles/home/HowItWorksSliderNew.css';
 
 // Import images
 import scanQRImage from '../images/Scan QR Code.jpg';
 import browseMenuImage from '../images/Browse Menu.jpg';
 import securePaymentImage from '../images/Payment.jpg';
-import orderProcessingImage from '../images/Order Processing.jpg';
 import seatDeliveryImage from '../images/Seat Delivery.webp';
-import analyticsReportsImage from '../images/Analytics & Reports.jpg';
 
 const HowItWorksSlider = () => {
   const [activeStep, setActiveStep] = useState(0);
@@ -16,51 +14,36 @@ const HowItWorksSlider = () => {
     {
       id: 1,
       number: "01",
-      topic: "Scan QR Code",
-      description: "Audience members scan a unique QR code placed on their theater seat using their smartphone for instant access to the digital menu.",
+      topic: "Smart Billing Software",
+      description: "Automates theater billing operations with accurate, real-time calculations and seamless integration across counters, kiosks, and online orders for faster and error-free transactions.",
       image: scanQRImage,
-      // icon: "📱"
+      // icon: "💡"
     },
     {
       id: 2,
       number: "02",
-      topic: "Browse Menu",
-      description: "Access a full digital menu with detailed descriptions, images, and prices. Add items to the cart with just a few taps.",
+      topic: "Smart QR Ordering",
+      description: "Enables customers to scan a seat-specific QR code to browse the digital menu, place orders instantly, and enjoy a smooth, contactless ordering experience.",
       image: browseMenuImage,
-      // icon: "🍿"
+      // icon: "📱"
     },
     {
       id: 3,
       number: "03",
-      topic: "Secure Payment",
-      description: "Pay safely through integrated payment gateways like Razorpay, with multiple secure payment options available.",
+      topic: "Kiosk",
+      description: "Self-ordering kiosks provide a quick and convenient way for customers to browse the menu, place orders, and make secure payments without waiting in line.",
       image: securePaymentImage,
-      // icon: "💳"
+      // icon: "🖥️"
     },
     {
       id: 4,
       number: "04",
-      topic: "Order Processing",
-      description: "Orders are instantly sent to the kitchen with seat details. Real-time updates keep customers informed on progress.",
-      image: orderProcessingImage,
-      // icon: "⚡"
-    },
-    {
-      id: 5,
-      number: "05",
-      topic: "Seat Delivery",
-      description: "Snacks and beverages are delivered directly to the customer's seat, ensuring uninterrupted enjoyment of the show.",
+      topic: "Signage Board",
+      description: "Dynamic digital boards display live order status, ongoing offers, and menu highlights—enhancing visibility and keeping customers informed in real-time.",
       image: seatDeliveryImage,
       // icon: "🎯"
     },
-    {
-      id: 6,
-      number: "06",
-      topic: "Analytics & Reports",
-      description: "Theater management receives detailed sales reports, order analytics, and performance insights to optimize operations.",
-      image: analyticsReportsImage,
-      // icon: "📊"
-    }
+
   ];
 
   useEffect(() => {
@@ -83,7 +66,7 @@ const HowItWorksSlider = () => {
         <div className="hiw-particle hiw-particle-2"></div>
         <div className="hiw-particle hiw-particle-3"></div>
       </div>
-      
+
       <div className="container">
         <div className="section-header-new">
           <div className="section-badge">
@@ -92,7 +75,7 @@ const HowItWorksSlider = () => {
           </div>
           <h2 className="section-title-new">How It Works</h2>
           <p className="section-subtitle-new">
-            Get started with our seamless QR ordering system in just 6 simple steps
+            Get started with our seamless QR ordering system in just 4 simple steps
           </p>
         </div>
 
@@ -105,8 +88,8 @@ const HowItWorksSlider = () => {
               onClick={() => handleStepClick(index)}
             >
               <div className="step-card-image-wrapper">
-                <img 
-                  src={step.image} 
+                <img
+                  src={step.image}
                   alt={step.topic}
                   className="step-card-image"
                 />
@@ -127,8 +110,8 @@ const HowItWorksSlider = () => {
         {/* Progress Indicator */}
         <div className="steps-progress-bar">
           <div className="progress-bar-track">
-            <div 
-              className="progress-bar-fill" 
+            <div
+              className="progress-bar-fill"
               style={{ width: `${((activeStep + 1) / steps.length) * 100}%` }}
             ></div>
           </div>

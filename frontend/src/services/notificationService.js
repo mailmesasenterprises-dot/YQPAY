@@ -25,7 +25,7 @@ class NotificationService {
       }
       return await response.json();
     } catch (error) {
-      console.error('Failed to get service status:', error);
+
       throw error;
     }
   }
@@ -50,7 +50,7 @@ class NotificationService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to send order confirmation:', error);
+
       throw error;
     }
   }
@@ -75,7 +75,7 @@ class NotificationService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to send order ready notification:', error);
+
       throw error;
     }
   }
@@ -100,7 +100,7 @@ class NotificationService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to send payment success notification:', error);
+
       throw error;
     }
   }
@@ -125,7 +125,7 @@ class NotificationService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to send custom notification:', error);
+
       throw error;
     }
   }
@@ -155,7 +155,7 @@ class NotificationService {
 
       return await response.json();
     } catch (error) {
-      console.error('Failed to send bulk notifications:', error);
+
       throw error;
     }
   }
@@ -171,7 +171,7 @@ class NotificationService {
       }
       return await response.json();
     } catch (error) {
-      console.error('Provider test failed:', error);
+
       throw error;
     }
   }

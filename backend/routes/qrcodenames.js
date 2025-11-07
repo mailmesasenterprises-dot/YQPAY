@@ -3,9 +3,6 @@ const router = express.Router();
 const QRCodeName = require('../models/QRCodeName');
 const { authenticateToken, optionalAuth, requireRole } = require('../middleware/auth');
 const { body, validationResult, param, query } = require('express-validator');
-
-console.log('🔧 QRCodeName routes file loaded successfully!');
-
 /**
  * @route   GET /api/qrcodenames
  * @desc    Get all QR code names with pagination and filters
@@ -19,13 +16,10 @@ router.get('/', optionalAuth, [
   query('isActive').optional().isBoolean().withMessage('isActive must be boolean')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/qrcodenames - Request received');
-    console.log('Query params:', req.query);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -46,13 +40,11 @@ router.get('/', optionalAuth, [
     // Add theater filter
     if (theaterId) {
       filter.theater = theaterId;
-      console.log('🎭 Filtering by theater:', theaterId);
     }
     
     // Add active status filter
     if (isActiveFilter !== undefined) {
       filter.isActive = isActiveFilter === 'true';
-      console.log('🔍 Filtering by isActive:', filter.isActive);
     }
     
     // Add search filter
@@ -62,14 +54,10 @@ router.get('/', optionalAuth, [
         { seatClass: { $regex: searchQuery, $options: 'i' } },
         { description: { $regex: searchQuery, $options: 'i' } }
       ];
-      console.log('🔎 Search query:', searchQuery);
     }
 
     // Calculate pagination
     const skip = (page - 1) * limit;
-
-    console.log('📊 Filter:', JSON.stringify(filter));
-    console.log('📄 Pagination - Page:', page, 'Limit:', limit, 'Skip:', skip);
 
     // Execute queries in parallel
     const [qrCodeNames, totalCount] = await Promise.all([
@@ -81,8 +69,6 @@ router.get('/', optionalAuth, [
         .lean(),
       QRCodeName.countDocuments(filter)
     ]);
-
-    console.log('✅ Found', qrCodeNames.length, 'QR code names (Total:', totalCount, ')');
 
     // Calculate summary statistics
     const summary = {
@@ -131,13 +117,10 @@ router.get('/:id', optionalAuth, [
   param('id').isMongoId().withMessage('Invalid QR code name ID')
 ], async (req, res) => {
   try {
-    console.log('📥 GET /api/qrcodenames/:id - Request received');
-    console.log('ID:', req.params.id);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -149,15 +132,11 @@ router.get('/:id', optionalAuth, [
       .populate('theater', 'name');
 
     if (!qrCodeName) {
-      console.log('❌ QR code name not found');
       return res.status(404).json({
         success: false,
         message: 'QR code name not found'
       });
     }
-
-    console.log('✅ QR code name found:', qrCodeName.qrName);
-
     res.json({
       success: true,
       message: 'QR code name retrieved successfully',
@@ -192,14 +171,10 @@ router.post('/', [
   body('theaterId').optional().isMongoId().withMessage('Invalid theater ID')
 ], async (req, res) => {
   try {
-    console.log('📥 POST /api/qrcodenames - Create request received');
-    console.log('Body:', req.body);
-    console.log('User:', req.user?.email, 'Role:', req.user?.role);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -214,13 +189,9 @@ router.post('/', [
       .toLowerCase()
       .replace(/\s+/g, '_')
       .replace(/[^a-z0-9_-]/g, '');
-
-    console.log('🔍 Checking for duplicate normalized name:', normalizedName);
-
     // Check if QR code name already exists
     const existingQRCodeName = await QRCodeName.findOne({ normalizedName });
     if (existingQRCodeName) {
-      console.log('❌ Duplicate QR code name found');
       return res.status(409).json({
         success: false,
         message: 'A QR code name with this combination already exists',
@@ -238,9 +209,6 @@ router.post('/', [
     });
 
     await newQRCodeName.save();
-
-    console.log('✅ QR code name created successfully:', newQRCodeName._id);
-
     // Populate theater info if available
     await newQRCodeName.populate('theater', 'name');
 
@@ -279,15 +247,10 @@ router.put('/:id', [
   body('theaterId').optional().isMongoId().withMessage('Invalid theater ID')
 ], async (req, res) => {
   try {
-    console.log('📥 PUT /api/qrcodenames/:id - Update request received');
-    console.log('ID:', req.params.id);
-    console.log('Body:', req.body);
-    console.log('User:', req.user?.email, 'Role:', req.user?.role);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -298,15 +261,11 @@ router.put('/:id', [
     // Find existing QR code name
     const qrCodeName = await QRCodeName.findById(req.params.id);
     if (!qrCodeName) {
-      console.log('❌ QR code name not found');
       return res.status(404).json({
         success: false,
         message: 'QR code name not found'
       });
     }
-
-    console.log('✅ Found QR code name:', qrCodeName.qrName);
-
     const { qrName: newQrName, seatClass: newSeatClass, description, isActive, theaterId } = req.body;
 
     // Check for duplicate if qrName or seatClass is being updated
@@ -320,16 +279,12 @@ router.put('/:id', [
         .toLowerCase()
         .replace(/\s+/g, '_')
         .replace(/[^a-z0-9_-]/g, '');
-
-      console.log('🔍 Checking for duplicate normalized name:', normalizedName);
-
       const duplicateQRCodeName = await QRCodeName.findOne({
         normalizedName,
         _id: { $ne: req.params.id }
       });
 
       if (duplicateQRCodeName) {
-        console.log('❌ Duplicate QR code name found');
         return res.status(409).json({
           success: false,
           message: 'A QR code name with this combination already exists',
@@ -346,9 +301,6 @@ router.put('/:id', [
     if (theaterId !== undefined) qrCodeName.theater = theaterId || null;
 
     await qrCodeName.save();
-
-    console.log('✅ QR code name updated successfully');
-
     // Populate theater info if available
     await qrCodeName.populate('theater', 'name');
 
@@ -379,14 +331,10 @@ router.delete('/:id', [
   param('id').isMongoId().withMessage('Invalid QR code name ID')
 ], async (req, res) => {
   try {
-    console.log('📥 DELETE /api/qrcodenames/:id - Delete request received');
-    console.log('ID:', req.params.id);
-    console.log('User:', req.user?.email, 'Role:', req.user?.role);
-    
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.log('❌ Validation errors:', errors.array());
+
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -397,18 +345,13 @@ router.delete('/:id', [
     // Find QR code name
     const qrCodeName = await QRCodeName.findById(req.params.id);
     if (!qrCodeName) {
-      console.log('❌ QR code name not found');
       return res.status(404).json({
         success: false,
         message: 'QR code name not found'
       });
     }
-
-    console.log('✅ Found QR code name:', qrCodeName.qrName);
-
     // Check if already deleted
     if (!qrCodeName.isActive) {
-      console.log('⚠️ QR code name already marked as inactive');
       return res.status(400).json({
         success: false,
         message: 'QR code name is already inactive'
@@ -418,9 +361,6 @@ router.delete('/:id', [
     // Soft delete - set isActive to false
     qrCodeName.isActive = false;
     await qrCodeName.save();
-
-    console.log('✅ QR code name soft deleted successfully');
-
     res.json({
       success: true,
       message: 'QR code name deleted successfully',
@@ -448,9 +388,6 @@ router.patch('/:id/restore', [
   param('id').isMongoId().withMessage('Invalid QR code name ID')
 ], async (req, res) => {
   try {
-    console.log('📥 PATCH /api/qrcodenames/:id/restore - Restore request received');
-    console.log('ID:', req.params.id);
-    
     const qrCodeName = await QRCodeName.findById(req.params.id);
     if (!qrCodeName) {
       return res.status(404).json({
@@ -468,9 +405,6 @@ router.patch('/:id/restore', [
 
     qrCodeName.isActive = true;
     await qrCodeName.save();
-
-    console.log('✅ QR code name restored successfully');
-
     res.json({
       success: true,
       message: 'QR code name restored successfully',

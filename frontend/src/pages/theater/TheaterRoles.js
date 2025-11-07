@@ -99,7 +99,7 @@ const TheaterRoles = () => {
   // Validate theater access
   useEffect(() => {
     if (userType === 'theater_user' && userTheaterId && theaterId !== userTheaterId) {
-      console.error('Theater access denied: User can only access their own theater');
+
       return;
     }
   }, [theaterId, userTheaterId, userType]);
@@ -128,16 +128,14 @@ const TheaterRoles = () => {
         setTheater(theaterData);
       }
     } catch (error) {
-      console.error('Error loading theater:', error);
-    }
+  }
   }, [theaterId]);
 
   // Load roles data
   const loadRolesData = useCallback(async (page = 1, limit = 10, search = '') => {
-    console.log('🔥 DEBUGGING: loadRolesData called with params:', { theaterId, page, limit, search });
-    
+
     if (!isMountedRef.current || !theaterId) {
-      console.log('🔥 DEBUGGING: Component not mounted or no theaterId, returning');
+
       return;
     }
 
@@ -167,8 +165,7 @@ const TheaterRoles = () => {
 
       const baseUrl = `${config.api.baseUrl}/roles?${params.toString()}`;
       
-      console.log('🔥 DEBUGGING: Fetching from', baseUrl);
-      
+
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
       const response = await fetch(baseUrl, {
@@ -182,23 +179,19 @@ const TheaterRoles = () => {
         }
       });
       
-      console.log('🔥 DEBUGGING: Response status', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       
-      console.log('🔥 DEBUGGING: Raw API response', data);
-      
+
       if (!isMountedRef.current) return;
 
       if (data.success && data.data) {
         let roles = data.data.roles || [];
-        console.log('🔥 DEBUGGING: Roles extracted', roles);
-        console.log('🔥 DEBUGGING: Roles count', roles.length);
-        
+
         // Sort roles by ID in ascending order
         const sortedRoles = roles.sort((a, b) => {
           // Convert IDs to strings for consistent comparison
@@ -224,16 +217,14 @@ const TheaterRoles = () => {
           totalRoles: roles.length
         });
         
-        console.log('🔥 DEBUGGING: Summary calculated', { activeCount, inactiveCount, total: roles.length });
-      }
+  }
       
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('🔥 DEBUGGING: Request cancelled');
+
         return;
       }
-      console.error('Error loading roles:', error);
-    } finally {
+  } finally {
       if (isMountedRef.current) {
         setLoading(false);
       }
@@ -341,7 +332,7 @@ const TheaterRoles = () => {
         showError(errorData.message || 'Failed to update role status');
       }
     } catch (error) {
-      console.error('❌ Error toggling role status:', error);
+
       showError('Failed to update role status');
     }
   };
@@ -387,11 +378,9 @@ const TheaterRoles = () => {
         setSelectedRole(null);
       } else {
         const errorData = await response.json();
-        console.error('Error saving role:', errorData);
-      }
+  }
     } catch (error) {
-      console.error('Error saving role:', error);
-    }
+  }
   };
 
   // Confirm delete
@@ -411,11 +400,9 @@ const TheaterRoles = () => {
         loadRolesData(currentPage, itemsPerPage, searchTerm);
       } else {
         const errorData = await response.json();
-        console.error('Error deleting role:', errorData);
-      }
+  }
     } catch (error) {
-      console.error('Error deleting role:', error);
-    }
+  }
   };
 
   // Memoized skeleton component for loading states

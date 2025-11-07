@@ -94,8 +94,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
           setUnreadCount(totalUnread);
         }
       } catch (error) {
-        console.error('Error fetching notifications:', error);
-      }
+  }
     };
 
     // Initial fetch
@@ -123,7 +122,6 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
         const decoder = new TextDecoder();
         let buffer = '';
 
-        console.log('✅ Real-time notification stream connected');
 
         while (true) {
           const { done, value } = await reader.read();
@@ -137,8 +135,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6));
-                console.log('📨 Real-time notification received:', data);
-                
+
                 if (data.type === 'new_message') {
                   // Instantly refresh notifications
                   fetchNotifications();
@@ -155,14 +152,13 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
                   }
                 }
               } catch (e) {
-                console.error('Error parsing SSE message:', e);
-              }
+  }
             }
           }
         }
       } catch (error) {
         if (error.name !== 'AbortError') {
-          console.error('❌ SSE connection error:', error);
+
           // Retry connection after 5 seconds
           setTimeout(setupSSE, 5000);
         }
@@ -172,8 +168,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
     // Request notification permission on first load
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().then(permission => {
-        console.log('🔔 Notification permission:', permission);
-      });
+  });
     }
 
     setupSSE();

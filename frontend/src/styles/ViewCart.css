@@ -399,6 +399,21 @@
   border-color: #6B0E9B;
 }
 
+.payment-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f3f4f6;
+}
+
+.payment-option.disabled:hover {
+  background: #f3f4f6;
+  border-color: #e2e8f0;
+}
+
+.payment-option input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
 .payment-option input[type="radio"] {
   accent-color: #6B0E9B;
   width: 18px;

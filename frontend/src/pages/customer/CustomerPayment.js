@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import config from '../../config/index';
+import { loadRazorpayScript } from '../../utils/razorpayLoader';
 import '../../styles/customer/CustomerPayment.css';
 
 const CustomerPayment = () => {
@@ -22,6 +23,8 @@ const CustomerPayment = () => {
     seat: '',
     qrName: ''
   });
+  const [gatewayConfig, setGatewayConfig] = useState(null);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
   const phoneNumber = location.state?.phoneNumber || '';
   const verified = location.state?.verified || false;
@@ -29,7 +32,7 @@ const CustomerPayment = () => {
   useEffect(() => {
     // Redirect if not verified
     if (!phoneNumber || !verified) {
-      console.log('❌ Not verified, redirecting to phone entry');
+
       navigate('/customer/phone-entry');
       return;
     }
@@ -40,12 +43,12 @@ const CustomerPayment = () => {
     // Check if we have theater info and cart items
     const checkoutData = JSON.parse(localStorage.getItem('checkoutData') || 'null');
     if (!checkoutData || !checkoutData.theaterId) {
-      console.warn('⚠️ No checkout data found, will need theater info when placing order');
+
       // Don't redirect - allow user to proceed but show warning
       const urlParams = new URLSearchParams(window.location.search);
       const theaterIdFromUrl = urlParams.get('theaterid');
       if (theaterIdFromUrl) {
-        console.log('✅ Found theater ID in URL:', theaterIdFromUrl);
+
         // Store minimal checkout data
         localStorage.setItem('checkoutData', JSON.stringify({
           theaterId: theaterIdFromUrl,
@@ -59,13 +62,12 @@ const CustomerPayment = () => {
 
   const loadCartData = () => {
     try {
-      console.log('📦 Loading cart data...');
+
       // Try to get checkout data first (from new flow)
       const checkoutData = JSON.parse(localStorage.getItem('checkoutData') || 'null');
-      console.log('Checkout data:', checkoutData);
-      
+
       if (checkoutData && checkoutData.cartItems) {
-        console.log('✅ Using checkout flow data');
+
         // Use data from checkout flow
         setCartItems(checkoutData.cartItems);
         setOrderSummary({
@@ -80,7 +82,7 @@ const CustomerPayment = () => {
           qrName: checkoutData.qrName || ''
         });
       } else {
-        console.log('⚠️ Using fallback cart data');
+
         // Fallback to cart data (old flow)
         const savedCart = JSON.parse(localStorage.getItem('cart') || '[]');
         setCartItems(savedCart);
@@ -96,12 +98,45 @@ const CustomerPayment = () => {
           total: total
         });
       }
-      console.log('✅ Cart data loaded successfully');
-    } catch (err) {
-      console.error('❌ Error loading cart data:', err);
+  } catch (err) {
+
       setError('Error loading order details');
     }
   };
+
+  // Fetch payment gateway configuration
+  useEffect(() => {
+    const fetchGatewayConfig = async () => {
+      try {
+        const checkoutData = JSON.parse(localStorage.getItem('checkoutData') || '{}');
+        const theaterId = checkoutData.theaterId;
+        
+        if (!theaterId) return;
+
+        const response = await fetch(`${config.api.baseUrl}/payments/config/${theaterId}/online`);
+        const data = await response.json();
+
+        if (data.success && data.config) {
+          setGatewayConfig(data.config);
+          console.log('✅ Gateway config loaded:', data.provider);
+        } else {
+          console.warn('⚠️ No payment gateway configured for this theater');
+        }
+      } catch (error) {
+        console.error('Error fetching gateway config:', error);
+      }
+    };
+
+    fetchGatewayConfig();
+
+    // Load Razorpay script
+    loadRazorpayScript().then(loaded => {
+      setRazorpayLoaded(loaded);
+      if (!loaded) {
+        setError('Failed to load payment gateway. Please refresh the page.');
+      }
+    });
+  }, []);
 
   const paymentMethods = [
     {
@@ -131,53 +166,59 @@ const CustomerPayment = () => {
   };
 
   const handlePayNow = async () => {
-    console.log('🔥 Pay Now clicked!');
-    console.log('Selected payment method:', selectedPaymentMethod);
-    console.log('Cart items:', cartItems);
-    
+
     if (!selectedPaymentMethod) {
-      console.error('❌ No payment method selected');
+
       setError('Please select a payment method');
       return;
     }
 
     if (cartItems.length === 0) {
-      console.error('❌ Cart is empty');
+
       setError('Your cart is empty');
       return;
     }
 
-    console.log('✅ Starting payment process...');
+    // Check if Razorpay is required and loaded
+    if (['upi', 'card', 'netbanking'].includes(selectedPaymentMethod)) {
+      if (!razorpayLoaded) {
+        setError('Payment gateway not ready. Please refresh the page.');
+        return;
+      }
+
+      if (!gatewayConfig) {
+        setError('Payment gateway not configured for this theater.');
+        return;
+      }
+    }
+
+
     setLoading(true);
     setError('');
 
     try {
       // Get checkout data for theater info
       const checkoutData = JSON.parse(localStorage.getItem('checkoutData') || '{}');
-      console.log('📦 Checkout data:', checkoutData);
-      
+
       let theaterId = checkoutData.theaterId;
-      console.log('🎭 Theater ID from checkout:', theaterId);
-      
+
       // If no theater ID, try to get from URL or cart
       if (!theaterId) {
-        console.warn('⚠️ No theater ID in checkout data, trying URL params...');
+
         const urlParams = new URLSearchParams(window.location.search);
         theaterId = urlParams.get('theaterid');
-        console.log('🎭 Theater ID from URL:', theaterId);
-        
+
         if (!theaterId) {
           // Try to get from stored cart data
           const cart = JSON.parse(localStorage.getItem('cart') || '[]');
           if (cart.length > 0 && cart[0].theaterId) {
             theaterId = cart[0].theaterId;
-            console.log('🎭 Theater ID from cart:', theaterId);
-          }
+  }
         }
       }
       
       if (!theaterId) {
-        console.error('❌ No theater ID found anywhere');
+
         setError('Unable to process order. Please scan QR code and add items to cart first.');
         setLoading(false);
         
@@ -188,7 +229,6 @@ const CustomerPayment = () => {
         return;
       }
 
-      console.log('✅ Using theater ID:', theaterId);
 
       // Prepare order items for backend
       const orderItems = cartItems.map(item => ({
@@ -208,12 +248,10 @@ const CustomerPayment = () => {
         qrName: checkoutData.qrName,    // ✅ Include QR Name
         seat: checkoutData.seat,        // ✅ Include Seat
         items: orderItems,
-        paymentMethod: selectedPaymentMethod
+        paymentMethod: selectedPaymentMethod,
+        orderType: 'qr_order' // Important: This determines 'online' channel
       };
 
-      console.log('📝 Creating order with payload:', orderPayload);
-
-      console.log('🌐 Backend URL:', config.api.baseUrl);
 
       // Call backend API to create order
       const response = await fetch(`${config.api.baseUrl}/orders/theater`, {
@@ -230,47 +268,149 @@ const CustomerPayment = () => {
       }
 
       const backendOrder = await response.json();
-      console.log('Order created successfully:', backendOrder);
-      
-      // Save theater info before clearing (for success page navigation)
-      const theaterInfo = {
-        theaterId: checkoutData.theaterId,
-        theaterName: checkoutData.theaterName,
-        qrName: checkoutData.qrName,
-        seat: checkoutData.seat
-      };
-      
-      // Create order object for success page
-      const orderData = {
-        orderId: backendOrder.orderNumber || `ORD${Date.now()}`,
-        phoneNumber,
-        items: cartItems,
-        summary: orderSummary,
-        paymentMethod: selectedPaymentMethod,
-        timestamp: new Date().toISOString(),
-        backendOrderId: backendOrder._id,
-        theaterInfo: theaterInfo // Include theater info for navigation
-      };
 
-      // Clear cart and checkout data
-      localStorage.removeItem('cart');
-      localStorage.removeItem('checkoutData');
-      localStorage.removeItem('yqpay_cart'); // Also clear the cart context storage
-      clearCart(); // Clear cart context
-      
-      // Navigate to success page
-      navigate('/customer/order-success', { 
-        state: { 
-          order: orderData,
-          fromPayment: true 
-        }
-      });
+      // If using Razorpay (UPI, Card, Net Banking)
+      if (['upi', 'card', 'netbanking'].includes(selectedPaymentMethod) && gatewayConfig) {
+        await initiateRazorpayPayment(backendOrder, orderSummary.total, theaterId);
+      } else {
+        // For cash or other methods, proceed directly to success
+        handlePaymentSuccess(backendOrder, null);
+      }
     } catch (err) {
-      console.error('Order creation error:', err);
+
       setError(err.message || 'Payment failed. Please try again.');
-    } finally {
       setLoading(false);
     }
+  };
+
+  // Initiate Razorpay Payment
+  const initiateRazorpayPayment = async (backendOrder, amount, theaterId) => {
+    try {
+      // Create Razorpay order
+      const createOrderResponse = await fetch(`${config.api.baseUrl}/payments/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: backendOrder._id,
+          amount: Math.round(amount * 100), // Convert to paise
+          currency: 'INR',
+          channel: 'online',
+          notes: {
+            theaterId,
+            qrName: backendOrder.qrName,
+            seat: backendOrder.tableNumber
+          }
+        })
+      });
+
+      const razorpayOrderData = await createOrderResponse.json();
+
+      if (!razorpayOrderData.success) {
+        throw new Error(razorpayOrderData.message || 'Failed to create payment order');
+      }
+
+      // Razorpay options
+      const options = {
+        key: gatewayConfig.keyId,
+        amount: razorpayOrderData.order.amount,
+        currency: razorpayOrderData.order.currency,
+        order_id: razorpayOrderData.order.id,
+        name: 'YQPayNow',
+        description: `Order #${backendOrder.orderNumber || backendOrder._id}`,
+        handler: async (response) => {
+          // Payment success - verify signature
+          await verifyRazorpayPayment(response, backendOrder);
+        },
+        prefill: {
+          contact: phoneNumber,
+          email: ''
+        },
+        theme: {
+          color: '#3399cc'
+        },
+        modal: {
+          ondismiss: () => {
+            setError('Payment cancelled by user');
+            setLoading(false);
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (error) {
+      console.error('Razorpay payment error:', error);
+      setError(error.message || 'Failed to initiate payment');
+      setLoading(false);
+    }
+  };
+
+  // Verify Razorpay Payment
+  const verifyRazorpayPayment = async (razorpayResponse, backendOrder) => {
+    try {
+      const response = await fetch(`${config.api.baseUrl}/payments/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_order_id: razorpayResponse.razorpay_order_id,
+          razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+          razorpay_signature: razorpayResponse.razorpay_signature,
+          orderId: backendOrder._id
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        handlePaymentSuccess(backendOrder, razorpayResponse);
+      } else {
+        setError(data.message || 'Payment verification failed');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      setError('Payment verification failed');
+      setLoading(false);
+    }
+  };
+
+  // Handle Payment Success
+  const handlePaymentSuccess = (backendOrder, razorpayResponse) => {
+    // Save theater info before clearing (for success page navigation)
+    const checkoutData = JSON.parse(localStorage.getItem('checkoutData') || '{}');
+    const theaterInfo = {
+      theaterId: checkoutData.theaterId,
+      theaterName: checkoutData.theaterName,
+      qrName: checkoutData.qrName,
+      seat: checkoutData.seat
+    };
+    
+    // Create order object for success page
+    const orderData = {
+      orderId: backendOrder.orderNumber || `ORD${Date.now()}`,
+      phoneNumber,
+      items: cartItems,
+      summary: orderSummary,
+      paymentMethod: selectedPaymentMethod,
+      timestamp: new Date().toISOString(),
+      backendOrderId: backendOrder._id,
+      razorpayPaymentId: razorpayResponse?.razorpay_payment_id,
+      theaterInfo: theaterInfo
+    };
+
+    // Clear cart and checkout data
+    localStorage.removeItem('cart');
+    localStorage.removeItem('checkoutData');
+    localStorage.removeItem('yqpay_cart');
+    clearCart();
+    
+    // Navigate to success page
+    navigate('/customer/order-success', { 
+      state: { 
+        order: orderData,
+        fromPayment: true 
+      }
+    });
   };
 
   const handleBack = () => {
@@ -298,7 +438,7 @@ const CustomerPayment = () => {
           type="button"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
         <h1 className="payment-title">Payment</h1>

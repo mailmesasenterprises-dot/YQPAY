@@ -42,16 +42,6 @@ router.post('/generate', [
       logoUrl, 
       logoType 
     } = req.body;
-
-    console.log('📥 QR Generation Request:', {
-      theaterId,
-      qrType,
-      name,
-      seatClass,
-      seatCount: selectedSeats?.length || 0,
-      user: req.user?.userId
-    });
-
     // Additional validation for screen type
     if (qrType === 'screen') {
       if (!selectedSeats || selectedSeats.length === 0) {
@@ -82,12 +72,6 @@ router.post('/generate', [
       logoType,
       userId: req.user?.userId
     });
-
-    console.log('✅ QR Generation Success:', {
-      type: qrType,
-      count: result.count
-    });
-
     res.json({
       success: true,
       message: qrType === 'single' 
@@ -190,8 +174,6 @@ router.post('/generate/legacy', [
 router.get('/:qrCodeId/download', authenticateToken, async (req, res) => {
   try {
     const { qrCodeId } = req.params;
-    console.log('📥 Download QR code request:', qrCodeId);
-
     // Find the theater containing this QR code
     const theater = await Theater.findOne({ 'qrCodes._id': qrCodeId });
     

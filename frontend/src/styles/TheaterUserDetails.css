@@ -705,6 +705,56 @@
   }
 }
 
+/* Mobile Small - 480px breakpoint */
+@media (max-width: 480px) {
+  .theater-user-settings-content .theater-table {
+    min-width: 600px;
+    font-size: 0.75rem;
+  }
+  
+  .theater-user-settings-content .theater-table th,
+  .theater-user-settings-content .theater-table td {
+    padding: 8px 4px;
+  }
+
+  /* Extra small action buttons */
+  .theater-user-settings-content .action-btn {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 0.9rem;
+  }
+
+  .theater-user-modal-content {
+    width: 98%;
+    margin: 5px;
+  }
+
+  .theater-user-modal-header,
+  .theater-user-modal-body,
+  .theater-user-modal-footer {
+    padding: 12px 16px;
+  }
+}
+
+/* Mobile Extra Small - 360px breakpoint */
+@media (max-width: 360px) {
+  .theater-user-settings-content .theater-table {
+    min-width: 520px;
+    font-size: 0.7rem;
+  }
+  
+  .theater-user-settings-content .theater-table th,
+  .theater-user-settings-content .theater-table td {
+    padding: 6px 3px;
+  }
+
+  .theater-user-settings-content .action-btn {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 0.8rem;
+  }
+}
+
 /* ===== THEATER USER TABLE STYLING - MATCHING THEATER MANAGEMENT PAGE ===== */
 
 /* Ensure parent containers don't constrain width */

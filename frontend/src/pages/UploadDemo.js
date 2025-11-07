@@ -8,12 +8,12 @@ import AutoUpload from '../components/AutoUpload';
  */
 const UploadDemo = () => {
   const handleSuccess = (result) => {
-    console.log('✅ Upload Success:', result);
+
     alert(`File uploaded successfully to: ${result.folderPath}`);
   };
 
   const handleError = (error) => {
-    console.error('❌ Upload Error:', error);
+
     alert(`Upload failed: ${error}`);
   };
 

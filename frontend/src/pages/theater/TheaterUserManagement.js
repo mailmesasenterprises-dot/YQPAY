@@ -76,7 +76,7 @@ const TheaterUserManagement = () => {
   // Fetch theater details
   const fetchTheaterDetails = useCallback(async () => {
     try {
-      console.log('🏛️ Fetching theater details for:', theaterId);
+
       const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
         method: 'GET',
         headers: getAuthHeaders()
@@ -84,16 +84,16 @@ const TheaterUserManagement = () => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('📦 Raw theater response:', result);
+
         const theaterData = result.data || result.theater || result;
-        console.log('✅ Theater loaded:', theaterData);
+
         setTheater(theaterData);
       } else {
-        console.error('❌ Failed to fetch theater, status:', response.status);
+
         setError('Failed to load theater details');
       }
     } catch (err) {
-      console.error('❌ Error fetching theater:', err);
+
       setError('Error loading theater details');
     }
   }, [theaterId]);
@@ -106,7 +106,7 @@ const TheaterUserManagement = () => {
         isActive: 'true'
       });
 
-      console.log('🎭 Fetching roles for theater:', theaterId);
+
       const response = await fetch(`${config.api.baseUrl}/roles?${params.toString()}`, {
         method: 'GET',
         headers: getAuthHeaders()
@@ -114,8 +114,7 @@ const TheaterUserManagement = () => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('📦 Raw roles response:', result);
-        
+
         // Handle multiple possible response structures
         let rolesArray = [];
         if (result.success && result.data) {
@@ -126,12 +125,12 @@ const TheaterUserManagement = () => {
           rolesArray = result;
         }
         
-        console.log('📋 Extracted roles:', rolesArray);
+
         const validRoles = rolesArray
           .filter(role => role && role._id && role.name && role.isActive !== false)
           .sort((a, b) => a._id.localeCompare(b._id));
         
-        console.log('✅ Valid roles loaded:', validRoles);
+
         setAvailableRoles(validRoles);
         
         const mappedRoles = validRoles.map(role => ({
@@ -140,20 +139,20 @@ const TheaterUserManagement = () => {
           icon: roleIconsMap[role.name.toLowerCase().replace(/\s+/g, '_')] || '👤'
         }));
         
-        console.log('🎯 Mapped tab roles:', mappedRoles);
+
         setTabRoles(mappedRoles);
 
         // Auto-select first role
         if (mappedRoles.length > 0 && !selectedRole) {
-          console.log('🎯 Auto-selecting first role:', mappedRoles[0]);
+
           setSelectedRole(mappedRoles[0]);
         }
       } else {
-        console.error('❌ Failed to fetch roles, status:', response.status);
+
         setTabRoles([]);
       }
     } catch (err) {
-      console.error('❌ Error fetching roles:', err);
+
       setTabRoles([]);
     }
   }, [theaterId, selectedRole]);
@@ -172,8 +171,7 @@ const TheaterUserManagement = () => {
         isActive: 'true'
       });
 
-      console.log('🔍 Fetching users from:', `${config.api.baseUrl}/theater-users?${params.toString()}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theater-users?${params.toString()}`, {
         method: 'GET',
         headers: getAuthHeaders()
@@ -181,8 +179,7 @@ const TheaterUserManagement = () => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('📦 Raw users response:', result);
-        
+
         // Handle multiple possible response structures
         let usersList = [];
         if (result.success && result.data) {
@@ -193,15 +190,15 @@ const TheaterUserManagement = () => {
           usersList = result;
         }
         
-        console.log('✅ Users loaded:', usersList);
+
         // Ensure we always set an array
         setUsers(Array.isArray(usersList) ? usersList : []);
       } else {
-        console.error('❌ Failed to fetch users, status:', response.status);
+
         setUsers([]);
       }
     } catch (err) {
-      console.error('❌ Error fetching users:', err);
+
       setUsers([]);
     } finally {
       setLoadingUsers(false);
@@ -291,8 +288,7 @@ const TheaterUserManagement = () => {
 
   // Validate form
   const validateForm = () => {
-    console.log('🔍 Validating form - mode:', crudModal.mode);
-    console.log('🔍 Form data at validation:', formData);
+
     const errors = {};
 
     // Username is only required for create mode
@@ -323,37 +319,33 @@ const TheaterUserManagement = () => {
     if (!formData.phoneNumber?.trim()) errors.phoneNumber = 'Phone number is required';
     if (!formData.role) errors.role = 'Role is required';
 
-    console.log('🔍 Validation errors found:', errors);
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   // Handle create user
   const handleCreateUser = async () => {
-    console.log('🎯 handleCreateUser called');
-    console.log('📝 Form data:', formData);
-    
+
     if (!validateForm()) {
-      console.log('❌ Form validation failed');
+
       return;
     }
 
-    console.log('✅ Form validation passed');
 
     try {
-      // Backend expects: theater, username, email, password, role, fullName, phoneNumber
+      // Backend expects: theaterId, username, email, password, role, fullName, phoneNumber
       const payload = {
-        theater: theaterId, // Backend expects 'theater' field, not 'theaterId'
+        theaterId: theaterId, // Backend expects 'theaterId' field for array-based structure
         username: formData.username,
         email: formData.email,
         password: formData.password,
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
-        role: formData.role
+        role: formData.role, // This is the role ID from the selected role
+        pin: formData.pin || undefined // Optional PIN
       };
 
-      console.log('📤 Sending payload:', payload);
-      console.log('🔗 POST URL:', `${config.api.baseUrl}/theater-users`);
 
       const response = await fetch(`${config.api.baseUrl}/theater-users`, {
         method: 'POST',
@@ -361,41 +353,34 @@ const TheaterUserManagement = () => {
         body: JSON.stringify(payload)
       });
 
-      console.log('📥 Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ User created successfully:', data);
+
         setSuccessModal({ show: true, message: 'User created successfully!' });
         closeCrudModal();
         fetchUsers();
       } else {
         const errorData = await response.json();
-        console.error('❌ Create user failed:', errorData);
+
         setFormErrors({ submit: errorData.error || errorData.message || 'Failed to create user' });
       }
     } catch (err) {
-      console.error('❌ Error creating user:', err);
+
       setFormErrors({ submit: 'Error creating user' });
     }
   };
 
   // Handle update user - Show confirmation modal
   const handleUpdateUser = () => {
-    console.log('🎯 handleUpdateUser called');
-    console.log('📝 Form data:', formData);
-    console.log('📝 Modal mode:', crudModal.mode);
-    
+
     const isValid = validateForm();
-    console.log('📝 Validation result:', isValid);
-    console.log('📝 Form errors:', formErrors);
-    
+
     if (!isValid) {
-      console.log('❌ Form validation failed - errors:', formErrors);
+
       return;
     }
 
-    console.log('✅ Form validation passed');
 
     // Show confirmation modal with user data
     setEditConfirmModal({ show: true, userData: formData });
@@ -403,12 +388,9 @@ const TheaterUserManagement = () => {
 
   // Confirm update user
   const confirmUpdateUser = async () => {
-    console.log('🎯 confirmUpdateUser called');
-    console.log('📝 formData at confirm:', formData);
-    console.log('📝 formData.userId:', formData.userId);
-    
+
     if (!formData.userId) {
-      console.error('❌ No userId found in formData!');
+
       alert('Error: User ID is missing. Please close and reopen the edit form.');
       return;
     }
@@ -430,8 +412,6 @@ const TheaterUserManagement = () => {
         payload.password = formData.password;
       }
 
-      console.log('📤 Sending update payload:', payload);
-      console.log('🔗 PUT URL:', `${config.api.baseUrl}/theater-users/${formData.userId}`);
 
       const response = await fetch(`${config.api.baseUrl}/theater-users/${formData.userId}`, {
         method: 'PUT',
@@ -439,21 +419,17 @@ const TheaterUserManagement = () => {
         body: JSON.stringify(payload)
       });
 
-      console.log('📥 Response status:', response.status);
-      
+
       const data = await response.json();
-      console.log('📥 Response data:', data);
 
       if (response.ok) {
-        console.log('✅ User updated successfully:', data);
+
         setEditConfirmModal({ show: false, userData: null });
         setSuccessModal({ show: true, message: 'User updated successfully!' });
         closeCrudModal();
         fetchUsers();
       } else {
-        console.error('❌ Update user failed:', data);
-        console.error('❌ Validation errors:', data.errors);
-        
+
         // Show detailed error message
         let errorMessage = data.message || 'Failed to update user';
         if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
@@ -467,7 +443,7 @@ const TheaterUserManagement = () => {
         alert('Update failed: ' + errorMessage);
       }
     } catch (err) {
-      console.error('❌ Error updating user:', err);
+
       setEditConfirmModal({ show: false, userData: null });
       setFormErrors({ submit: 'Error updating user' });
       alert('Network error: ' + err.message);
@@ -478,37 +454,33 @@ const TheaterUserManagement = () => {
 
   // Handle delete user
   const handleDeleteUser = async () => {
-    console.log('🗑️ handleDeleteUser called');
-    console.log('👤 User ID:', deleteModal.userId);
-    
+
     try {
       const params = new URLSearchParams({
         theaterId: theaterId,
         permanent: 'true'
       });
       
-      console.log('🔗 DELETE URL:', `${config.api.baseUrl}/theater-users/${deleteModal.userId}?${params.toString()}`);
-      
+
       const response = await fetch(`${config.api.baseUrl}/theater-users/${deleteModal.userId}?${params.toString()}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
 
-      console.log('📥 Response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ User deleted successfully:', data);
+
         setSuccessModal({ show: true, message: 'User deleted successfully!' });
         setDeleteModal({ show: false, userId: null, userName: '' });
         fetchUsers();
       } else {
         const errorData = await response.json();
-        console.error('❌ Delete user failed:', errorData);
+
         alert('Failed to delete user: ' + (errorData.error || errorData.message || 'Unknown error'));
       }
     } catch (err) {
-      console.error('❌ Error deleting user:', err);
+
       alert('Failed to delete user. Please try again.');
     }
   };
@@ -536,7 +508,7 @@ const TheaterUserManagement = () => {
 
       const result = await response.json();
       if (!result.success) {
-        console.error('❌ Failed to toggle status:', result.message);
+
         // Revert on failure
         setUsers(prevUsers => 
           prevUsers.map(user => 
@@ -544,10 +516,9 @@ const TheaterUserManagement = () => {
           )
         );
       } else {
-        console.log('✅ User status toggled successfully');
-      }
+  }
     } catch (error) {
-      console.error('Error toggling user status:', error);
+
       // Revert on error
       setUsers(prevUsers => 
         prevUsers.map(user => 
@@ -597,12 +568,6 @@ const TheaterUserManagement = () => {
         <div className="theater-user-details-page">
           <PageContainer hasHeader={false} className="theater-user-management-vertical">
             {/* Debug info */}
-            {console.log('🖥️ RENDER - Theater:', theater?.name)}
-            {console.log('🖥️ RENDER - Tab Roles:', tabRoles)}
-            {console.log('🖥️ RENDER - Selected Role:', selectedRole)}
-            {console.log('🖥️ RENDER - Users:', users)}
-            {console.log('🖥️ RENDER - Role Users:', roleUsers)}
-            
             {/* Vertical Page Header */}
             <VerticalPageHeader
               title={theater?.name || 'Theater User Management'}

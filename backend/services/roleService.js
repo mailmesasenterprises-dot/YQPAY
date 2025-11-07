@@ -58,24 +58,18 @@ function getBasicTheaterAdminPermissions() {
  */
 async function createDefaultTheaterAdminRole(theaterId, theaterName) {
   try {
-    console.log(`🎭 Creating default Theater Admin role for theater: ${theaterName} (${theaterId})`);
-    
+
     // Find or create roles document for theater (similar to QRCodeNameArray)
     let rolesDoc = await RoleArray.findOrCreateByTheater(theaterId);
-    console.log(`✅ Found/created roles document for theater ${theaterId}`);
-    
     // Check if default role already exists in the roleList array
     const existingDefaultRole = rolesDoc.roleList.find(role => role.isDefault === true);
     
     if (existingDefaultRole) {
-      console.log(`⚠️  Default role already exists for theater ${theaterId}`);
       return existingDefaultRole;
     }
     
     // Get default permissions
     const permissions = await getDefaultTheaterAdminPermissions();
-    console.log(`✅ Generated ${permissions.length} default permissions`);
-    
     // Create the Theater Admin role data
     const roleData = {
       name: 'Theater Admin',
@@ -88,23 +82,74 @@ async function createDefaultTheaterAdminRole(theaterId, theaterName) {
       canDelete: false, // Cannot be deleted
       canEdit: false // Cannot be edited
     };
-    
-    console.log(`📝 Adding role to roleList array...`);
-    
     // Add role to the nested array using the addRole method
     const savedRole = await rolesDoc.addRole(roleData);
-    
-    console.log(`✅ Default Theater Admin role created successfully in nested array`);
-    console.log(`   - Role ID: ${savedRole._id}`);
-    console.log(`   - Permissions granted: ${permissions.length}`);
-    console.log(`   - Theater: ${theaterName}`);
-    console.log(`   - Protected: Cannot be edited or deleted`);
-    console.log(`   - Total roles in theater: ${rolesDoc.roleList.length}`);
-    
     return savedRole;
     
   } catch (error) {
     console.error('❌ Error creating default Theater Admin role:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get default permissions for Kiosk Screen role
+ * Kiosk users can only access kiosk-specific pages
+ */
+function getDefaultKioskPermissions() {
+  return [
+    { page: 'KioskProductList', pageName: 'Kiosk Product List', hasAccess: true, route: '/kiosk-products/:theaterId' },
+    { page: 'KioskCart', pageName: 'Kiosk Cart', hasAccess: true, route: '/kiosk-cart/:theaterId' },
+    { page: 'KioskCheckout', pageName: 'Kiosk Checkout', hasAccess: true, route: '/kiosk-checkout/:theaterId' },
+    { page: 'KioskPayment', pageName: 'Kiosk Payment', hasAccess: true, route: '/kiosk-payment/:theaterId' },
+    { page: 'KioskViewCart', pageName: 'Kiosk View Cart', hasAccess: true, route: '/kiosk-view-cart/:theaterId' }
+  ];
+}
+
+/**
+ * Create default Kiosk Screen role for a theater
+ * This role is created automatically when a new theater is created
+ * 
+ * @param {ObjectId} theaterId - The theater's MongoDB ObjectId
+ * @param {String} theaterName - The theater's name (for role description)
+ * @returns {Promise<Object>} The created role document
+ */
+async function createDefaultKioskRole(theaterId, theaterName) {
+  try {
+    // Find or create roles document for theater
+    let rolesDoc = await RoleArray.findOrCreateByTheater(theaterId);
+    
+    // Check if Kiosk role already exists
+    const existingKioskRole = rolesDoc.roleList.find(role => 
+      role.name === 'Kiosk Screen' && role.isDefault === true
+    );
+    
+    if (existingKioskRole) {
+      return existingKioskRole;
+    }
+    
+    // Get kiosk permissions
+    const permissions = getDefaultKioskPermissions();
+    
+    // Create the Kiosk Screen role data
+    const roleData = {
+      name: 'Kiosk Screen',
+      description: `Default kiosk role for ${theaterName}. This role provides access to self-service kiosk screens for customers to browse menu, add items to cart, and checkout. Cannot be deleted or edited.`,
+      permissions: permissions,
+      isGlobal: false,
+      priority: 10, // Lower priority than Theater Admin
+      isActive: true,
+      isDefault: true, // Mark as default role
+      canDelete: false, // Cannot be deleted
+      canEdit: false // Cannot be edited
+    };
+    
+    // Add role to the nested array using the addRole method
+    const savedRole = await rolesDoc.addRole(roleData);
+    return savedRole;
+    
+  } catch (error) {
+    console.error('❌ Error creating default Kiosk Screen role:', error);
     throw error;
   }
 }
@@ -318,8 +363,10 @@ async function validateRoleUpdate(roleId, updateData) {
 
 module.exports = {
   createDefaultTheaterAdminRole,
+  createDefaultKioskRole,
   getDefaultTheaterAdminPermissions,
   getBasicTheaterAdminPermissions,
+  getDefaultKioskPermissions,
   isProtectedRole,
   canDeleteRole,
   canEditRole,

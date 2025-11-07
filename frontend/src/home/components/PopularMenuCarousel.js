@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import '../css/PopularMenuCarousel.css';
+import '../../styles/home/PopularMenuCarousel.css';
 import popcornImg from '../images/Popcorn.jpg';
 import pizzaImg from '../images/pizza.jpg';
 import iceCreamImg from '../images/ice cream.jpg';

@@ -22,6 +22,10 @@ const productSchema = new mongoose.Schema({
     ref: 'Category',
     required: [true, 'Category ID is required']
   },
+  kioskType: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'KioskType'
+  },
   productTypeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ProductType'

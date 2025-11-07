@@ -37,9 +37,6 @@ router.get('/:theaterId', [
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
     const searchTerm = req.query.search || '';
-
-    console.log('🔍 Fetching kiosk types for theater:', theaterId);
-
     // Find kiosk type document for this theater
     let kioskTypeDoc = await KioskType.findOne({ theater: theaterId });
     
@@ -56,7 +53,6 @@ router.get('/:theaterId', [
         isActive: true
       });
       await kioskTypeDoc.save();
-      console.log('✅ Created new kiosk type document for theater');
     }
 
     let kioskTypes = kioskTypeDoc.kioskTypeList || [];
@@ -84,8 +80,6 @@ router.get('/:theaterId', [
 
     // Apply pagination
     const paginatedKioskTypes = kioskTypes.slice(skip, skip + limit);
-
-    console.log(`✅ Found ${paginatedKioskTypes.length} kiosk types (${total} total)`);
 
     res.json({
       success: true,
@@ -135,9 +129,6 @@ router.post('/:theaterId', [
 
     const { theaterId } = req.params;
     const { name, description, isActive, sortOrder } = req.body;
-
-    console.log('🔥 Creating kiosk type:', { theaterId, name, hasImage: !!req.file });
-
     // Find or create kiosk type document for this theater
     let kioskTypeDoc = await KioskType.findOne({ theater: theaterId });
     if (!kioskTypeDoc) {
@@ -175,9 +166,6 @@ router.post('/:theaterId', [
     if (req.file) {
       try {
         const folder = `kiosk-types/${theaterId}/${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        console.log(`📤 Uploading kiosk type image to GCS folder: ${folder}`);
-        
         const imageUrl = await uploadFile(
           req.file.buffer,
           req.file.originalname,
@@ -186,7 +174,6 @@ router.post('/:theaterId', [
         );
         
         newKioskType.imageUrl = imageUrl;
-        console.log(`✅ Image uploaded successfully`);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
@@ -199,9 +186,6 @@ router.post('/:theaterId', [
     // Add kiosk type to list
     kioskTypeDoc.kioskTypeList.push(newKioskType);
     await kioskTypeDoc.save();
-
-    console.log('✅ Kiosk type created successfully:', newKioskType._id);
-
     res.status(201).json({
       success: true,
       message: 'Kiosk type created successfully',
@@ -238,9 +222,6 @@ router.put('/:theaterId/:kioskTypeId', [
 
     const { theaterId, kioskTypeId } = req.params;
     const { name, description, isActive, sortOrder, removeImage } = req.body;
-    
-    console.log('🔥 Updating kiosk type:', { kioskTypeId, hasImage: !!req.file, removeImage });
-    
     // Find kiosk type document
     const kioskTypeDoc = await KioskType.findOne({ theater: theaterId });
     if (!kioskTypeDoc) {
@@ -285,7 +266,6 @@ router.put('/:theaterId/:kioskTypeId', [
       if (kioskType.imageUrl) {
         try {
           await deleteFile(kioskType.imageUrl);
-          console.log('✅ Old image deleted from GCS');
         } catch (deleteError) {
           console.warn('⚠️  Could not delete old image:', deleteError.message);
         }
@@ -298,7 +278,6 @@ router.put('/:theaterId/:kioskTypeId', [
         if (kioskType.imageUrl) {
           try {
             await deleteFile(kioskType.imageUrl);
-            console.log('✅ Old image deleted from GCS');
           } catch (deleteError) {
             console.warn('⚠️  Could not delete old image:', deleteError.message);
           }
@@ -315,7 +294,6 @@ router.put('/:theaterId/:kioskTypeId', [
         );
         
         kioskType.imageUrl = imageUrl;
-        console.log(`✅ Image uploaded successfully`);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
@@ -326,9 +304,6 @@ router.put('/:theaterId/:kioskTypeId', [
     }
 
     await kioskTypeDoc.save();
-
-    console.log('✅ Kiosk type updated successfully:', kioskType._id);
-
     res.json({
       success: true,
       message: 'Kiosk type updated successfully',
@@ -354,9 +329,6 @@ router.delete('/:theaterId/:kioskTypeId', [
 ], async (req, res) => {
   try {
     const { theaterId, kioskTypeId } = req.params;
-    
-    console.log('🔥 Deleting kiosk type:', { theaterId, kioskTypeId });
-    
     // Find kiosk type document
     const kioskTypeDoc = await KioskType.findOne({ theater: theaterId });
     if (!kioskTypeDoc) {
@@ -379,7 +351,6 @@ router.delete('/:theaterId/:kioskTypeId', [
     if (kioskType.imageUrl) {
       try {
         await deleteFile(kioskType.imageUrl);
-        console.log('✅ Kiosk type image deleted from GCS');
       } catch (deleteError) {
         console.warn('⚠️  Could not delete kiosk type image:', deleteError.message);
       }
@@ -388,9 +359,6 @@ router.delete('/:theaterId/:kioskTypeId', [
     // Remove kiosk type from list
     kioskTypeDoc.kioskTypeList.pull(kioskTypeId);
     await kioskTypeDoc.save();
-
-    console.log('✅ Kiosk type permanently deleted:', kioskTypeId);
-
     res.json({
       success: true,
       message: 'Kiosk type deleted successfully'

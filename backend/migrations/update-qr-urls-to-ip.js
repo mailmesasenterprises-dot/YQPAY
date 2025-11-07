@@ -12,28 +12,20 @@ const NEW_URL = 'http://192.168.1.6:3001';
 
 async function updateQRUrls() {
   try {
-    console.log('🔌 Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
-    console.log('✅ Connected to MongoDB\n');
-
     const db = mongoose.connection.db;
     
     // Get the singleqrcodes collection
     const collection = db.collection('singleqrcodes');
     
     // Find all documents with localhost URLs
-    console.log('🔍 Finding QR codes with localhost URLs...');
     const qrCodes = await collection.find({
       $or: [
         { qrCodeUrl: { $regex: 'localhost' } },
         { qrCodeData: { $regex: 'localhost' } }
       ]
     }).toArray();
-    
-    console.log(`📊 Found ${qrCodes.length} QR codes to update\n`);
-    
     if (qrCodes.length === 0) {
-      console.log('✅ No QR codes need updating');
       return;
     }
     
@@ -61,27 +53,15 @@ async function updateQRUrls() {
           );
           
           updateCount++;
-          console.log(`✅ Updated QR: ${qr.qrDetails?.qrName || qr._id}`);
-          console.log(`   Old URL: ${qr.qrCodeData?.substring(0, 80)}...`);
-          console.log(`   New URL: ${updates.qrCodeData?.substring(0, 80)}...`);
-          console.log('');
+
+
         }
       } catch (error) {
         errorCount++;
         console.error(`❌ Error updating QR ${qr._id}:`, error.message);
       }
     }
-    
-    console.log('\n📈 Migration Summary:');
-    console.log(`   Total found: ${qrCodes.length}`);
-    console.log(`   Successfully updated: ${updateCount}`);
-    console.log(`   Errors: ${errorCount}`);
-    console.log('');
-    
     if (updateCount > 0) {
-      console.log('✅ QR code URLs have been updated successfully!');
-      console.log(`   Changed from: ${OLD_URL}`);
-      console.log(`   Changed to: ${NEW_URL}`);
     }
     
   } catch (error) {
@@ -89,14 +69,12 @@ async function updateQRUrls() {
     throw error;
   } finally {
     await mongoose.disconnect();
-    console.log('\n🔌 Disconnected from MongoDB');
   }
 }
 
 // Run the migration
 updateQRUrls()
   .then(() => {
-    console.log('\n✅ Migration completed successfully');
     process.exit(0);
   })
   .catch((error) => {

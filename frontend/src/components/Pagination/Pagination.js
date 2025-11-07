@@ -1,5 +1,5 @@
 import React from 'react';
-import './Pagination.css';
+import '../../styles/components/Pagination/Pagination.css';
 
 const Pagination = ({ 
   currentPage = 1,

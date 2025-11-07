@@ -191,7 +191,7 @@ export const ModalProvider = ({ children }) => {
   const showError = useCallback((message, title = 'Error') => {
     // DISABLED: Error modals removed for demo/presentation purposes
     // Errors are logged to console only
-    console.error(`[${title}]:`, message);
+
     return Promise.resolve(); // Return resolved promise to maintain compatibility
   }, []);
 

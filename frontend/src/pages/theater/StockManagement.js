@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import TheaterLayout from '../../components/theater/TheaterLayout';
 import PageContainer from '../../components/PageContainer';
 import VerticalPageHeader from '../../components/VerticalPageHeader';
@@ -13,7 +13,7 @@ import config from '../../config';
 import '../../styles/TheaterList.css';
 import '../../styles/QRManagementPage.css'; // ADDED: Import proper styling for statistics cards
 import '../../styles/AddTheater.css'; // ADDED: Import submit-btn styling for date filter button
-import '../../components/VerticalPageHeader.css'; // ADDED: Import global header styling
+import '../../styles/components/VerticalPageHeader.css'; // ADDED: Import global header styling
 import '../../styles/StockManagement.css'; // ADDED: Import stock-specific styling for badges
 
 const API_BASE_URL = config.api?.baseUrl || 'http://localhost:5000/api';
@@ -581,8 +581,7 @@ const StockEntryModal = React.memo(({ isOpen, onClose, entry, onSave, isLoading 
       
       // Don't close here - let parent handle closing after successful save
     } else {
-      console.log('📝 Form validation failed, errors:', errors);
-    }
+  }
   }, [formData, validateForm, onSave, errors]);
 
   if (!isOpen) {
@@ -761,23 +760,17 @@ const StockManagement = React.memo(() => {
 
   // 🚀 100% DEBUGGING: Track component lifecycle and state changes
   useEffect(() => {
-    console.log('� === STOCK MANAGEMENT COMPONENT MOUNTED ===');
-    console.log('🔍 URL params:', { theaterId, productId });
-    console.log('🔍 URL pathname:', window.location.pathname);
-    console.log('🔍 Component mount timestamp:', new Date().toISOString());
-    console.log('🔍 Auth token exists:', !!localStorage.getItem('authToken'));
+
     return () => {
-      console.log('🚀 === STOCK MANAGEMENT COMPONENT UNMOUNTING ===');
-      console.log('🔍 Unmount timestamp:', new Date().toISOString());
-    };
+  };
   }, []);
 
   // 🚀 Track URL parameter changes separately
   useEffect(() => {
-    console.log('🔍 URL Parameters Changed:', { theaterId, productId });
   }, [theaterId, productId]);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const modal = useModal();
   const { user, isAuthenticated } = useAuth();
   const performanceMetrics = usePerformanceMonitoring('StockManagement');
@@ -799,19 +792,18 @@ const StockManagement = React.memo(() => {
         const payload = JSON.parse(atob(currentToken.split('.')[1]));
         const isExpired = Date.now() > payload.exp * 1000;
         if (isExpired) {
-          console.log('🔄 Token expired, refreshing...');
+
           needsRefresh = true;
         }
       } catch (e) {
-        console.log('🔄 Invalid token format, refreshing...');
+
         needsRefresh = true;
       }
     }
     
     if (needsRefresh) {
       localStorage.setItem('authToken', freshToken);
-      console.log('✅ Fresh authentication token set automatically');
-    }
+  }
   }, []);
 
 
@@ -834,27 +826,21 @@ const StockManagement = React.memo(() => {
 
   // 🚀 DEBUG: Track all state changes
   useEffect(() => {
-    console.log('🔍 STATE CHANGE - stockEntries:', stockEntries.length, 'entries');
   }, [stockEntries]);
 
   useEffect(() => {
-    console.log('🔍 STATE CHANGE - product:', product ? product.name : 'NULL');
   }, [product]);
 
   useEffect(() => {
-    console.log('🔍 STATE CHANGE - summary:', summary);
   }, [summary]);
 
   useEffect(() => {
-    console.log('🔍 STATE CHANGE - loading:', loading);
   }, [loading]);
 
   useEffect(() => {
-    console.log('🔍 STATE CHANGE - error:', error);
   }, [error]);
 
   useEffect(() => {
-    console.log('🔍 STATE CHANGE - hasData:', hasData);
   }, [hasData]);
   const [pagination, setPagination] = useState({
     current: 1,
@@ -901,83 +887,51 @@ const StockManagement = React.memo(() => {
   // Refs
   const abortControllerRef = useRef(null);
 
-  // 🚀 100% SESSION STORAGE PERSISTENCE
-  const getStorageKey = useCallback(() => {
-    return `stock-management-${theaterId}-${productId}`;
-  }, [theaterId, productId]);
-
-  const saveToStorage = useCallback((data) => {
-    try {
-      const storageKey = getStorageKey();
-      const storageData = {
-        ...data,
-        timestamp: Date.now(),
-        expiry: Date.now() + (5 * 60 * 1000) // 5 minutes cache
-      };
-      sessionStorage.setItem(storageKey, JSON.stringify(storageData));
-      console.log('🔍 Data saved to sessionStorage:', storageKey);
-    } catch (error) {
-      console.warn('🔍 Failed to save to sessionStorage:', error);
-    }
-  }, [getStorageKey]);
-
-  const loadFromStorage = useCallback(() => {
-    try {
-      const storageKey = getStorageKey();
-      const cached = sessionStorage.getItem(storageKey);
-      if (cached) {
-        const data = JSON.parse(cached);
-        // Check if cache is still valid (not expired)
-        if (data.expiry && Date.now() < data.expiry) {
-          console.log('🔍 Loading valid cached data from sessionStorage');
-          return data;
-        } else {
-          console.log('🔍 Cached data expired, removing...');
-          sessionStorage.removeItem(storageKey);
-        }
-      }
-    } catch (error) {
-      console.warn('🔍 Failed to load from sessionStorage:', error);
-    }
-    return null;
-  }, [getStorageKey]);
+  // 🚀 INITIAL LOAD STATE - Must be declared before use
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // 🚀 100% API FUNCTIONS WITH COMPREHENSIVE DEBUGGING
   const fetchStockData = useCallback(async () => {
     const fetchStartTime = Date.now();
-    console.log('🚀 === FETCH STOCK DATA STARTED ===');
-    console.log('� === CRITICAL DEBUG - API CALL INITIATED ===');
-    console.log('�🔍 Fetch params:', { theaterId, productId, filters, dateFilter });
-    
+
     // CRITICAL DEBUG: Enhanced logging for correct product ID
     if (window.location.href.includes('68ea8d3e2b184ed51d53329d')) {
-      console.log('🚀 CRITICAL: This is the correct product ID with data!');
-      console.log('🚀 CRITICAL: fetchStockData() has been called for product with actual data');
-    }
+  }
     
     try {
       // Cancel any previous request
       if (abortControllerRef.current) {
-        console.log('🔍 Aborting previous request');
+        console.log('🛑 Aborting previous request');
         abortControllerRef.current.abort();
       }
 
       // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
 
-      console.log('🔍 Setting loading to true...');
+      console.log('📡 Starting API call to fetch stock data...');
       setLoading(true);
       setError(null);
+      
+      // 🚀 CRITICAL: Clear existing data before fetch to prevent stale data
+      setStockEntries([]);
+      setSummary({
+        totalStock: 0,
+        totalUsed: 0,
+        totalDamage: 0,
+        totalSales: 0,
+        totalExpired: 0,
+        currentStock: 0
+      });
 
       const authToken = getAuthToken();
-      console.log('🔍 Auth token:', authToken ? 'EXISTS' : 'MISSING');
 
       if (!authToken) {
-        console.log('❌ No auth token found');
+        console.error('❌ No auth token found');
         setError('Authentication required. Please login again.');
         return;
       }
 
+      console.log('✅ Auth token found');
 
       // Use absolute URL with API_BASE_URL
       const stockUrl = `${API_BASE_URL}/theater-stock/${theaterId}/${productId}`;
@@ -1001,32 +955,29 @@ const StockManagement = React.memo(() => {
       
       queryParams.append('page', filters.page || 1);
       queryParams.append('limit', filters.limit || 10);
-
+      
+      // 🚀 CRITICAL: Add cache-busting timestamp to prevent browser caching
+      queryParams.append('_t', Date.now());
 
       const fullUrl = `${stockUrl}?${queryParams}`;
-      
-      console.log('🔍 Fetching stock data from:', fullUrl);
-      console.log('🔍 Date filter:', dateFilter);
-      console.log('🔍 Filters:', filters);
-      console.log('🚀 CRITICAL: About to make fetch request to:', fullUrl);
-      console.log('🚀 CRITICAL: Auth token exists:', !!authToken);
+      console.log('🔗 Fetching from URL:', fullUrl);
 
-      console.log('🚀 CRITICAL: Making fetch request now...');
       const response = await fetch(fullUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
           'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         }
       });
       
-      console.log('🚀 CRITICAL: Fetch request completed');
-      console.log('🚀 CRITICAL: Response status:', response.status);
-      console.log('🚀 CRITICAL: Response ok:', response.ok);
-
+      console.log('📥 Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('❌ Response not OK:', errorText);
 
         // Handle authentication errors
         if (response.status === 401) {
@@ -1041,16 +992,12 @@ const StockManagement = React.memo(() => {
 
       const responseData = await response.json();
       const fetchEndTime = Date.now();
-      
-      console.log('� === API RESPONSE RECEIVED ===');
-      console.log('🔍 Fetch duration:', fetchEndTime - fetchStartTime, 'ms');
-      console.log('🔍 Response success:', responseData.success);
-      console.log('🔍 Full API Response:', responseData);
+      console.log(`✅ API response received in ${fetchEndTime - fetchStartTime}ms`);
+      console.log('📦 Response data:', JSON.stringify(responseData, null, 2));
 
       if (responseData.success) {
-        console.log('✅ API Response is successful');
-        console.log('� Response data:', responseData.data);
-        
+        console.log('✨ Response successful, processing data...');
+
         // NEW BACKEND STRUCTURE: Extract entries, currentStock, statistics, period
         const { 
           entries,
@@ -1059,19 +1006,17 @@ const StockManagement = React.memo(() => {
           period
         } = responseData.data;
         
-        console.log('� Extracted entries:', entries?.length || 0);
-        console.log('� Statistics:', statistics);
-        console.log('� Period:', period);
-        console.log('� Current Stock:', currentStock);
+        console.log('📊 Entries count:', entries?.length || 0);
+        console.log('💰 Current stock:', currentStock);
+        console.log('📈 Statistics:', statistics);
 
         if (entries && Array.isArray(entries)) {
-          console.log('✅ Stock entries received:', entries.length, 'entries');
+          console.log('✅ Entries is an array with', entries.length, 'items');
           entries.forEach((entry, index) => {
-            console.log(`Entry ${index + 1}:`, entry);
+            console.log(`Entry ${index}:`, entry._id, entry.stock);
           });
         } else {
-          console.error('⚠️ Entries is not an array or is null/undefined');
-          console.log('Entries value:', entries);
+          console.warn('⚠️ Entries is not an array or is null');
         }
 
         // Sort entries by ID ascending (oldest first, based on MongoDB _id)
@@ -1084,7 +1029,7 @@ const StockManagement = React.memo(() => {
             })
           : [];
 
-        console.log('✅ Setting state with new data structure (sorted by ID ascending)');
+        console.log('🔄 Setting stock entries:', sortedEntries.length, 'entries');
         setStockEntries(sortedEntries);
 
         // Build summary object from new statistics structure
@@ -1098,7 +1043,8 @@ const StockManagement = React.memo(() => {
           openingBalance: statistics?.openingBalance || 0,
           closingBalance: statistics?.closingBalance || 0
         };
-        console.log('� Setting summary state:', finalSummary);
+
+        console.log('💾 Setting summary:', finalSummary);
         setSummary(finalSummary);
 
         // Simple pagination - backend returns all entries for the month
@@ -1115,28 +1061,18 @@ const StockManagement = React.memo(() => {
         setMonthlySummaries([]);
         setMonthlySummariesTotals(null);
 
-        // Save to session storage
-        const dataToSave = {
-          stockEntries: sortedEntries,
-          summary: finalSummary,
-          pagination: finalPagination,
-          statistics,
-          period
-        };
-        saveToStorage(dataToSave);
-        setHasData(true);
-
-        console.log('✅ State updated successfully');
-        console.log('� Total entries loaded:', sortedEntries.length);
-      } else {
+        console.log('✅ Has data:', sortedEntries.length > 0);
+        setHasData(sortedEntries.length > 0);
+        console.log('🎉 Data fetch complete!');
+  } else {
+        console.error('❌ Response unsuccessful:', responseData.message);
         throw new Error(responseData.message || 'Failed to fetch stock data');
       }
-
-    } catch (error) {
-      
-      console.error('❌ Fetch error:', error);
+  } catch (error) {
+      console.error('💥 Error in fetchStockData:', error);
 
       if (error.name === 'AbortError') {
+        console.log('⏹️ Request aborted');
         return; // Don't show error for aborted requests
       }
 
@@ -1176,11 +1112,10 @@ const StockManagement = React.memo(() => {
 
       setError(errorMessage);
     } finally {
-      console.log('🚀 CRITICAL: Setting loading to FALSE');
+      console.log('🏁 Fetch complete, setting loading to false');
       setLoading(false);
-      console.log('🚀 CRITICAL: Loading state updated to FALSE');
-    }
-  }, [theaterId, productId, filters, dateFilter, getAuthToken, saveToStorage]); // Fixed dependencies
+  }
+  }, [theaterId, productId, filters, dateFilter, getAuthToken]); // Fixed dependencies
 
   // Set global reference for auto-login access (after fetchStockData is defined)
   useEffect(() => {
@@ -1190,45 +1125,10 @@ const StockManagement = React.memo(() => {
     };
   }, [fetchStockData]);
 
-  // 🚀 INITIAL DATA LOADING - LOAD CACHED DATA FIRST
+  // 🚀 INITIAL DATA LOADING - Direct API call without cache
   useEffect(() => {
     if (!theaterId || !productId) {
-      console.error('❌ Missing required IDs:', { theaterId, productId });
       return;
-    }
-
-    console.log('🚀 === INITIALIZING DATA LOADING ===');
-    console.log('🔍 Theater ID:', theaterId);
-    console.log('🔍 Product ID:', productId);
-    
-    // 🚀 STEP 1: Try to load cached data immediately
-    const cachedData = loadFromStorage();
-    if (cachedData) {
-      console.log('🔍 Found cached data, loading immediately...');
-      setStockEntries(cachedData.stockEntries || []);
-      setProduct(cachedData.product || null);
-      setSummary(cachedData.summary || {
-        totalStock: 0,
-        totalUsed: 0,
-        totalDamage: 0,
-        totalSales: 0,
-        totalExpired: 0,
-        currentStock: 0
-      });
-      setPagination(cachedData.pagination || {
-        current: 1,
-        pages: 1,
-        total: 0,
-        hasNext: false,
-        hasPrev: false
-      });
-      setMonthlySummaries(cachedData.monthlySummaries || []);
-      setMonthlySummariesTotals(cachedData.monthlySummariesTotals || null);
-      
-      // Show cached data immediately, but still fetch fresh data
-      setHasData(true);
-      setLoading(false);
-      console.log('🔍 Cached data loaded');
     }
 
     return () => {
@@ -1236,30 +1136,32 @@ const StockManagement = React.memo(() => {
         abortControllerRef.current.abort();
       }
     };
-  }, [theaterId, productId, loadFromStorage]);
+  }, [theaterId, productId]);
 
   // 🚀 SEPARATE EFFECT TO FORCE INITIAL API CALL - THIS FIXES THE BUG!
   useEffect(() => {
     if (theaterId && productId) {
-      console.log('🚀 === FORCING INITIAL API CALL ===');
-      console.log('🚀 CRITICAL: This should fix the bug where data only shows after changing filters');
-      
+      console.log('🚀 INITIAL LOAD triggered for:', theaterId, productId);
+
       // 🚀 SAFETY TIMEOUT: Force loading to false after 10 seconds
       const safetyTimer = setTimeout(() => {
-        console.log('🚀 SAFETY TIMEOUT: Forcing loading to false after 10 seconds');
+        console.warn('⏰ Safety timeout reached - forcing loading to false');
         setLoading(false);
         setError('Request timeout. Please try refreshing the page.');
       }, 10000);
       
       // IMMEDIATE API CALL - No delay
-      console.log('🚀 EXECUTING IMMEDIATE fetchStockData()');
+      console.log('⚡ Executing immediate API call...');
+
       const executeImmediate = async () => {
         try {
+          console.log('📞 Calling fetchStockData...');
           await fetchStockData();
+          console.log('✅ Initial load complete, setting initialLoadDone = true');
           setInitialLoadDone(true); // Mark initial load as complete
           clearTimeout(safetyTimer); // ✅ Clear timeout when API succeeds
         } catch (error) {
-          console.error('🚀 INITIAL API CALL FAILED:', error);
+          console.error('❌ Initial load failed:', error);
           setLoading(false); // Force loading to false if API fails
           clearTimeout(safetyTimer); // ✅ Clear timeout when API fails
         }
@@ -1273,16 +1175,47 @@ const StockManagement = React.memo(() => {
   }, [theaterId, productId, fetchStockData]);
 
   // 🚀 FILTER CHANGES - ONLY TRIGGER WHEN FILTERS ACTUALLY CHANGE
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
-  
   useEffect(() => {
     if (theaterId && productId && initialLoadDone) {
-      console.log('🔍 *** FILTER CHANGE DETECTED (after initial load) ***');
-      console.log('🔍 Current filters:', { filters, dateFilter });
-      console.log(' CRITICAL: About to call fetchStockData() from filter useEffect');
+
       fetchStockData();
     }
   }, [filters, dateFilter, initialLoadDone, theaterId, productId, fetchStockData]);
+
+  // 🚀 RELOAD DATA ON NAVIGATION - Detect when user navigates back to this page
+  useEffect(() => {
+    if (location.state?.reload && theaterId && productId) {
+      console.log('🔄 Navigation detected - reloading stock data');
+      fetchStockData();
+      // Clear the state to prevent reload loops
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, theaterId, productId, fetchStockData, navigate]);
+
+  // 🚀 RELOAD ON TAB VISIBILITY - Refresh when user comes back to tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && theaterId && productId && initialLoadDone) {
+        console.log('👁️ Tab visible - reloading stock data');
+        fetchStockData();
+      }
+    };
+
+    const handleFocus = () => {
+      if (theaterId && productId && initialLoadDone) {
+        console.log('🎯 Window focused - reloading stock data');
+        fetchStockData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [theaterId, productId, initialLoadDone, fetchStockData]);
 
   // Date filter handler - Global Design Pattern
   const handleDateFilterApply = useCallback((newDateFilter) => {
@@ -1310,6 +1243,94 @@ const StockManagement = React.memo(() => {
     setShowStockModal(true);
   }, []);
 
+  // Handle regenerate auto entries
+  const handleRegenerateEntries = useCallback(async () => {
+    if (!window.confirm('This will remove all auto-generated carry forward entries and regenerate them. Continue?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/stock/${theaterId}/${productId}/regenerate?year=${dateFilter.year}&month=${dateFilter.month}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccessModal({
+          show: true,
+          message: data.message || 'Entries regenerated successfully',
+          isUpdate: false
+        });
+        fetchStockData(); // Refresh the table
+      } else {
+        setErrorModal({
+          show: true,
+          message: data.message || 'Failed to regenerate entries'
+        });
+      }
+    } catch (error) {
+      console.error('Regenerate error:', error);
+      setErrorModal({
+        show: true,
+        message: 'Failed to regenerate entries'
+      });
+    }
+  }, [theaterId, productId, dateFilter.year, dateFilter.month, fetchStockData, getAuthToken]);
+
+  // Handle Excel download
+  const handleDownloadExcel = useCallback(async () => {
+    try {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      const monthName = monthNames[dateFilter.month - 1];
+      const filename = `Stock_${product?.name || 'Product'}_${monthName}_${dateFilter.year}.xlsx`;
+
+      const response = await fetch(
+        `${API_BASE_URL}/theater-stock/excel/${theaterId}/${productId}?year=${dateFilter.year}&month=${dateFilter.month}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to download Excel file');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setSuccessModal({
+        show: true,
+        message: `Excel file downloaded successfully: ${filename}`,
+        isUpdate: false
+      });
+    } catch (error) {
+      console.error('Excel download error:', error);
+      setErrorModal({
+        show: true,
+        message: 'Failed to download Excel file'
+      });
+    }
+  }, [theaterId, productId, dateFilter.year, dateFilter.month, getAuthToken, product]);
+
   // Handle edit stock entry
   const handleEditStock = useCallback((entry) => {
     setEditingEntry(entry);
@@ -1321,7 +1342,6 @@ const StockManagement = React.memo(() => {
     try {
       setModalLoading(true);
 
-      console.log('💾 Saving stock entry:', entryData);
 
       // Validate URL parameters are present
       if (!theaterId || !productId) {
@@ -1349,7 +1369,6 @@ const StockManagement = React.memo(() => {
       if (editingEntry) {
         // Update existing entry
         url = `${API_BASE_URL}/theater-stock/${theaterId}/${productId}/${editingEntry._id}`;
-        console.log('🔄 Updating entry:', url);
 
         response = await fetch(url, {
           method: 'PUT',
@@ -1362,7 +1381,6 @@ const StockManagement = React.memo(() => {
       } else {
         // Create new entry - NEW API FORMAT
         url = `${API_BASE_URL}/theater-stock/${theaterId}/${productId}`;
-        console.log('➕ Creating new entry:', url);
 
         response = await fetch(url, {
           method: 'POST',
@@ -1374,12 +1392,10 @@ const StockManagement = React.memo(() => {
         });
       }
 
-      console.log('📡 Response status:', response.status);
 
       // Enhanced error handling
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Error response:', errorText);
 
         let errorData;
         try {
@@ -1400,7 +1416,6 @@ const StockManagement = React.memo(() => {
       }
 
       const result = await response.json();
-      console.log('✅ Save result:', result);
 
       if (result.success) {
         // Store the operation type BEFORE clearing editingEntry
@@ -1423,12 +1438,10 @@ const StockManagement = React.memo(() => {
           message: isUpdate ? 'Stock entry updated successfully!' : 'Stock entry added successfully!',
           isUpdate: isUpdate
         });
-
-      } else {
+  } else {
         throw new Error(result.message || 'Failed to save stock entry');
       }
-
-    } catch (error) {
+  } catch (error) {
       setErrorModal({
         show: true,
         message: error.message || 'Failed to save stock entry'
@@ -1502,12 +1515,10 @@ const StockManagement = React.memo(() => {
           message: 'Stock entry deleted successfully!',
           isUpdate: false
         });
-
-      } else {
+  } else {
         throw new Error(result.message || 'Failed to delete stock entry');
       }
-
-    } catch (error) {
+  } catch (error) {
       setErrorModal({
         show: true,
         message: error.message || 'Failed to delete stock entry'
@@ -1543,36 +1554,33 @@ const StockManagement = React.memo(() => {
   );
 
   // 🚀 CRITICAL DEBUG: Log render state every time
-  console.log('🚀 COMPONENT RENDER:', {
-    loading,
-    hasData,
-    stockEntriesLength: stockEntries.length,
-    error,
-    theaterId,
-    productId
-  });
 
   // Loading state - show loading only while actively fetching, allow empty states
   if (loading) {
     return (
       <ErrorBoundary>
         <TheaterLayout pageTitle="Stock Management">
-          <VerticalPageHeader
-            title={product ? `${product.name} - Stock: ${product.stockQuantity || 0}` : 'Loading...'}
-            customBackAction={() => navigate(`/theater-products/${theaterId}`)}
-            actionButton={headerButton}
-          />
-          <div className="theater-content">
-            <div className="table-container">
-              <div className="table-wrapper">
-                <table className="theater-table">
+          <PageContainer
+            title={product ? `${product.name} - Stock Management` : 'Stock Management'}
+            subtitle="Loading stock data..."
+            onBack={() => navigate(`/theater-products/${theaterId}`)}
+          >
+            <div className="page-content">
+              <div className="page-table-container">
+                <table className="qr-management-table">
                   <thead>
                     <tr>
-                      <th className="sno-col">S.NO</th>
-                      <th>Date</th>
-                      <th>Stock Added</th>
-                      <th>Expire Date</th>
-                      <th className="actions-col">Actions</th>
+                      <th>S.NO</th>
+                      <th>DATE</th>
+                      <th>STOCK ADDED</th>
+                      <th>CARRY FORWARD</th>
+                      <th>EXPIRED OLD STOCK</th>
+                      <th>USED STOCK</th>
+                      <th>EXPIRED STOCK</th>
+                      <th>DAMAGE STOCK</th>
+                      <th>BALANCE</th>
+                      <th>EXPIRE DATE</th>
+                      <th>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1581,7 +1589,7 @@ const StockManagement = React.memo(() => {
                 </table>
               </div>
             </div>
-          </div>
+          </PageContainer>
 
           {/* Stock Entry Modal - ALWAYS RENDER for functionality */}
           <StockEntryModal
@@ -1774,6 +1782,36 @@ const StockManagement = React.memo(() => {
             actionButton={headerButton}
           />
 
+          {/* DEBUG PANEL - Shows real-time state */}
+          <div style={{
+            position: 'fixed',
+            top: '10px',
+            right: '10px',
+            background: 'rgba(0,0,0,0.9)',
+            color: 'white',
+            padding: '15px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            zIndex: 9999,
+            maxWidth: '300px',
+            fontFamily: 'monospace'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '10px', borderBottom: '1px solid #444', paddingBottom: '5px' }}>
+              🐛 DEBUG PANEL
+            </div>
+            <div>Loading: {loading ? '✅ TRUE' : '❌ FALSE'}</div>
+            <div>Has Data: {hasData ? '✅ TRUE' : '❌ FALSE'}</div>
+            <div>Initial Load Done: {initialLoadDone ? '✅ TRUE' : '❌ FALSE'}</div>
+            <div>Stock Entries: {stockEntries.length} items</div>
+            <div>Total Stock: {summary.totalStock}</div>
+            <div>Current Stock: {summary.currentStock}</div>
+            <div>Theater ID: {theaterId?.slice(-6)}</div>
+            <div>Product ID: {productId?.slice(-6)}</div>
+            <div style={{ marginTop: '10px', fontSize: '10px', color: '#888' }}>
+              Updated: {new Date().toLocaleTimeString()}
+            </div>
+          </div>
+
           <div className="page-content">
 
             {/* DEBUG PANEL - Shows current state */}
@@ -1817,15 +1855,12 @@ const StockManagement = React.memo(() => {
               <div>Product ID: {productId}</div>
               <button 
                 onClick={async () => {
-                  console.log('🚀 MANUAL API CALL TRIGGERED');
-                  console.log('🚀 fetchStockData function exists:', typeof fetchStockData);
+
                   try {
-                    console.log('🚀 About to call fetchStockData...');
+
                     await fetchStockData();
-                    console.log('🚀 fetchStockData completed');
-                  } catch (error) {
-                    console.error('🚀 fetchStockData error:', error);
-                  }
+  } catch (error) {
+  }
                 }}
                 style={{
                   background: 'white',
@@ -1841,7 +1876,7 @@ const StockManagement = React.memo(() => {
               </button>
               <button 
                 onClick={() => {
-                  console.log('🚀 DIRECT API TEST');
+
                   fetch('http://localhost:5000/api/theater-stock/68d37ea676752b839952af81/68ea8d3e2b184ed51d53329d?year=2025&month=10', {
                     headers: {
                       'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
@@ -1849,15 +1884,13 @@ const StockManagement = React.memo(() => {
                     }
                   })
                   .then(response => {
-                    console.log('🚀 DIRECT API - Status:', response.status);
+
                     return response.json();
                   })
                   .then(data => {
-                    console.log('🚀 DIRECT API - Data:', data);
-                  })
+  })
                   .catch(error => {
-                    console.error('🚀 DIRECT API - Error:', error);
-                  });
+  });
                 }}
                 style={{
                   background: 'yellow',
@@ -1973,6 +2006,22 @@ const StockManagement = React.memo(() => {
                  dateFilter.type === 'year' ? `Year ${dateFilter.year}` :
                  'Date Filter'}
               </button>
+
+              <button 
+                className="submit-btn"
+                onClick={handleDownloadExcel}
+                style={{ 
+                  background: '#059669', 
+                  marginLeft: '10px',
+                  padding: '10px 20px',
+                  minWidth: 'auto',
+                  width: 'auto'
+                }}
+                title="Download current month stock data as Excel"
+              >
+                <span className="btn-icon">📥</span>
+                Download Excel
+              </button>
               
               <div className="results-count">
                 Showing {stockEntries.length} of {pagination.total} entries (Page {pagination.current} of {pagination.pages})
@@ -2001,6 +2050,8 @@ const StockManagement = React.memo(() => {
                   <th>S.NO</th>
                   <th>DATE</th>
                   <th>STOCK ADDED</th>
+                  <th>CARRY FORWARD</th>
+                  <th>EXPIRED OLD STOCK</th>
                   <th>USED STOCK</th>
                   <th>EXPIRED STOCK</th>
                   <th>DAMAGE STOCK</th>
@@ -2011,28 +2062,46 @@ const StockManagement = React.memo(() => {
               </thead>
                   <tbody>
                     {(() => {
-                      console.log('🔍 TABLE RENDER DEBUG:', {
-                        loading,
-                        hasData,
-                        stockEntriesLength: stockEntries.length,
-                        error,
-                        condition1: loading && !hasData,
-                        condition2: stockEntries.length > 0
-                      });
-                      
+
                       // FIXED: Always show data if we have it, regardless of loading state
                       if (stockEntries.length > 0) {
-                        console.log('📋 Showing actual data:', stockEntries.length, 'entries');
-                        // Filter to show only ADDED entries, not SOLD
+
+                        // Filter to show only ADDED entries in the main table
+                        // SOLD entries are already reflected in the "Used Stock" column of ADDED entries
                         const addedEntries = stockEntries.filter(entry => entry.type === 'ADDED' || entry.type === 'ADD');
-                        console.log('📋 Filtered to show only ADDED entries:', addedEntries.length, 'out of', stockEntries.length);
+
                         return addedEntries.map((entry, index) => {
                           const displayData = entry.displayData || {};
                           
                           return (
                             <tr key={entry._id || `entry-${index}`} className="theater-row">
                               <td className="serial-number">{index + 1}</td>
-                              <td className="date-cell">
+                              <td 
+                                className="date-cell clickable-date" 
+                                onClick={() => {
+                                  // Get the entry date in YYYY-MM-DD format
+                                  const entryDate = new Date(entry.entryDate);
+                                  const year = entryDate.getFullYear();
+                                  const month = String(entryDate.getMonth() + 1).padStart(2, '0');
+                                  const day = String(entryDate.getDate()).padStart(2, '0');
+                                  const dateString = `${year}-${month}-${day}`;
+                                  
+                                  // Update date filter to show only this date
+                                  setDateFilter({
+                                    type: 'date',
+                                    month: entryDate.getMonth() + 1,
+                                    year: entryDate.getFullYear(),
+                                    selectedDate: dateString,
+                                    startDate: null,
+                                    endDate: null
+                                  });
+                                  
+                                  // Reset to first page when filtering by date
+                                  setFilters(prev => ({ ...prev, page: 1 }));
+                                }}
+                                style={{ cursor: 'pointer' }}
+                                title="Click to filter by this date"
+                              >
                                 <div className="entry-date">{formatDate(entry.entryDate)}</div>
                                 <div className="entry-type-badge" style={{fontSize: '11px', color: '#8B5CF6', marginTop: '2px'}}>
                                   {entry.type}
@@ -2042,6 +2111,18 @@ const StockManagement = React.memo(() => {
                                 <div className="stock-badge added">
                                   <span className="stock-quantity">{displayData.stockAdded || 0}</span>
                                   <span className="stock-label">Added</span>
+                                </div>
+                              </td>
+                              <td className="carry-forward-cell">
+                                <div className="stock-badge carry-forward">
+                                  <span className="stock-quantity">{displayData.carryForward || 0}</span>
+                                  <span className="stock-label">Carry Forward</span>
+                                </div>
+                              </td>
+                              <td className="expired-old-stock-cell">
+                                <div className="stock-badge expired-old">
+                                  <span className="stock-quantity">{displayData.expiredOldStock || 0}</span>
+                                  <span className="stock-label">Expired Old</span>
                                 </div>
                               </td>
                               <td className="used-cell">
@@ -2097,10 +2178,9 @@ const StockManagement = React.memo(() => {
                           );
                         });
                       } else if (loading) {
-                        console.log('📋 Showing skeleton loader - no data yet');
-                        return <StockTableSkeleton count={filters.limit} />;
+  return <StockTableSkeleton count={filters.limit} />;
                       } else {
-                        console.log('📋 Showing empty state');
+
                         return (
                           <tr>
                             <td colSpan="9" className="no-data">

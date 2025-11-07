@@ -49,4 +49,67 @@
     padding: 2px 6px;
     min-width: 50px;
   }
+
+  /* Product Types Table Mobile Optimization */
+  .qr-management-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .qr-management-table.product-types-table {
+    min-width: 650px;
+  }
+}
+
+/* Mobile Small - 480px breakpoint */
+@media (max-width: 480px) {
+  .qr-management-table th,
+  .qr-management-table td {
+    padding: 6px 3px;
+    font-size: 0.8em;
+  }
+  
+  .qr-code {
+    font-size: 0.7em;
+  }
+  
+  .quantity-value {
+    font-size: 0.75em;
+    padding: 1px 4px;
+    min-width: 40px;
+  }
+
+  .qr-management-table.product-types-table {
+    min-width: 550px;
+  }
+
+  /* Make action buttons smaller */
+  .action-btn {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+  }
+}
+
+/* Mobile Extra Small - 360px breakpoint */
+@media (max-width: 360px) {
+  .qr-management-table th,
+  .qr-management-table td {
+    padding: 4px 2px;
+    font-size: 0.75em;
+  }
+  
+  .qr-management-table.product-types-table {
+    min-width: 500px;
+  }
+  
+  .quantity-value {
+    font-size: 0.7em;
+    padding: 1px 3px;
+    min-width: 35px;
+  }
+  
+  .action-btn {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+  }
 }

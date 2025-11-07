@@ -51,9 +51,6 @@ router.post('/image', [upload.single('image')], async (req, res) => {
     const folderSubtype = req.body.folderSubtype || 'images';
     const folder = `${folderType}/${folderSubtype}`;
 
-    console.log(`📤 Uploading image to GCS folder: ${folder}`);
-    console.log(`   File: ${req.file.originalname} (${(req.file.size / 1024).toFixed(2)} KB)`);
-
     // Upload to Google Cloud Storage
     const publicUrl = await uploadFile(
       req.file.buffer,
@@ -70,8 +67,6 @@ router.post('/image', [upload.single('image')], async (req, res) => {
       publicUrl: publicUrl,
       uploadedAt: new Date()
     };
-
-    console.log(`✅ Image uploaded successfully to: ${publicUrl.substring(0, 80)}...`);
 
     res.json({
       success: true,

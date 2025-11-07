@@ -123,13 +123,6 @@ router.post('/send-test-otp', authenticateToken, async (req, res) => {
     try {
       // Remove + from phone number for MSG91 API
       const msg91PhoneNumber = cleanPhoneNumber.replace('+', '');
-
-      console.log('📤 Sending to MSG91 API...');
-      console.log('Phone:', msg91PhoneNumber);
-      console.log('Template ID:', msg91TemplateId);
-      console.log('Sender:', msg91SenderId);
-      console.log('OTP:', otpToSend);
-
       const msg91Response = await axios.post(
         `https://control.msg91.com/api/v5/flow/`,
         {
@@ -146,8 +139,6 @@ router.post('/send-test-otp', authenticateToken, async (req, res) => {
           }
         }
       );
-
-      console.log('📥 MSG91 Full Response:', JSON.stringify(msg91Response.data, null, 2));
 
       if (msg91Response.data.type === 'success') {
         return res.json({

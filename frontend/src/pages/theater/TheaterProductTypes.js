@@ -6,6 +6,7 @@ import PageContainer from '../../components/PageContainer';
 import Pagination from '../../components/Pagination';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import ImageUpload from '../../components/common/ImageUpload';
+import InstantImage from '../../components/InstantImage'; // 🚀 Instant image loading
 import { ActionButton, ActionButtons } from '../../components/ActionButton';
 import { useModal } from '../../contexts/ModalContext';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
@@ -74,7 +75,7 @@ const TheaterProductTypes = () => {
   // Validate theater access
   useEffect(() => {
     if (userType === 'theater_user' && userTheaterId && theaterId !== userTheaterId) {
-      console.error('Theater access denied: User can only access their own theater');
+
       // Removed error modal - access denied logged to console only
       return;
     }
@@ -82,10 +83,9 @@ const TheaterProductTypes = () => {
 
   // Load product types data
   const loadProductTypesData = useCallback(async (page = 1, limit = 10, search = '') => {
-    console.log('🔥 DEBUGGING: loadProductTypesData called with params:', { theaterId, page, limit, search });
-    
+
     if (!isMountedRef.current || !theaterId) {
-      console.log('🔥 DEBUGGING: Component not mounted or no theaterId, returning');
+
       return;
     }
 
@@ -109,8 +109,7 @@ const TheaterProductTypes = () => {
 
       const baseUrl = `${config.api.baseUrl}/theater-product-types/${theaterId}?${params.toString()}`;
       
-      console.log('🔥 DEBUGGING: Fetching from', baseUrl);
-      
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
@@ -122,23 +121,19 @@ const TheaterProductTypes = () => {
         }
       });
       
-      console.log('🔥 DEBUGGING: Response status', response.status);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       
-      console.log('🔥 DEBUGGING: Raw API response', data);
-      
+
       if (!isMountedRef.current) return;
 
       if (data.success) {
         let productTypes = data.data || [];
-        console.log('🔥 DEBUGGING: Product types extracted', productTypes);
-        console.log('🔥 DEBUGGING: Product types count', productTypes.length);
-        
+
         // Map image field to imageUrl for consistency
         productTypes = productTypes.map(pt => ({
           ...pt,
@@ -147,8 +142,7 @@ const TheaterProductTypes = () => {
         
         // Sort by _id ascending (important: match Category page behavior)
         productTypes = productTypes.sort((a, b) => a._id.localeCompare(b._id));
-        console.log('🔥 DEBUGGING: Product types sorted by _id ascending');
-        
+
         setProductTypes(productTypes);
         
         // Batch pagination state updates
@@ -164,15 +158,14 @@ const TheaterProductTypes = () => {
           inactiveProductTypes: statisticsData.inactive || 0,
           totalProductTypes: statisticsData.total || 0
         };
-        console.log('🔥 DEBUGGING: Setting summary', summary);
+
         setSummary(summary);
       } else {
         throw new Error(data.message || 'Failed to load product types');
       }
     } catch (error) {
       if (error.name !== 'AbortError' && isMountedRef.current) {
-        console.error('🔥 DEBUGGING: ERROR loading product types:', error);
-        console.error('🔥 DEBUGGING: ERROR stack:', error.stack);
+
         // Removed error modal - just show empty state
         setProductTypes([]);
         setSummary({ activeProductTypes: 0, inactiveProductTypes: 0, totalProductTypes: 0 });
@@ -306,7 +299,7 @@ const TheaterProductTypes = () => {
         // Removed error modal - errors logged to console only
       }
     } catch (error) {
-      console.error('Error saving product type:', error);
+
       // Removed error modal - errors logged to console only
     }
   };
@@ -328,7 +321,7 @@ const TheaterProductTypes = () => {
         // Removed error modal - errors logged to console only
       }
     } catch (error) {
-      console.error('Error deleting product type:', error);
+
       // Removed error modal - errors logged to console only
     }
   };
@@ -377,13 +370,12 @@ const TheaterProductTypes = () => {
       imageUrl: null,
       removeImage: true
     }));
-    console.log('🗑️ Image removed');
   };
 
   // Initial load
   useEffect(() => {
     if (theaterId) {
-      console.log('🔥 DEBUGGING: Component mounted, calling loadProductTypesData directly');
+
       loadProductTypesData(1, 10, '');
     }
   }, [theaterId, loadProductTypesData]);
@@ -515,13 +507,10 @@ const TheaterProductTypes = () => {
                       <td style={{textAlign: 'center'}}>
                         <div className="category-image">
                           {(productType.imageUrl || productType.image) ? (
-                            <img 
+                            <InstantImage
                               src={productType.imageUrl || productType.image} 
                               alt={productType.productName}
                               loading="eager"
-                              decoding="async"
-                              width="40"
-                              height="40"
                               style={{
                                 width: '40px',
                                 height: '40px',
@@ -531,7 +520,7 @@ const TheaterProductTypes = () => {
                                 imageRendering: 'auto'
                               }}
                               onError={(e) => {
-                                console.log('Image load error for:', productType.productName, productType.imageUrl || productType.image);
+
                                 e.target.style.display = 'none';
                                 e.target.nextSibling.style.display = 'flex';
                               }}
@@ -905,7 +894,7 @@ const TheaterProductTypes = () => {
                     <div className="form-group">
                       <label>Product Image</label>
                       <div style={{ textAlign: 'center', padding: '10px' }}>
-                        <img 
+                        <InstantImage
                           src={selectedProductType.imageUrl} 
                           alt={selectedProductType.productName}
                           style={{

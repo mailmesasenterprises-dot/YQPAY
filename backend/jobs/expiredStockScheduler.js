@@ -9,7 +9,6 @@ const Product = require('../models/Product');
  */
 async function processExpiredStock() {
   try {
-    console.log('🕐 Running Expired Stock Scheduler at:', new Date().toLocaleString());
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -33,14 +32,6 @@ async function processExpiredStock() {
 
         // Check if entry has expireDate and it's expired
         if (entry.expireDate && new Date(entry.expireDate) <= today && entry.stockAdded > 0) {
-          console.log(`  ⚠️ Expired Stock Found:`, {
-            theater: doc.theaterId,
-            product: doc.productId,
-            date: entry.date,
-            expireDate: entry.expireDate,
-            quantity: entry.stockAdded
-          });
-
           // Move stock from stockAdded to expiredStock
           const expiredQty = entry.stockAdded;
           entry.expiredStock += expiredQty;
@@ -74,12 +65,6 @@ async function processExpiredStock() {
       }
     }
 
-    console.log(`✅ Expired Stock Scheduler Completed:`, {
-      documentsProcessed: totalProcessed,
-      totalExpiredQuantity: totalExpired,
-      completedAt: new Date().toLocaleString()
-    });
-
   } catch (error) {
     console.error('❌ Expired Stock Scheduler Error:', error);
   }
@@ -99,8 +84,6 @@ function startExpiredStockScheduler() {
     scheduled: true,
     timezone: "Asia/Kolkata" // Adjust to your timezone
   });
-
-  console.log('📅 Expired Stock Scheduler Started - Runs daily at 12:01 AM');
 }
 
 // Export functions
