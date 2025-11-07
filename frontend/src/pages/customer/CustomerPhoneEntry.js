@@ -18,6 +18,47 @@ const CustomerPhoneEntry = () => {
   // Country code is fixed to India (+91)
   const countryCode = '+91';
 
+  // Check if user is already logged in
+  useEffect(() => {
+    const customerPhone = localStorage.getItem('customerPhone');
+    
+    if (customerPhone) {
+      // User is already logged in
+      console.log('✅ User already logged in with phone:', customerPhone);
+      
+      // If coming from login flow, redirect back to returnUrl
+      if (fromLogin && returnUrl) {
+        navigate(returnUrl, { replace: true });
+        return;
+      }
+      
+      // If there's checkout data in localStorage, go to payment
+      const savedCheckoutData = localStorage.getItem('checkoutData');
+      if (savedCheckoutData) {
+        const checkoutInfo = JSON.parse(savedCheckoutData);
+        navigate('/customer/payment', {
+          state: {
+            phoneNumber: customerPhone,
+            verified: true,
+            theaterId: checkoutInfo.theaterId,
+            theaterName: checkoutInfo.theaterName,
+            qrName: checkoutInfo.qrName,
+            seat: checkoutInfo.seat
+          },
+          replace: true
+        });
+        return;
+      }
+      
+      // Otherwise, redirect back to home or returnUrl
+      if (returnUrl) {
+        navigate(returnUrl, { replace: true });
+      } else {
+        navigate('/customer/home', { replace: true });
+      }
+    }
+  }, [navigate, fromLogin, returnUrl]);
+
   useEffect(() => {
     // Auto-focus on phone input when page loads
     const phoneInput = document.getElementById('phone-input');

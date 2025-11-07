@@ -65,6 +65,9 @@ const CustomerCart = () => {
       return;
     }
     
+    // Check if customer is already logged in
+    const customerPhone = localStorage.getItem('customerPhone');
+    
     // Store cart data and navigation info for checkout flow
     localStorage.setItem('checkoutData', JSON.stringify({
       theaterId,
@@ -75,7 +78,22 @@ const CustomerCart = () => {
       totals: { subtotal, tax, total, totalDiscount }
     }));
     
-    navigate('/customer/phone-entry');
+    // If already logged in, go directly to payment page
+    // Otherwise, go to phone entry for verification
+    if (customerPhone) {
+      navigate('/customer/payment', {
+        state: {
+          phoneNumber: customerPhone,
+          verified: true,
+          theaterId,
+          theaterName,
+          qrName,
+          seat
+        }
+      });
+    } else {
+      navigate('/customer/phone-entry');
+    }
   };
 
   const handleBackToMenu = () => {

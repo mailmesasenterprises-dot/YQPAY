@@ -21,7 +21,7 @@ const CustomerHome = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const cart = useCart();
-  const { items, addItem, updateQuantity, removeItem, getTotalItems, getItemQuantity } = cart;
+  const { items, addItem, updateQuantity, removeItem, getTotalItems, getItemQuantity, clearCart } = cart;
   
   // Network status for offline handling
   const { shouldShowOfflineUI, isNetworkError } = useNetworkStatus();
@@ -771,11 +771,16 @@ const CustomerHome = () => {
   // Handle logout
   const handleLogout = () => {
     setShowProfileDropdown(false);
-    // Clear customer data
+    
+    // Clear cart items from context
+    clearCart();
+    
+    // Clear customer data from localStorage
     localStorage.removeItem('customerPhone');
     localStorage.removeItem('cart');
     localStorage.removeItem('yqpay_cart');
     localStorage.removeItem('checkoutData');
+    localStorage.removeItem('customerFavorites');
     
     // Redirect to customer landing page with theater ID preserved
     if (theaterId) {
