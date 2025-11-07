@@ -2,6 +2,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import config from '../../config';
 import CachedImage from '../../components/CachedImage'; // Global image caching
+import { calculateOrderTotals } from '../../utils/orderCalculation'; // 📊 Centralized calculation
 import '../../styles/pages/theater/KioskCart.css';
 
 const KioskViewCart = () => {
@@ -56,53 +57,23 @@ const KioskViewCart = () => {
     return basePrice;
   };
 
-  // Calculate order totals like POS
-  const calculateOrderTotals = () => {
-    let calculatedSubtotal = 0;
-    let calculatedTax = 0;
-    let calculatedDiscount = 0;
+  // Calculate order totals using centralized utility
+  const getOrderTotals = () => {
+    // Map cart items to match the expected format for the utility
+    const orderItems = cart.map(item => ({
+      ...item,
+      sellingPrice: Number(item.pricing?.basePrice || item.pricing?.salePrice || item.basePrice || 0),
+      quantity: item.quantity,
+      taxRate: parseFloat(item.taxRate || item.pricing?.taxRate) || 5,
+      gstType: item.gstType || item.pricing?.gstType || 'EXCLUDE',
+      discountPercentage: Number(item.pricing?.discountPercentage || item.discountPercentage) || 0,
+      pricing: item.pricing
+    }));
     
-    cart.forEach(item => {
-      const originalPrice = Number(item.pricing?.basePrice || item.pricing?.salePrice || item.basePrice || 0);
-      const qty = parseInt(item.quantity) || 0;
-      const taxRate = parseFloat(item.taxRate || item.pricing?.taxRate) || 5; // Default 5% if not specified
-      const gstType = item.gstType || item.pricing?.gstType || 'EXCLUDE';
-      const discountPercentage = Number(item.pricing?.discountPercentage || item.discountPercentage) || 0;
-      
-      const lineTotal = originalPrice * qty;
-      
-      // Calculate discount amount
-      const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
-      calculatedDiscount += discountAmount;
-      
-      // Apply discount to get discounted line total
-      const discountedLineTotal = lineTotal - discountAmount;
-      
-      if (gstType === 'INCLUDE') {
-        // GST INCLUDE - price includes GST, extract the GST amount from discounted total
-        const gstAmount = discountedLineTotal * (taxRate / (100 + taxRate));
-        const basePrice = discountedLineTotal - gstAmount;
-        calculatedSubtotal += basePrice;
-        calculatedTax += gstAmount;
-      } else {
-        // GST EXCLUDE - add GST on top of discounted price
-        const gstAmount = discountedLineTotal * (taxRate / 100);
-        calculatedSubtotal += discountedLineTotal;
-        calculatedTax += gstAmount;
-      }
-    });
-    
-    const calculatedTotal = calculatedSubtotal + calculatedTax;
-    
-    return { 
-      subtotal: parseFloat(calculatedSubtotal.toFixed(2)), 
-      tax: parseFloat(calculatedTax.toFixed(2)), 
-      total: parseFloat(calculatedTotal.toFixed(2)),
-      totalDiscount: parseFloat(calculatedDiscount.toFixed(2))
-    };
+    return calculateOrderTotals(orderItems);
   };
 
-  const orderTotals = calculateOrderTotals();
+  const orderTotals = getOrderTotals();
   const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleCheckout = () => {

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import { calculateOrderTotals } from '../utils/orderCalculation'; // 📊 Centralized calculation
 
 // Cart Context
 const CartContext = createContext();
@@ -215,28 +216,25 @@ export const CartProvider = ({ children }) => {
     return state.items.reduce((total, item) => total + (item.price * item.quantity), 0);
   };
 
+  // Use centralized calculation utility
+  const getCalculatedTotals = () => {
+    // Map cart items to match the expected format for the utility
+    const orderItems = state.items.map(item => ({
+      ...item,
+      sellingPrice: parseFloat(item.price) || 0,
+      quantity: item.quantity,
+      taxRate: parseFloat(item.taxRate) || 0,
+      gstType: item.gstType || item.pricing?.gstType || 'EXCLUDE',
+      discountPercentage: parseFloat(item.discountPercentage || item.pricing?.discountPercentage) || 0,
+      pricing: item.pricing
+    }));
+    
+    return calculateOrderTotals(orderItems);
+  };
+
   const getSubtotal = () => {
-    let subtotal = 0;
-    
-    state.items.forEach(item => {
-      const price = parseFloat(item.price) || 0;
-      const qty = parseInt(item.quantity) || 0;
-      const taxRate = parseFloat(item.taxRate) || 0;
-      const gstType = item.gstType || 'EXCLUDE';
-      
-      const lineTotal = price * qty;
-      
-      if (gstType === 'INCLUDE') {
-        // Price already includes GST, calculate base price
-        const basePrice = lineTotal / (1 + (taxRate / 100));
-        subtotal += basePrice;
-      } else {
-        // GST EXCLUDE - price is the subtotal
-        subtotal += lineTotal;
-      }
-    });
-    
-    return parseFloat(subtotal.toFixed(2));
+    const totals = getCalculatedTotals();
+    return totals.subtotal;
   };
 
   const getDeliveryCharge = () => {
@@ -244,33 +242,13 @@ export const CartProvider = ({ children }) => {
   };
 
   const getTax = () => {
-    let totalTax = 0;
-    
-    state.items.forEach(item => {
-      const price = parseFloat(item.price) || 0;
-      const qty = parseInt(item.quantity) || 0;
-      const taxRate = parseFloat(item.taxRate) || 0;
-      const gstType = item.gstType || 'EXCLUDE';
-      
-      const lineTotal = price * qty;
-      
-      if (gstType === 'INCLUDE') {
-        // Price already includes GST, extract the GST amount
-        const basePrice = lineTotal / (1 + (taxRate / 100));
-        const gstAmount = lineTotal - basePrice;
-        totalTax += gstAmount;
-      } else {
-        // GST EXCLUDE - add GST on top of price
-        const gstAmount = lineTotal * (taxRate / 100);
-        totalTax += gstAmount;
-      }
-    });
-    
-    return parseFloat(totalTax.toFixed(2));
+    const totals = getCalculatedTotals();
+    return totals.tax;
   };
 
   const getFinalTotal = () => {
-    return getSubtotal() + getDeliveryCharge() + getTax();
+    const totals = getCalculatedTotals();
+    return totals.total + getDeliveryCharge();
   };
 
   const formatPrice = (price) => {

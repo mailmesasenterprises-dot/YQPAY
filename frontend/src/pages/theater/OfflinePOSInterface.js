@@ -15,6 +15,7 @@ import OfflineStatusBadge from '../../components/OfflineStatusBadge';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import { useOfflineQueue } from '../../hooks/useOfflineQueue';
 import { getAuthToken, autoLogin } from '../../utils/authHelper';
+import { calculateOrderTotals } from '../../utils/orderCalculation'; // 📊 Centralized calculation
 import {
   cacheProducts,
   getCachedProducts,
@@ -387,12 +388,15 @@ const OfflinePOSInterface = () => {
       } else {
         const originalPrice = product.pricing?.basePrice ?? product.sellingPrice ?? 0;
         const discountPercentage = parseFloat(product.discountPercentage || product.pricing?.discountPercentage) || 0;
-        const sellingPrice = discountPercentage > 0 
-          ? originalPrice * (1 - discountPercentage / 100)
-          : originalPrice;
+        
+        // Store ORIGINAL price in sellingPrice (discount will be calculated by utility)
+        const sellingPrice = originalPrice;
         
         const taxRate = parseFloat(product.pricing?.taxRate ?? product.taxRate) || 0;
-        const gstType = product.gstType || 'EXCLUDE';
+        
+        // Check pricing object first for gstType
+        const gstTypeRaw = product.pricing?.gstType || product.gstType || 'EXCLUDE';
+        const gstType = gstTypeRaw.toUpperCase().includes('INCLUDE') ? 'INCLUDE' : 'EXCLUDE';
         
         return [...prevOrder, { 
           ...product, 
@@ -401,7 +405,8 @@ const OfflinePOSInterface = () => {
           originalPrice: originalPrice,
           discountPercentage: discountPercentage,
           taxRate: taxRate,
-          gstType: gstType
+          gstType: gstType,
+          pricing: product.pricing // Keep pricing object for GST Type detection
         }];
       }
     });
@@ -658,36 +663,9 @@ const OfflinePOSInterface = () => {
     return filtered;
   }, [products, selectedCategory, categoryMapping, searchTerm]);
 
-  // Calculate order totals
+  // Calculate order totals using centralized utility
   const orderTotals = useMemo(() => {
-    let subtotal = 0;
-    let tax = 0;
-    let totalDiscount = 0;
-
-    currentOrder.forEach(item => {
-      const itemSubtotal = item.sellingPrice * item.quantity;
-      subtotal += itemSubtotal;
-
-      if (item.discountPercentage > 0) {
-        const originalTotal = item.originalPrice * item.quantity;
-        const discountAmount = originalTotal - itemSubtotal;
-        totalDiscount += discountAmount;
-      }
-
-      if (item.taxRate) {
-        const taxAmount = (itemSubtotal * item.taxRate) / 100;
-        tax += taxAmount;
-      }
-    });
-
-    const total = subtotal + tax - totalDiscount;
-
-    return {
-      subtotal: Math.round(subtotal * 100) / 100,
-      tax: Math.round(tax * 100) / 100,
-      totalDiscount: Math.round(totalDiscount * 100) / 100,
-      total: Math.round(total * 100) / 100
-    };
+    return calculateOrderTotals(currentOrder);
   }, [currentOrder]);
 
   // Process order (offline-capable)

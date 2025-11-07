@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../../contexts/CartContext';
 import { getImageSrc } from '../../utils/globalImageCache'; // 🚀 Instant image loading
+import { calculateOrderTotals } from '../../utils/orderCalculation'; // 📊 Centralized calculation
 import './../../styles/customer/CustomerCart.css';
 
 const CustomerCart = () => {
@@ -28,52 +29,27 @@ const CustomerCart = () => {
     if (cat) setCategory(cat);
   }, [location.search]);
 
-  // Calculate totals - Apply discount first, then calculate GST on discounted amount
-  const { subtotal, tax, total, totalDiscount, gstTypes } = items.reduce((acc, item) => {
-    const originalPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0;
-    const qty = parseInt(item.quantity) || 0;
-    const taxRate = parseFloat(item.taxRate) || 0;
-    const itemGstType = item.gstType || item.pricing?.gstType || 'EXCLUDE';
-    const discountPercentage = parseFloat(item.discountPercentage || item.pricing?.discountPercentage) || 0;
+  // Calculate totals using centralized utility
+  const { subtotal, tax, total, totalDiscount } = useMemo(() => {
+    // Map cart items to match the expected format for the utility
+    const orderItems = items.map(item => ({
+      ...item,
+      sellingPrice: typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0,
+      quantity: item.quantity,
+      taxRate: parseFloat(item.taxRate) || 0,
+      gstType: item.gstType || item.pricing?.gstType || 'EXCLUDE',
+      discountPercentage: parseFloat(item.discountPercentage || item.pricing?.discountPercentage) || 0,
+      pricing: item.pricing
+    }));
     
+    return calculateOrderTotals(orderItems);
+  }, [items]);
 
-    // Step 1: Apply discount to original price
-    const discountAmount = discountPercentage > 0 
-      ? (originalPrice * qty) * (discountPercentage / 100)
-      : 0;
-    
-    const discountedPrice = originalPrice * qty - discountAmount;
-    
-    let itemSubtotal = 0;
-    let itemTax = 0;
-    let itemTotal = 0;
-    
-    if (itemGstType === 'INCLUDE') {
-      // Price includes GST - extract GST from discounted price
-      itemSubtotal = discountedPrice / (1 + (taxRate / 100));
-      itemTax = discountedPrice - itemSubtotal;
-      itemTotal = discountedPrice; // Same as discounted price since GST is included
-  } else {
-      // GST EXCLUDE - calculate GST on discounted price
-      itemSubtotal = discountedPrice;
-      itemTax = discountedPrice * (taxRate / 100);
-      itemTotal = discountedPrice + itemTax;
-  }
-    
-    // Track unique GST types
-    const updatedGstTypes = [...acc.gstTypes];
-    if (!updatedGstTypes.includes(itemGstType)) {
-      updatedGstTypes.push(itemGstType);
-    }
-    
-    return {
-      subtotal: acc.subtotal + itemSubtotal,
-      tax: acc.tax + itemTax,
-      total: acc.total + itemTotal,
-      totalDiscount: acc.totalDiscount + discountAmount,
-      gstTypes: updatedGstTypes
-    };
-  }, { subtotal: 0, tax: 0, total: 0, totalDiscount: 0, gstTypes: [] });
+  // Determine GST types for display label
+  const gstTypes = useMemo(() => {
+    const types = items.map(item => item.gstType || item.pricing?.gstType || 'EXCLUDE');
+    return [...new Set(types)]; // Unique types
+  }, [items]);
 
   // Determine display label for GST based on mixed types
   const gstDisplayLabel = gstTypes.length > 1 

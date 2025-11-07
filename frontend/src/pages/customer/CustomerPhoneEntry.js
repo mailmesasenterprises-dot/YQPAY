@@ -10,8 +10,10 @@ const CustomerPhoneEntry = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Get checkout data from navigation state
-  const checkoutData = location.state;
+  // Get data from navigation state
+  const checkoutData = location.state?.checkoutData;
+  const fromLogin = location.state?.fromLogin;
+  const returnUrl = location.state?.returnUrl;
 
   // Country code is fixed to India (+91)
   const countryCode = '+91';
@@ -80,7 +82,10 @@ const CustomerPhoneEntry = () => {
           state: { 
             phoneNumber: fullPhoneNumber,
             otpLength: result.data?.otpLength || 4,
-            expiresIn: result.data?.expiresIn || 300
+            expiresIn: result.data?.expiresIn || 300,
+            checkoutData: checkoutData,
+            fromLogin: fromLogin,
+            returnUrl: returnUrl
           }
         });
       } else {
@@ -124,7 +129,12 @@ const CustomerPhoneEntry = () => {
       <div className="phone-entry-content">
         <div className="phone-entry-card">
           <h2>Enter Your Mobile Number</h2>
-          <p>We'll send you a 4-digit verification code to complete your order</p>
+          <p>
+            {fromLogin 
+              ? "We'll send you a 4-digit verification code to sign in"
+              : "We'll send you a 4-digit verification code to complete your order"
+            }
+          </p>
 
           <div className="phone-input-container">
             <div className="country-code-display">

@@ -5,6 +5,7 @@ import ErrorBoundary from '../../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import { getAuthToken, autoLogin } from '../../utils/authHelper';
 import { getImageSrc, cacheProductImages } from '../../utils/globalImageCache'; // 🚀 Instant image loading
+import { calculateOrderTotals } from '../../utils/orderCalculation'; // 📊 Centralized calculation
 import ImageUpload from '../../components/ImageUpload';
 import config from '../../config';
 import '../../styles/TheaterList.css';
@@ -388,13 +389,16 @@ const OnlinePOSInterface = () => {
         // Extract price from array structure (pricing.basePrice) or old structure (sellingPrice)
         const originalPrice = parseFloat(product.pricing?.basePrice ?? product.sellingPrice ?? 0) || 0;
         const discountPercentage = parseFloat(product.discountPercentage || product.pricing?.discountPercentage) || 0;
-        const sellingPrice = discountPercentage > 0 
-          ? originalPrice * (1 - discountPercentage / 100)
-          : originalPrice;
+        
+        // Store ORIGINAL price in sellingPrice (discount will be calculated by utility)
+        const sellingPrice = originalPrice;
         
         // Extract tax information
         const taxRate = parseFloat(product.pricing?.taxRate ?? product.taxRate) || 0;
-        const gstType = product.gstType || 'EXCLUDE';
+        
+        // Check pricing object first for gstType
+        const gstTypeRaw = product.pricing?.gstType || product.gstType || 'EXCLUDE';
+        const gstType = gstTypeRaw.toUpperCase().includes('INCLUDE') ? 'INCLUDE' : 'EXCLUDE';
         
         return [...prevOrder, { 
           ...product, 
@@ -403,7 +407,8 @@ const OnlinePOSInterface = () => {
           originalPrice: parseFloat(originalPrice) || 0,
           discountPercentage: discountPercentage,
           taxRate: taxRate, // Ensure tax rate is available
-          gstType: gstType // Ensure GST type is available
+          gstType: gstType, // Ensure GST type is available
+          pricing: product.pricing // Keep pricing object for GST Type detection
         }];
       }
     });
@@ -869,50 +874,9 @@ const OnlinePOSInterface = () => {
     };
   }, [theaterId, fetchOnlineOrders]);
 
-  // Calculate order totals with dynamic GST and discount handling
+  // Calculate order totals using centralized utility
   const orderTotals = useMemo(() => {
-    let calculatedSubtotal = 0;
-    let calculatedTax = 0;
-    let calculatedDiscount = 0;
-    
-    currentOrder.forEach(item => {
-      const price = parseFloat(item.sellingPrice) || 0;
-      const qty = parseInt(item.quantity) || 0;
-      const taxRate = parseFloat(item.taxRate) || 0;
-      const gstType = item.gstType || 'EXCLUDE';
-      const discountPercentage = parseFloat(item.discountPercentage) || 0;
-      
-      const lineTotal = price * qty;
-      
-      // Calculate discount amount
-      const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
-      calculatedDiscount += discountAmount;
-      
-      // Apply discount to get discounted line total
-      const discountedLineTotal = lineTotal - discountAmount;
-      
-      if (gstType === 'INCLUDE') {
-        // GST INCLUDE - price includes GST, extract the GST amount from discounted total
-        const gstAmount = discountedLineTotal * (taxRate / (100 + taxRate));
-        const basePrice = discountedLineTotal - gstAmount;
-        calculatedSubtotal += basePrice;
-        calculatedTax += gstAmount;
-      } else {
-        // GST EXCLUDE - add GST on top of discounted price
-        const gstAmount = discountedLineTotal * (taxRate / 100);
-        calculatedSubtotal += discountedLineTotal;
-        calculatedTax += gstAmount;
-      }
-    });
-    
-    const calculatedTotal = calculatedSubtotal + calculatedTax;
-    
-    return { 
-      subtotal: parseFloat(calculatedSubtotal.toFixed(2)), 
-      tax: parseFloat(calculatedTax.toFixed(2)), 
-      total: parseFloat(calculatedTotal.toFixed(2)),
-      totalDiscount: parseFloat(calculatedDiscount.toFixed(2))
-    };
+    return calculateOrderTotals(currentOrder);
   }, [currentOrder]);
 
   // Filter products by category and search

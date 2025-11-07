@@ -30,6 +30,7 @@ const CustomerOrderDetails = () => {
       if (!response.ok) throw new Error('Failed to fetch orders');
 
       const data = await response.json();
+      console.log('📦 All orders received:', data.orders);
       
       // Find the specific order by orderId and phone number
       const foundOrder = data.orders.find(order => 
@@ -37,6 +38,14 @@ const CustomerOrderDetails = () => {
         order.customerInfo?.phone === phoneNumber
       );
 
+      console.log('🎯 Found order:', foundOrder);
+      console.log('📋 Order items:', foundOrder?.items);
+      console.log('💰 Order pricing:', {
+        subtotal: foundOrder?.subtotal,
+        tax: foundOrder?.tax,
+        total: foundOrder?.total,
+        pricing: foundOrder?.pricing
+      });
 
       if (!foundOrder) throw new Error('Order not found');
       setOrder(foundOrder);
@@ -132,24 +141,61 @@ const CustomerOrderDetails = () => {
 
         <div className="cart-items-list">
           {items.map((item, index) => {
-            const itemPrice = typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0;
-            const discountPercentage = parseFloat(item.discountPercentage) || 0;
-            const discountedPrice = discountPercentage > 0 
+            // Map backend fields to frontend fields
+            const itemPrice = parseFloat(item.unitPrice || item.price || 0);
+            const itemTotalPrice = parseFloat(item.totalPrice || 0);
+            const discountPercentage = parseFloat(item.discountPercentage || 0);
+            const hasDiscount = discountPercentage > 0;
+            
+            // Calculate discounted price if discount exists
+            const discountedPrice = hasDiscount 
               ? itemPrice * (1 - discountPercentage / 100)
               : itemPrice;
-            const hasDiscount = discountPercentage > 0;
+            
+            // Get image from product object or use placeholder
+            const imageUrl = item.product?.images?.[0]?.url || 
+                           item.product?.image || 
+                           item.image || 
+                           null;
+            
+            console.log('🖼️ Item image debug:', {
+              itemName: item.name,
+              imageUrl,
+              hasProduct: !!item.product,
+              productImages: item.product?.images,
+              directImage: item.image
+            });
             
             return (
             <div key={item._id || index} className="cart-item">
               <div className="cart-item-image-container">
-                <img 
-                  src={item.image || '/placeholder-product.png'} 
-                  alt={item.name}
-                  className="cart-item-image"
-                  onError={(e) => {
-                    e.target.src = '/placeholder-product.png';
-                  }}
-                />
+                {imageUrl ? (
+                  <img 
+                    src={imageUrl} 
+                    alt={item.name}
+                    className="cart-item-image"
+                    onError={(e) => {
+                      console.error('❌ Image failed to load:', imageUrl);
+                      e.target.style.display = 'none';
+                      e.target.parentElement.innerHTML = '<div style="width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; border-radius: 12px;">' + item.name.charAt(0) + '</div>';
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    borderRadius: '12px'
+                  }}>
+                    {item.name.charAt(0)}
+                  </div>
+                )}
                 {hasDiscount && (
                   <div className="discount-badge">{discountPercentage}% OFF</div>
                 )}
@@ -173,7 +219,7 @@ const CustomerOrderDetails = () => {
                 <div className="quantity-display-readonly">
                   <span className="quantity-text">Qty: {item.quantity}</span>
                 </div>
-                <p className="cart-item-total">₹{(discountedPrice * item.quantity).toFixed(2)}</p>
+                <p className="cart-item-total">₹{itemTotalPrice.toFixed(2)}</p>
               </div>
             </div>
             );

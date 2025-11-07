@@ -48,6 +48,12 @@ const CustomerHome = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const scanIntervalRef = useRef(null);
+  
+  // Favorites state
+  const [favoriteProducts, setFavoriteProducts] = useState(() => {
+    const saved = localStorage.getItem('customerFavorites');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Initialize state from localStorage if URL params are missing
   useEffect(() => {
@@ -186,7 +192,7 @@ const CustomerHome = () => {
               return {
                 _id: p._id,
                 name: p.name || p.productName,
-                price: p.pricing?.salePrice || p.price || p.sellingPrice || 0,
+                price: p.pricing?.basePrice || p.price || p.sellingPrice || 0,
                 description: p.description || '',
                 image: imageUrl,
                 categoryId: p.categoryId || (typeof p.category === 'object' ? p.category?._id : p.category),
@@ -214,16 +220,27 @@ const CustomerHome = () => {
           // Process categories data
           let freshCategories = [];
           if (categoriesData.success && categoriesData.data.categories) {
+            console.log('📂 [Categories] Raw data from API:', categoriesData.data.categories);
+            
             freshCategories = categoriesData.data.categories
               .filter(cat => cat.isActive)
               .slice(0, 6)
-              .map(cat => ({
-                _id: cat._id,
-                name: cat.categoryName || cat.name,
-                image: cat.imageUrl || cat.image,
-                icon: cat.icon || '📦',
-                isActive: cat.isActive
-              }));
+              .map(cat => {
+                console.log(`📂 Category "${cat.categoryName}":`, {
+                  imageUrl: cat.imageUrl,
+                  image: cat.image,
+                  hasImage: !!(cat.imageUrl || cat.image)
+                });
+                return {
+                  _id: cat._id,
+                  name: cat.categoryName || cat.name,
+                  image: cat.imageUrl || cat.image,
+                  icon: cat.icon || '📦',
+                  isActive: cat.isActive
+                };
+              });
+            
+            console.log('📂 [Categories] Processed categories:', freshCategories);
             setCategories(freshCategories);
           }
           
@@ -253,20 +270,6 @@ const CustomerHome = () => {
     }
   }, [theaterId]);
 
-  // Auto-refresh products every 30 seconds to get admin updates
-  useEffect(() => {
-    if (!theaterId) return;
-    
-    const refreshInterval = setInterval(() => {
-      // Trigger data refresh by invalidating cache
-      const cacheKey = `customerHome_${theaterId}`;
-      sessionStorage.removeItem(cacheKey);
-      window.location.reload(); // Simple full reload to get fresh data
-    }, 30000); // Refresh every 30 seconds
-
-    return () => clearInterval(refreshInterval);
-  }, [theaterId]);
-
   // Filter collections based on search query and selected category
   const filterProductCollections = useCallback(() => {
     console.log(`🔍 [CustomerHome] Filtering - Category: ${selectedCategory}, Search: "${searchQuery}"`);
@@ -277,6 +280,81 @@ const CustomerHome = () => {
       console.log(`🎯 [CustomerHome] Filtered collections for "All": ${filtered.length} collections`);
 
       setFilteredCollections(filtered);
+    } else if (selectedCategory === 'offers') {
+      // For "Offers" category: show only products with discounts
+      console.log('🎁 [CustomerHome] Filtering products with offers/discounts');
+      
+      let offerProducts = products.filter(p => {
+        const discountPercentage = parseFloat(p.discountPercentage || p.pricing?.discountPercentage) || 0;
+        return discountPercentage > 0; // Only products with discount
+      });
+      
+      console.log(`🎁 [CustomerHome] Found ${offerProducts.length} products with offers`);
+
+      // Apply search filter
+      if (searchQuery && searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        offerProducts = offerProducts.filter(p =>
+          p.name.toLowerCase().includes(query) ||
+          (p.description && p.description.toLowerCase().includes(query))
+        );
+      }
+      
+      // Apply veg filter
+      if (isVegOnly) {
+        offerProducts = offerProducts.filter(p => 
+          p.isVeg === false || (!p.isVeg && !p.category?.toLowerCase().includes('veg'))
+        );
+      }
+      
+      // Apply price range filter
+      if (selectedPriceRange !== 'all') {
+        offerProducts = offerProducts.filter(p => {
+          const price = parseFloat(p.price) || 0;
+          switch (selectedPriceRange) {
+            case 'under100':
+              return price < 100;
+            case '100-200':
+              return price >= 100 && price <= 200;
+            case '200-300':
+              return price > 200 && price <= 300;
+            case 'above300':
+              return price > 300;
+            default:
+              return true;
+          }
+        });
+      }
+      
+      // Convert to collection format for consistent rendering
+      const offerItems = offerProducts.map(p => ({
+        name: p.name,
+        baseImage: p.image,
+        category: p.category,
+        isCollection: false,
+        basePrice: parseFloat(p.price) || 0,
+        discountPercentage: parseFloat(p.discountPercentage || p.pricing?.discountPercentage) || 0,
+        singleVariant: {
+          _id: p._id,
+          size: p.size || 'Regular',
+          sizeLabel: p.quantity || null,
+          price: parseFloat(p.price) || 0,
+          description: p.description,
+          image: p.image,
+          originalProduct: p
+        },
+        variants: [{
+          _id: p._id,
+          size: p.size || 'Regular',
+          sizeLabel: p.quantity || null,
+          price: parseFloat(p.price) || 0,
+          description: p.description,
+          image: p.image,
+          originalProduct: p
+        }]
+      }));
+      
+      setFilteredCollections(offerItems);
     } else {
       // For specific categories: show individual products
       // Filter by category ID (not name)
@@ -581,6 +659,21 @@ const CustomerHome = () => {
     }
   };
 
+  // Handle favorite toggle
+  const handleToggleFavorite = (productId) => {
+    console.log('Toggle favorite for product ID:', productId);
+    setFavoriteProducts(prev => {
+      const newFavorites = prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId];
+      
+      console.log('Updated favorites:', newFavorites);
+      // Save to localStorage
+      localStorage.setItem('customerFavorites', JSON.stringify(newFavorites));
+      return newFavorites;
+    });
+  };
+
   // Handle profile dropdown toggle
   const handleProfileClick = () => {
     setShowProfileDropdown(!showProfileDropdown);
@@ -702,9 +795,26 @@ const CustomerHome = () => {
             )}
           </div>
           <div className="header-actions">
+            {/* Bell Icon - Notifications */}
+            <button 
+              className="notification-btn"
+              aria-label="Notifications"
+              onClick={() => {
+                // Add notification handler here
+                console.log('Notifications clicked');
+              }}
+            >
+              <svg className="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              {/* Optional: Add notification badge */}
+              {/* <span className="notification-badge">3</span> */}
+            </button>
+            
             <div className="profile-dropdown-container">
               <button 
-                className="profile-btn" 
+                className={`profile-btn ${localStorage.getItem('customerPhone') ? 'logged-in' : ''}`}
                 aria-label="User profile"
                 onClick={handleProfileClick}
               >
@@ -712,10 +822,50 @@ const CustomerHome = () => {
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                   <circle cx="12" cy="7" r="4" />
                 </svg>
+                {localStorage.getItem('customerPhone') && (
+                  <span className="login-indicator"></span>
+                )}
               </button>
               
               {showProfileDropdown && (
                 <div className="profile-dropdown modern-dropdown">
+                  {/* Show Login option if user is NOT logged in */}
+                  {!localStorage.getItem('customerPhone') && (
+                    <button 
+                      className="dropdown-card login-card"
+                      onClick={() => {
+                        setShowProfileDropdown(false);
+                        // Build return URL with all current parameters
+                        const params = new URLSearchParams();
+                        if (theaterId) params.set('theaterid', theaterId);
+                        if (theater?.name) params.set('theaterName', theater.name);
+                        if (qrName) params.set('qr', qrName);
+                        if (seat) params.set('seat', seat);
+                        if (screenName) params.set('screen', screenName);
+                        
+                        navigate('/customer/phone-entry', {
+                          state: {
+                            returnUrl: `/customer/home?${params.toString()}`,
+                            fromLogin: true
+                          }
+                        });
+                      }}
+                    >
+                      <div className="card-icon login-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/>
+                        </svg>
+                      </div>
+                      <div className="card-content">
+                        <h3 className="card-title">Login</h3>
+                        <p className="card-subtitle">Sign in to your account</p>
+                      </div>
+                      <svg className="card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </button>
+                  )}
+                  
                   <button 
                     className="dropdown-card"
                     onClick={handleOrderHistory}
@@ -736,7 +886,15 @@ const CustomerHome = () => {
                   
                   <button 
                     className="dropdown-card"
-                    onClick={() => {/* Handle favorites */}}
+                    onClick={() => {
+                      setShowProfileDropdown(false);
+                      const params = new URLSearchParams();
+                      params.set('theaterid', theaterId);
+                      if (theater?.name) {
+                        params.set('theaterName', theater.name);
+                      }
+                      navigate(`/customer/favorites?${params.toString()}`);
+                    }}
                   >
                     <div className="card-icon favourites">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -830,7 +988,7 @@ const CustomerHome = () => {
             <div className="category-content">
               <div className="category-icon-large">
                 <InstantImage
-                  src="https://images.unsplash.com/photo-1598899134739-24c46f58b8c0?w=200&h=200&fit=crop&q=80"
+                  src="/images/All.png"
                   alt="All Categories"
                   className="category-img"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -842,11 +1000,44 @@ const CustomerHome = () => {
               <span className="category-name">All</span>
             </div>
           </button>
+
+          {/* Offer Category - Shows products with discounts */}
+          <button
+            className={`category-chip ${selectedCategory === 'offers' ? 'active' : ''}`}
+            onClick={() => handleCategoryChange('offers')}
+            aria-label="Offers and Discounts"
+          >
+            <div className="category-content">
+              <div className="category-icon-large">
+                <InstantImage
+                  src="/images/Offer.png"
+                  alt="Offers"
+                  className="category-img"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23fee2e2" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23dc2626" font-size="80"%3E🎁%3C/text%3E%3C/svg%3E';
+                  }}
+                />
+              </div>
+              <span className="category-name">Offers</span>
+            </div>
+          </button>
+
           {categories.map((category) => {
             // Use actual category image or provide default based on category name
             let categoryImgUrl = category.image && typeof category.image === 'string' 
-              ? (category.image.startsWith('http') ? category.image : `${config.api.baseUrl}${category.image}`) 
+              ? (category.image.startsWith('http') || category.image.startsWith('data:') 
+                  ? category.image 
+                  : `${config.api.baseUrl}${category.image}`) 
               : null;
+            
+            const hasDbImage = !!categoryImgUrl;
+            console.log(`🖼️ Category "${category.name}":`, {
+              hasDbImage,
+              dbImageUrl: category.image?.substring(0, 50) + '...', // Truncate for logging
+              isDataUrl: category.image?.startsWith('data:'),
+              finalUrl: categoryImgUrl?.substring(0, 50) + '...' // Truncate for logging
+            });
             
             // Fallback to high-quality default images based on category type/name
             if (!categoryImgUrl) {
@@ -1069,6 +1260,31 @@ const CustomerHome = () => {
                           {product.discountPercentage}% OFF
                         </div>
                       )}
+                      
+                      {/* Favorite Heart Icon */}
+                      <button
+                        className="favorite-heart-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const productId = product?._id || defaultVariant?._id;
+                          console.log('Favoriting product:', { productId, product, defaultVariant });
+                          handleToggleFavorite(productId);
+                        }}
+                        aria-label="Toggle favorite"
+                      >
+                        <svg
+                          width="24"
+                          height="24"
+                          viewBox="0 0 24 24"
+                          fill={favoriteProducts.includes(product?._id || defaultVariant?._id) ? "#e74c3c" : "none"}
+                          stroke={favoriteProducts.includes(product?._id || defaultVariant?._id) ? "#e74c3c" : "#fff"}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                      </button>
                     </div>
                     
                     {/* Product Details */}

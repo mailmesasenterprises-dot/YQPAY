@@ -5,6 +5,7 @@ import ErrorBoundary from '../../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import { getAuthToken, autoLogin } from '../../utils/authHelper';
 import { cacheProductImages, getImageSrc } from '../../utils/globalImageCache'; // 🎨 Batch product image caching + instant image loading
+import { calculateOrderTotals } from '../../utils/orderCalculation'; // 🧮 Centralized order calculation
 import ImageUpload from '../../components/ImageUpload';
 import config from '../../config';
 import '../../styles/TheaterList.css';
@@ -171,12 +172,25 @@ const StaffOrderItem = React.memo(({ item, onUpdateQuantity, onRemove }) => {
 
   const sellingPrice = parseFloat(item.sellingPrice) || 0;
   const quantity = parseInt(item.quantity) || 0;
+  const discountPercentage = parseFloat(item.discountPercentage) || 0;
   const itemTotal = sellingPrice * quantity;
 
   return (
     <div className="pos-order-item">
       <div className="pos-item-content">
-        <div className="pos-item-name">{item.name || 'Unknown Item'}</div>
+        <div className="pos-item-info">
+          <div className="pos-item-name">{item.name || 'Unknown Item'}</div>
+          {discountPercentage > 0 && (
+            <div className="pos-item-discount" style={{
+              fontSize: '11px',
+              color: '#10b981',
+              fontWeight: '600',
+              marginTop: '2px'
+            }}>
+              🎉 {discountPercentage}% OFF
+            </div>
+          )}
+        </div>
         <div className="pos-item-price">₹{sellingPrice.toFixed(2)}</div>
         
         <div className="pos-quantity-controls">
@@ -369,22 +383,26 @@ const TheaterOrderInterface = () => {
         // Extract price from array structure (pricing.basePrice) or old structure (sellingPrice)
         const originalPrice = product.pricing?.basePrice ?? product.sellingPrice ?? 0;
         const discountPercentage = parseFloat(product.discountPercentage || product.pricing?.discountPercentage) || 0;
-        const sellingPrice = discountPercentage > 0 
-          ? originalPrice * (1 - discountPercentage / 100)
-          : originalPrice;
+        
+        // ✅ FIX: Store ORIGINAL price, not discounted price
+        // The discount will be applied during calculation
+        const sellingPrice = originalPrice;
         
         // Extract tax information
         const taxRate = parseFloat(product.pricing?.taxRate ?? product.taxRate) || 0;
-        const gstType = product.gstType || 'EXCLUDE';
+        
+        // Normalize GST Type - check both root level and pricing object
+        const gstTypeRaw = product.pricing?.gstType || product.gstType || 'EXCLUDE';
+        const gstType = gstTypeRaw.toUpperCase().includes('INCLUDE') ? 'INCLUDE' : 'EXCLUDE';
         
         return [...prevOrder, { 
           ...product, 
           quantity: quantity,
-          sellingPrice: sellingPrice, // Use discounted price
+          sellingPrice: sellingPrice, // Store ORIGINAL price
           originalPrice: originalPrice, // Keep original for reference
-          discountPercentage: discountPercentage,
+          discountPercentage: discountPercentage, // Discount % will be applied in calculation
           taxRate: taxRate, // Ensure tax rate is available
-          gstType: gstType // Ensure GST type is available
+          gstType: gstType // Normalized GST type (INCLUDE or EXCLUDE)
         }];
       }
     });
@@ -688,60 +706,9 @@ const TheaterOrderInterface = () => {
     };
   }, [theaterId, fetchProducts]);
 
-  // Calculate order totals with dynamic GST and discount handling
+  // Calculate order totals using centralized calculation utility
   const orderTotals = useMemo(() => {
-    let calculatedSubtotal = 0;
-    let calculatedTax = 0;
-    let calculatedDiscount = 0;
-    
-    currentOrder.forEach(item => {
-      const price = parseFloat(item.sellingPrice) || 0;
-      const qty = parseInt(item.quantity) || 0;
-      const taxRate = parseFloat(item.taxRate) || 0;
-      const gstType = item.gstType || 'EXCLUDE';
-      const discountPercentage = parseFloat(item.discountPercentage) || 0;
-      
-      const lineTotal = price * qty;
-      
-      if (gstType === 'INCLUDE') {
-        // GST INCLUDE - Price already includes GST
-        // Extract GST from the original price
-        const taxAmount = lineTotal * (taxRate / (100 + taxRate));
-        
-        // Calculate discount on the original price
-        const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
-        
-        // Subtotal is original price minus tax
-        const basePrice = lineTotal - taxAmount;
-        
-        calculatedSubtotal += basePrice;
-        calculatedTax += taxAmount;
-        calculatedDiscount += discountAmount;
-      } else {
-        // GST EXCLUDE - GST is added on top
-        // Calculate discount on the original price
-        const discountAmount = discountPercentage > 0 ? lineTotal * (discountPercentage / 100) : 0;
-        
-        // Apply discount first
-        const discountedLineTotal = lineTotal - discountAmount;
-        
-        // Calculate tax on the discounted amount
-        const taxAmount = discountedLineTotal * (taxRate / 100);
-        
-        calculatedSubtotal += discountedLineTotal;
-        calculatedTax += taxAmount;
-        calculatedDiscount += discountAmount;
-      }
-    });
-    
-    const calculatedTotal = calculatedSubtotal + calculatedTax;
-    
-    return { 
-      subtotal: parseFloat(calculatedSubtotal.toFixed(2)), 
-      tax: parseFloat(calculatedTax.toFixed(2)), 
-      total: parseFloat(calculatedTotal.toFixed(2)),
-      totalDiscount: parseFloat(calculatedDiscount.toFixed(2))
-    };
+    return calculateOrderTotals(currentOrder);
   }, [currentOrder]);
 
   // Filter products by category and search

@@ -7,6 +7,7 @@ const TheaterOrders = require('../models/TheaterOrders');  // ✅ New array-base
 const Product = require('../models/Product');
 const MonthlyStock = require('../models/MonthlyStock');  // ✅ Import MonthlyStock model
 const { authenticateToken, optionalAuth, requireTheaterAccess } = require('../middleware/auth');
+const { calculateOrderTotals } = require('../utils/orderCalculation'); // 📊 Centralized calculation
 
 const router = express.Router();
 
@@ -260,7 +261,14 @@ router.post('/theater', [
         quantity: item.quantity,
         unitPrice,
         totalPrice,
-        variants: item.variants || []
+        // ✅ Handle both image array formats: [{url: "..."}, ...] or ["...", ...]
+        image: (product.images?.[0]?.url || product.images?.[0]) || product.image || null,
+        variants: item.variants || [],
+        // Add fields needed for calculation utility
+        taxRate: product.pricing?.taxRate || product.taxRate || 5,
+        gstType: product.pricing?.gstType || product.gstType || 'EXCLUDE',
+        discountPercentage: product.pricing?.discountPercentage || product.discountPercentage || 0,
+        product: product // Keep full product data for calculation
       });
 
       // Update stock in the array
@@ -292,10 +300,19 @@ router.post('/theater', [
       }
     }
 
-    // Calculate taxes and total
-    const taxRate = 0.18; // 18% GST
-    const taxAmount = subtotal * taxRate;
-    const total = subtotal + taxAmount;
+    // ✅ Use centralized calculation utility (same logic as frontend)
+    const calculatedTotals = calculateOrderTotals(orderItems);
+    const subtotalFinal = calculatedTotals.subtotal;
+    const taxAmount = calculatedTotals.tax;
+    const total = calculatedTotals.total;
+    const totalDiscount = calculatedTotals.totalDiscount;
+    
+    console.log('📊 [ORDER] Calculated totals:', {
+      subtotal: subtotalFinal,
+      tax: taxAmount,
+      discount: totalDiscount,
+      total: total
+    });
     
     // Determine order source with priority:
     // 1. Explicit source from request body (kiosk, pos, qr_code)
@@ -343,9 +360,10 @@ router.post('/theater', [
       customerInfo: finalCustomerInfo,
       items: orderItems,
       pricing: {
-        subtotal,
+        subtotal: subtotalFinal,
         taxAmount,
         total,
+        totalDiscount,
         currency: 'INR'
       },
       payment: {
@@ -462,6 +480,97 @@ router.get('/theater/:theaterId', [
     if (limit) {
       orders = orders.slice(0, parseInt(limit));
     }
+
+    // Populate product images and details for each order
+    const db = mongoose.connection.db;
+    const theaterIdObjectId = new mongoose.Types.ObjectId(theaterId);
+    
+    const productContainer = await db.collection('productlist').findOne({
+      theater: theaterIdObjectId,
+      productList: { $exists: true }
+    });
+
+    if (productContainer && productContainer.productList) {
+      // Map orders to include product images
+      orders = orders.map(order => {
+        // Convert to plain object properly
+        const orderObj = JSON.parse(JSON.stringify(order));
+        
+        if (orderObj.items && orderObj.items.length > 0) {
+          orderObj.items = orderObj.items.map(item => {
+            // First check if item already has product data with image from order creation
+            let imageUrl = null;
+            let productData = item.product || null;
+            
+            // Try to get image from existing product data in order item
+            if (item.product?.images?.[0]?.url) {
+              imageUrl = item.product.images[0].url;
+            } else if (item.product?.images?.[0]) {
+              // Handle images as string array
+              imageUrl = item.product.images[0];
+            } else if (item.product?.image) {
+              imageUrl = item.product.image;
+            } else if (item.image) {
+              imageUrl = item.image;
+            }
+            
+            // If no image found in order item, fetch from current productList
+            if (!imageUrl) {
+              const product = productContainer.productList.find(p => 
+                p._id.toString() === item.productId.toString()
+              );
+              
+              if (product) {
+                // Handle both image array formats
+                imageUrl = (product.images?.[0]?.url || product.images?.[0]) || product.image || null;
+                productData = {
+                  images: product.images || [],
+                  image: imageUrl,
+                  category: product.category,
+                  description: product.description
+                };
+              }
+            }
+            
+            console.log('🖼️ [Backend] Image for', item.name, ':', imageUrl);
+            
+            // Return item with image and product data
+            return {
+              ...item,
+              image: imageUrl,
+              product: productData
+            };
+          });
+        }
+        
+        // Map pricing fields to match frontend expectations
+        if (orderObj.pricing) {
+          orderObj.subtotal = orderObj.pricing.subtotal;
+          orderObj.tax = orderObj.pricing.taxAmount;
+          orderObj.total = orderObj.pricing.total;
+          orderObj.totalDiscount = orderObj.pricing.totalDiscount || 0;
+        }
+        
+        // Map payment fields
+        if (orderObj.payment) {
+          orderObj.paymentMethod = orderObj.payment.method;
+          orderObj.paymentStatus = orderObj.payment.status;
+        }
+        
+        console.log('📦 Processed order:', {
+          orderId: orderObj._id,
+          orderNumber: orderObj.orderNumber,
+          subtotal: orderObj.subtotal,
+          tax: orderObj.tax,
+          total: orderObj.total,
+          itemCount: orderObj.items?.length,
+          firstItemImage: orderObj.items?.[0]?.image
+        });
+        
+        return orderObj;
+      });
+    }
+    
     res.status(200).json({
       success: true,
       orders,

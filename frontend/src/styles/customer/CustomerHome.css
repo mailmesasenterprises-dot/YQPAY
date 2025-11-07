@@ -136,6 +136,91 @@ html {
   gap: 8px;
 }
 
+/* Notification Bell Button */
+.notification-btn {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.15));
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  position: relative;
+  overflow: visible;
+}
+
+.notification-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.25));
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: scale(1.05);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.notification-btn:active {
+  transform: scale(0.95);
+}
+
+.bell-icon {
+  width: 22px;
+  height: 22px;
+  color: white;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.notification-btn:hover .bell-icon {
+  transform: scale(1.1);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+  animation: bell-ring 0.5s ease-in-out;
+}
+
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30%, 50%, 70%, 90% { transform: rotate(-10deg); }
+  20%, 40%, 60%, 80% { transform: rotate(10deg); }
+}
+
+/* Optional: Notification Badge */
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.4);
+  z-index: 2;
+  animation: badge-pulse 2s infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
 .profile-dropdown-container {
   position: relative;
 }
@@ -207,6 +292,41 @@ html {
 .profile-btn:hover .profile-icon {
   transform: scale(1.1);
   filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+}
+
+/* Login Indicator Dot */
+.profile-btn .login-indicator {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: 2px solid white;
+  border-radius: 50%;
+  z-index: 2;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+.profile-btn.logged-in {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(5, 150, 105, 0.2));
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.profile-btn.logged-in:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.4), rgba(5, 150, 105, 0.3));
+  border-color: rgba(16, 185, 129, 0.7);
 }
 
 /* Profile Dropdown Menu - Modern Compact Design */
@@ -396,6 +516,27 @@ html {
 
 .dropdown-card.logout-card .card-icon.logout-icon {
   background: #FF6B4A;
+}
+
+/* Login Card Special Styling */
+.dropdown-card.login-card {
+  border-bottom: 1px solid #F0F0F0;
+}
+
+.dropdown-card.login-card:hover {
+  background: linear-gradient(90deg, #F0F9FF 0%, #E0F2FE 100%);
+}
+
+.dropdown-card.login-card .card-title {
+  color: #1A1A1A;
+}
+
+.dropdown-card.login-card .card-icon.login-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.card-icon.login-icon svg {
+  color: white;
 }
 
 /* Old dropdown-item styles - keeping for backward compatibility if needed */
@@ -1411,6 +1552,43 @@ html {
   letter-spacing: 0.3px;
   text-transform: uppercase;
   z-index: 2;
+}
+
+/* Favorite Heart Button */
+.favorite-heart-btn {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.favorite-heart-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: scale(1.1);
+}
+
+.favorite-heart-btn:active {
+  transform: scale(0.95);
+}
+
+.favorite-heart-btn svg {
+  transition: all 0.3s ease;
+}
+
+.favorite-heart-btn:hover svg {
+  transform: scale(1.1);
 }
 
 /* Product Price Container with Discount */

@@ -1360,11 +1360,22 @@ const TheaterProductList = () => {
   const handleEditProduct = useCallback((product) => {
     const currentIndex = products.findIndex(p => p._id === product._id);
     
+    // Extract product image from various possible sources
+    const existingImage = 
+      product.images?.[0]?.url ||
+      product.images?.[0]?.path ||
+      product.images?.[0] ||
+      product.productImage?.url ||
+      product.productImage?.path ||
+      product.productImage ||
+      product.image ||
+      '';
+    
     // Set form data for editing with correct field mappings
     setEditFormData({
       name: product.name || '',
       category: product.categoryId?._id || product.categoryId || product.category?._id || product.category || '',
-      kioskType: product.kioskType || '',
+      kioskType: product.kioskType?._id || product.kioskType || '',
       subcategory: product.subcategory || '',
       productType: product.productTypeId?._id || product.productTypeId || product.productType?._id || product.productType || '',
       description: product.description || '',
@@ -1373,17 +1384,18 @@ const TheaterProductList = () => {
       costPrice: product.pricing?.salePrice || product.costPrice || '',
       discount: product.pricing?.discountPercentage || product.discount || '',
       taxRate: product.pricing?.taxRate || product.taxRate || '',
-      gstType: product.gstType || '',
+      gstType: product.gstType || product.pricing?.gstType || '',
       stockQuantity: product.inventory?.currentStock ?? product.stockQuantity ?? '',
       unitOfMeasure: product.inventory?.unit || product.unitOfMeasure || 'Piece',
       lowStockAlert: product.inventory?.minStock || product.lowStockAlert || '',
       displayOrder: product.displayOrder || '',
       visibleInMenu: product.visibleInMenu !== undefined ? product.visibleInMenu : true,
-      isVeg: product.isVeg || '',
-      preparationTime: product.preparationTime || '',
+      isVeg: product.isVeg || product.dietary?.isVeg || '',
+      preparationTime: product.preparationTime || product.specifications?.preparationTime || '',
       isCustomizable: product.isCustomizable || false,
       isComboItem: product.isComboItem || false,
-      ingredients: product.specifications?.ingredients?.join(', ') || product.ingredients || ''
+      ingredients: product.specifications?.ingredients?.join(', ') || product.ingredients || '',
+      existingImage: existingImage // Store existing image URL for display
     });
     
     // Reset file
@@ -2061,7 +2073,17 @@ const TheaterProductList = () => {
         })()}
 
         {/* Edit Product Modal */}
-        {editModal.show && (
+        {editModal.show && (() => {
+          // Debug: Log form data when modal is shown
+          console.log('📝 Edit Form Data:', editFormData);
+          console.log('🎨 Product Type:', editFormData.productType);
+          console.log('🏷️ Category:', editFormData.category);
+          console.log('🖥️ Kiosk Type:', editFormData.kioskType);
+          console.log('🥗 Vegetarian Type:', editFormData.isVeg);
+          console.log('💰 GST Type:', editFormData.gstType);
+          console.log('🖼️ Existing Image:', editFormData.existingImage);
+          
+          return (
           <div className="modal-overlay" onClick={closeEditModal}>
             <div className="modal-content theater-edit-modal-content" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
@@ -2303,6 +2325,22 @@ const TheaterProductList = () => {
 
                   <div className="form-group">
                     <label>Product Image</label>
+                    {editFormData.existingImage && (
+                      <div style={{marginBottom: '10px'}}>
+                        <img 
+                          src={editFormData.existingImage} 
+                          alt="Current product" 
+                          style={{
+                            width: '100px',
+                            height: '100px',
+                            objectFit: 'cover',
+                            borderRadius: '8px',
+                            border: '2px solid #e0e0e0'
+                          }}
+                        />
+                        <p style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>Current Image</p>
+                      </div>
+                    )}
                     <input
                       type="file"
                       name="productImage"
@@ -2310,6 +2348,11 @@ const TheaterProductList = () => {
                       className="form-control"
                       accept="image/*"
                     />
+                    {editFormData.existingImage && (
+                      <p style={{fontSize: '12px', color: '#666', marginTop: '5px'}}>
+                        Upload a new image to replace the current one
+                      </p>
+                    )}
                   </div>
 
                   {/* Checkboxes - simplified structure */}
@@ -2379,7 +2422,8 @@ const TheaterProductList = () => {
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Delete Modal - Following Global Design System */}
         {deleteModal.show && (

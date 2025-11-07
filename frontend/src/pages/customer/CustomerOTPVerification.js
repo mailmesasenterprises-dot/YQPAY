@@ -14,6 +14,9 @@ const CustomerOTPVerification = () => {
   const inputRefs = useRef([]);
 
   const phoneNumber = location.state?.phoneNumber || '';
+  const checkoutData = location.state?.checkoutData;
+  const fromLogin = location.state?.fromLogin;
+  const returnUrl = location.state?.returnUrl;
 
   useEffect(() => {
     // Redirect back if no phone number
@@ -122,16 +125,22 @@ const CustomerOTPVerification = () => {
 
       if (result.success) {
 
-        // Save phone number to localStorage for order history
+        // Save phone number to localStorage
         localStorage.setItem('customerPhone', phoneNumber);
         
-        // Navigate to payment page
-        navigate('/customer/payment', { 
-          state: { 
-            phoneNumber,
-            verified: true 
-          }
-        });
+        // If from login, redirect to return URL
+        if (fromLogin && returnUrl) {
+          navigate(returnUrl);
+        } else {
+          // Navigate to payment page for checkout flow
+          navigate('/customer/payment', { 
+            state: { 
+              phoneNumber,
+              verified: true,
+              checkoutData: checkoutData
+            }
+          });
+        }
       } else {
         setError(result.error || 'Invalid OTP. Please try again.');
         setOtp(['', '', '', '']);

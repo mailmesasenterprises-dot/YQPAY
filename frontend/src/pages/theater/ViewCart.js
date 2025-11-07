@@ -4,6 +4,7 @@ import TheaterLayout from '../../components/theater/TheaterLayout';
 import OfflineStatusBadge from '../../components/OfflineStatusBadge';
 import { getAuthToken, autoLogin } from '../../utils/authHelper';
 import { getImageSrc } from '../../utils/globalImageCache'; // 🚀 Instant image loading
+import { calculateOrderTotals } from '../../utils/orderCalculation'; // 📊 Centralized calculation
 import { useOfflineQueue } from '../../hooks/useOfflineQueue';
 import config from '../../config';
 import '../../styles/ViewCart.css';
@@ -121,51 +122,9 @@ const ViewCart = () => {
   }, [theaterId]);
 
 
-  // Calculate totals with dynamic GST and product discounts
+  // Calculate totals using centralized utility
   const { subtotal, tax, total, totalDiscount } = useMemo(() => {
-    let calculatedSubtotal = 0;
-    let calculatedTax = 0;
-    let calculatedDiscount = 0;
-    
-    (cartData.items || []).forEach(item => {
-      // Use originalPrice if available, otherwise sellingPrice
-      // sellingPrice from OfflinePOS is already discounted
-      const originalPrice = parseFloat(item.originalPrice || item.sellingPrice) || 0;
-      const sellingPrice = parseFloat(item.sellingPrice) || 0;
-      const qty = parseInt(item.quantity) || 0;
-      const taxRate = parseFloat(item.taxRate) || 0;
-      const gstType = item.gstType || 'EXCLUDE';
-      const discountPercentage = parseFloat(item.discountPercentage || item.pricing?.discountPercentage) || 0;
-      
-      // Calculate discount based on original vs selling price
-      const discountAmount = (originalPrice - sellingPrice) * qty;
-      calculatedDiscount += discountAmount;
-      
-      // Use the already-discounted selling price for calculations
-      const lineTotal = sellingPrice * qty;
-      
-      if (gstType === 'INCLUDE') {
-        // Price already includes GST, extract the GST amount
-        const basePrice = lineTotal / (1 + (taxRate / 100));
-        const gstAmount = lineTotal - basePrice;
-        calculatedSubtotal += basePrice;
-        calculatedTax += gstAmount;
-      } else {
-        // GST EXCLUDE - add GST on top of price
-        const gstAmount = lineTotal * (taxRate / 100);
-        calculatedSubtotal += lineTotal;
-        calculatedTax += gstAmount;
-      }
-    });
-    
-    const calculatedTotal = calculatedSubtotal + calculatedTax;
-    
-    return {
-      subtotal: parseFloat(calculatedSubtotal.toFixed(2)),
-      tax: parseFloat(calculatedTax.toFixed(2)),
-      total: parseFloat(calculatedTotal.toFixed(2)),
-      totalDiscount: parseFloat(calculatedDiscount.toFixed(2))
-    };
+    return calculateOrderTotals(cartData.items || []);
   }, [cartData.items]);
 
   // Handle modal close and navigation
