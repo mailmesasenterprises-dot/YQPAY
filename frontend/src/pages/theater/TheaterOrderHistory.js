@@ -788,7 +788,7 @@ const TheaterOrderHistory = () => {
             >
               <span className="btn-icon">📅</span>
               {dateFilter.type === 'all' ? 'Date Filter' : 
-               dateFilter.type === 'date' ? `Today (${new Date().toLocaleDateString()})` :
+               dateFilter.type === 'date' ? `TODAY (${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')})` :
                dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
                'Date Filter'}
             </button>

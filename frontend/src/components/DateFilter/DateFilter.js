@@ -200,7 +200,7 @@ const DateFilter = ({
         <div className="date-filter-current-date-display">
           <div className="date-filter-current-date-info">
             <span className="date-filter-current-label">Today:</span>
-            <span className="date-filter-current-date">{new Date().toLocaleDateString('en-US', { 
+            <span className="date-filter-current-date">{new Date().toLocaleDateString('en-GB', { 
               weekday: 'long', 
               year: 'numeric', 
               month: 'long', 

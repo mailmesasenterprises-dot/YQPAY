@@ -235,8 +235,12 @@ const OnlineOrderHistory = () => {
     // Date filter
     if (dateFilter.type === 'date') {
       filtered = filtered.filter(order => {
-        const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
-        return orderDate === dateFilter.selectedDate;
+        const orderDate = new Date(order.createdAt);
+        const year = orderDate.getFullYear();
+        const month = String(orderDate.getMonth() + 1).padStart(2, '0');
+        const day = String(orderDate.getDate()).padStart(2, '0');
+        const localDateString = `${year}-${month}-${day}`;
+        return localDateString === dateFilter.selectedDate;
       });
     } else if (dateFilter.type === 'month') {
       filtered = filtered.filter(order => {
@@ -810,7 +814,7 @@ const OnlineOrderHistory = () => {
             >
               <span className="btn-icon">📅</span>
               {dateFilter.type === 'all' ? 'Date Filter' : 
-               dateFilter.type === 'date' ? `Today (${new Date().toLocaleDateString()})` :
+               dateFilter.type === 'date' ? `TODAY (${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')})` :
                dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
                'Date Filter'}
             </button>

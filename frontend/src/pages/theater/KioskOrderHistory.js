@@ -43,7 +43,7 @@ const KioskOrderHistory = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState({
-    type: 'all', // Default to 'all' to show all kiosk orders
+    type: 'date', // Default to current date instead of 'all'
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
     selectedDate: (() => {
@@ -502,8 +502,12 @@ const KioskOrderHistory = () => {
       // Date filter
       let matchesDate = true;
       if (dateFilter.type === 'date') {
-        const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
-        matchesDate = orderDate === dateFilter.selectedDate;
+        const orderDate = new Date(order.createdAt);
+        const year = orderDate.getFullYear();
+        const month = String(orderDate.getMonth() + 1).padStart(2, '0');
+        const day = String(orderDate.getDate()).padStart(2, '0');
+        const localDateString = `${year}-${month}-${day}`;
+        matchesDate = localDateString === dateFilter.selectedDate;
       } else if (dateFilter.type === 'month') {
         const orderDate = new Date(order.createdAt);
         matchesDate = orderDate.getMonth() + 1 === dateFilter.month && 
@@ -710,7 +714,7 @@ const KioskOrderHistory = () => {
                 >
                   <span className="btn-icon">📅</span>
                   {dateFilter.type === 'all' ? 'Date Filter' : 
-                   dateFilter.type === 'date' ? `${dateFilter.selectedDate || new Date().toLocaleDateString()}` :
+                   dateFilter.type === 'date' ? `TODAY (${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')})` :
                    dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
                    'Date Filter'}
                 </button>
