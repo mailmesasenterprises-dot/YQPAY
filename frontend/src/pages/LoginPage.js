@@ -31,7 +31,9 @@ const LoginPage = () => {
       'TheaterProductList': `/theater-products/${theaterId}`,
       'TheaterOrderInterface': `/theater-order/${theaterId}`,
       'OnlinePOSInterface': `/online-pos/${theaterId}`,
+      'OfflinePOSInterface': `/offline-pos/${theaterId}`, // Fixed: Use correct route
       'TheaterOrderHistory': `/theater-order-history/${theaterId}`,
+      'OnlineOrderHistory': `/online-order-history/${theaterId}`, // Fixed: Use correct route
       'TheaterAddProductWithId': `/theater-add-product/${theaterId}`,
       'TheaterRoles': `/theater-roles/${theaterId}`,
       'TheaterRoleAccess': `/theater-role-access/${theaterId}`,
@@ -39,6 +41,8 @@ const LoginPage = () => {
       'TheaterGenerateQR': `/theater-generate-qr/${theaterId}`,
       'TheaterQRManagement': `/theater-qr-management/${theaterId}`,
       'TheaterUserManagement': `/theater-user-management/${theaterId}`,
+      'TheaterBanner': `/theater-banner/${theaterId}`, // Added missing mapping
+      'TheaterMessages': `/theater-messages/${theaterId}`, // Added missing mapping
       'StockManagement': `/theater-stock-management/${theaterId}`,
       'SimpleProductList': `/simple-products/${theaterId}`,
       'ViewCart': `/view-cart/${theaterId}`,

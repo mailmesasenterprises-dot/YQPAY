@@ -92,7 +92,7 @@ router.post('/login', [
 
     // Step 2: Check THEATERUSERS collection by username if no admin found (ARRAY-BASED STRUCTURE)
     if (!authenticatedUser) {
-
+      console.log(`🔍 [AUTH] Checking theater users for username: ${loginIdentifier}`);
       try {
         // Find the theater document that contains this user in its users array
         const theaterUsersDoc = await mongoose.connection.db.collection('theaterusers')
@@ -101,11 +101,20 @@ router.post('/login', [
             'users.isActive': true 
           });
         
+        console.log(`📋 [AUTH] Theater doc found: ${!!theaterUsersDoc}`);
+        
         if (theaterUsersDoc && theaterUsersDoc.users) {
           // Find the specific user within the users array
           const theaterUser = theaterUsersDoc.users.find(
             u => u.username === loginIdentifier && u.isActive === true
           );
+          
+          console.log(`👤 [AUTH] User found: ${!!theaterUser}`);
+          if (theaterUser) {
+            console.log(`🔐 [AUTH] Comparing password...`);
+            const passwordMatches = await bcrypt.compare(password, theaterUser.password);
+            console.log(`✅ [AUTH] Password match: ${passwordMatches}`);
+          }
           
           if (theaterUser && await bcrypt.compare(password, theaterUser.password)) {
             // ✅ Return pending status - PIN is required before completing login
