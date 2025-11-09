@@ -29,7 +29,14 @@ function TheaterSettings() {
       email: '',
       phone: ''
     },
-    description: ''
+    description: '',
+    theaterPhoto: '',
+    logoUrl: '',
+    aadharCard: '',
+    panCard: '',
+    gstCertificate: '',
+    fssaiCertificate: '',
+    agreementCopy: ''
   });
   const [documents, setDocuments] = useState({
     logo: null,
@@ -105,8 +112,12 @@ function TheaterSettings() {
 
   const tabs = [
     { id: 'profile', label: 'Theater Profile', icon: '🏢' },
-    { id: 'documents', label: 'Documents', icon: '📄' },
-    { id: 'preferences', label: 'Preferences', icon: '⚙️' }
+    { id: 'location', label: 'Location Details', icon: '📍' },
+    { id: 'agreement', label: 'Agreement Details', icon: '📋' },
+    { id: 'social', label: 'Social Media Accounts', icon: '🌐' },
+    { id: 'photos', label: 'Photos & Media', icon: '📸' },
+    // { id: 'documents', label: 'Documents', icon: '📄' },
+    // { id: 'preferences', label: 'Preferences', icon: '⚙️' }
   ];
 
   // Handle input changes for nested objects
@@ -214,6 +225,20 @@ function TheaterSettings() {
 
       // ✅ FIX: Backend returns data.data, not data.theater
       if (data.success && data.data) {
+        console.log('📸 Full theater data from backend:', data.data);
+        console.log('🎬 Theater Photo paths:', {
+          direct: data.data.theaterPhoto,
+          documents: data.data.documents?.theaterPhoto,
+          branding: data.data.branding?.theaterPhoto
+        });
+        console.log('🎭 Logo paths:', {
+          direct: data.data.logoUrl,
+          brandingLogoUrl: data.data.branding?.logoUrl,
+          brandingLogo: data.data.branding?.logo,
+          documents: data.data.documents?.logo
+        });
+        console.log('🪪 Aadhar:', data.data.aadharCard || data.data.documents?.aadhar);
+        console.log('💳 PAN:', data.data.panCard || data.data.documents?.pan);
 
         setTheaterData({
           _id: data.data._id || theaterIdToFetch,
@@ -228,7 +253,16 @@ function TheaterSettings() {
             email: data.data.contact?.email || '',
             phone: data.data.contact?.phone || ''
           },
-          description: data.data.description || ''
+          description: data.data.description || '',
+          // Fix: Theater Photo is in documents.theaterPhoto
+          theaterPhoto: data.data.documents?.theaterPhoto || data.data.theaterPhoto || data.data.photo || data.data.images?.theater || '',
+          // Fix: Logo is in branding.logoUrl or branding.logo or documents.logo
+          logoUrl: data.data.branding?.logoUrl || data.data.branding?.logo || data.data.documents?.logo || data.data.logoUrl || data.data.logo || data.data.images?.logo || '',
+          aadharCard: data.data.documents?.aadharCard || data.data.aadharCard || data.data.documents?.aadhar || '',
+          panCard: data.data.documents?.panCard || data.data.panCard || data.data.documents?.pan || '',
+          gstCertificate: data.data.documents?.gstCertificate || data.data.gstCertificate || data.data.documents?.gst || '',
+          fssaiCertificate: data.data.documents?.fssaiCertificate || data.data.fssaiCertificate || data.data.documents?.fssai || '',
+          agreementCopy: data.data.documents?.agreementCopy || data.data.agreementCopy || data.data.documents?.agreement || data.data.agreementDetails?.copy || ''
         });
       } else {
 
@@ -333,7 +367,7 @@ function TheaterSettings() {
                       <FormInput
                         type="text"
                         value={theaterData.name}
-                        onChange={(e) => setTheaterData(prev => ({ ...prev, name: e.target.value }))}
+                        readOnly
                         placeholder="Enter theater name"
                       />
                     </FormGroup>
@@ -342,10 +376,7 @@ function TheaterSettings() {
                       <FormInput
                         type="email"
                         value={theaterData.contact.email}
-                        onChange={(e) => setTheaterData(prev => ({ 
-                          ...prev, 
-                          contact: { ...prev.contact, email: e.target.value }
-                        }))}
+                        readOnly
                         placeholder="Enter contact email"
                       />
                     </FormGroup>
@@ -354,10 +385,7 @@ function TheaterSettings() {
                       <FormInput
                         type="tel"
                         value={theaterData.contact.phone}
-                        onChange={(e) => setTheaterData(prev => ({ 
-                          ...prev, 
-                          contact: { ...prev.contact, phone: e.target.value }
-                        }))}
+                        readOnly
                         placeholder="Enter contact phone"
                       />
                     </FormGroup>
@@ -366,10 +394,7 @@ function TheaterSettings() {
                       <FormInput
                         type="text"
                         value={theaterData.location.city}
-                        onChange={(e) => setTheaterData(prev => ({ 
-                          ...prev, 
-                          location: { ...prev.location, city: e.target.value }
-                        }))}
+                        readOnly
                         placeholder="Enter city"
                       />
                     </FormGroup>
@@ -378,10 +403,7 @@ function TheaterSettings() {
                       <FormInput
                         type="text"
                         value={theaterData.location.state}
-                        onChange={(e) => setTheaterData(prev => ({ 
-                          ...prev, 
-                          location: { ...prev.location, state: e.target.value }
-                        }))}
+                        readOnly
                         placeholder="Enter state"
                       />
                     </FormGroup>
@@ -390,10 +412,7 @@ function TheaterSettings() {
                       <FormInput
                         type="text"
                         value={theaterData.location.pincode}
-                        onChange={(e) => setTheaterData(prev => ({ 
-                          ...prev, 
-                          location: { ...prev.location, pincode: e.target.value }
-                        }))}
+                        readOnly
                         placeholder="Enter pincode"
                       />
                     </FormGroup>
@@ -403,10 +422,7 @@ function TheaterSettings() {
                     <textarea
                       className="form-input config-textarea"
                       value={theaterData.location.address}
-                      onChange={(e) => setTheaterData(prev => ({ 
-                        ...prev, 
-                        location: { ...prev.location, address: e.target.value }
-                      }))}
+                      readOnly
                       placeholder="Enter complete address"
                       rows="3"
                     />
@@ -416,21 +432,573 @@ function TheaterSettings() {
                     <textarea
                       className="form-input config-textarea"
                       value={theaterData.description}
-                      onChange={(e) => setTheaterData(prev => ({ ...prev, description: e.target.value }))}
+                      readOnly
                       placeholder="Enter theater description"
                       rows="4"
                     />
                   </FormGroup>
 
-                  <div className="action-buttons">
-                    <Button 
-                      variant="primary" 
-                      onClick={handleSave}
-                      disabled={loading}
-                      className="btn-primary"
-                    >
-                      {loading ? 'Saving...' : 'Save Changes'}
-                    </Button>
+                  {/* Remove Save Button - View Only Mode */}
+                </div>
+              )}
+
+              {/* Location Details Tab */}
+              {activeTab === 'location' && (
+                <div className="settings-section">
+                  <div className="section-header">
+                    <h3>Location Details</h3>
+                    <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '8px' }}>Theater location and contact information</p>
+                  </div>
+                  
+                  <FormGroup label="Complete Address" required>
+                    <textarea
+                      className="form-input config-textarea"
+                      value={theaterData.location.address}
+                      readOnly
+                      placeholder="Enter complete address"
+                      rows="4"
+                    />
+                  </FormGroup>
+
+                  <div className="config-grid">
+                    <FormGroup label="City" required>
+                      <FormInput
+                        type="text"
+                        value={theaterData.location.city}
+                        readOnly
+                        placeholder="Enter city"
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="State" required>
+                      <FormInput
+                        type="text"
+                        value={theaterData.location.state}
+                        readOnly
+                        placeholder="Enter state"
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Pincode" required>
+                      <FormInput
+                        type="text"
+                        value={theaterData.location.pincode}
+                        readOnly
+                        placeholder="Enter pincode"
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Contact Email" required>
+                      <FormInput
+                        type="email"
+                        value={theaterData.contact.email}
+                        readOnly
+                        placeholder="Enter contact email"
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Contact Phone" required>
+                      <FormInput
+                        type="tel"
+                        value={theaterData.contact.phone}
+                        readOnly
+                        placeholder="Enter contact phone"
+                      />
+                    </FormGroup>
+                  </div>
+
+                  {/* Theater Location Map */}
+                  <div style={{ marginTop: '24px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Theater Location Map</h4>
+                    <div style={{ 
+                      background: '#f3f4f6', 
+                      padding: '48px', 
+                      borderRadius: '8px', 
+                      textAlign: 'center',
+                      border: '1px dashed #d1d5db'
+                    }}>
+                      <div style={{ fontSize: '48px', marginBottom: '16px' }}>🗺️</div>
+                      <div style={{ fontSize: '16px', fontWeight: '500', color: '#374151', marginBottom: '8px' }}>
+                        Map Integration
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                        Location map will be displayed here
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Agreement Details Tab */}
+              {activeTab === 'agreement' && (
+                <div className="settings-section">
+                  <div className="section-header">
+                    <h3>Agreement Details</h3>
+                  </div>
+                  
+                  <div className="config-grid">
+                    <FormGroup label="Contract Number" required>
+                      <FormInput
+                        type="text"
+                        value={theaterData._id || ''}
+                        readOnly
+                        placeholder="Contract number"
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Contract Start Date" required>
+                      <FormInput
+                        type="text"
+                        value="1 October 2025"
+                        readOnly
+                        placeholder="Start date"
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Contract End Date" required>
+                      <FormInput
+                        type="text"
+                        value="31 October 2025"
+                        readOnly
+                        placeholder="End date"
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Contract Duration" required>
+                      <FormInput
+                        type="text"
+                        value="1 month"
+                        readOnly
+                        placeholder="Duration"
+                      />
+                    </FormGroup>
+                  </div>
+
+                  <FormGroup label="Renewal Date">
+                    <FormInput
+                      type="text"
+                      value="24 October 2025"
+                      readOnly
+                      placeholder="Renewal date"
+                    />
+                  </FormGroup>
+
+                  {/* View Only Notice */}
+                  <div style={{ 
+                    marginTop: '24px', 
+                    padding: '16px', 
+                    background: '#f3f4f6', 
+                    borderRadius: '8px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      ℹ️ Agreement details are managed by administrators. Contact support for any changes.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Social Media Accounts Tab */}
+              {activeTab === 'social' && (
+                <div className="settings-section">
+                  <div className="section-header">
+                    <h3>Social Media Accounts</h3>
+                    <p style={{ fontSize: '14px', color: '#6b7280', marginTop: '8px' }}>Theater's online presence and social media profiles</p>
+                  </div>
+                  
+                  <div className="config-grid">
+                    <FormGroup label="Facebook">
+                      <FormInput
+                        type="url"
+                        value=""
+                        readOnly
+                        placeholder="https://facebook.com/..."
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Instagram">
+                      <FormInput
+                        type="url"
+                        value=""
+                        readOnly
+                        placeholder="https://instagram.com/..."
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Twitter / X">
+                      <FormInput
+                        type="url"
+                        value=""
+                        readOnly
+                        placeholder="https://twitter.com/..."
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="YouTube">
+                      <FormInput
+                        type="url"
+                        value=""
+                        readOnly
+                        placeholder="https://youtube.com/..."
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="LinkedIn">
+                      <FormInput
+                        type="url"
+                        value=""
+                        readOnly
+                        placeholder="https://linkedin.com/..."
+                      />
+                    </FormGroup>
+
+                    <FormGroup label="Website">
+                      <FormInput
+                        type="url"
+                        value=""
+                        readOnly
+                        placeholder="https://..."
+                      />
+                    </FormGroup>
+                  </div>
+
+                  {/* Online Presence Status */}
+                  <div style={{ marginTop: '32px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px' }}>Online Presence</h4>
+                    <div style={{ 
+                      display: 'flex', 
+                      gap: '16px', 
+                      padding: '24px', 
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      borderRadius: '12px',
+                      color: 'white'
+                    }}>
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>Configured Platforms</div>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold' }}>0 / 6</div>
+                      </div>
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>Status</div>
+                        <div style={{ fontSize: '20px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                          <span>⚠️</span>
+                          <span>Not Configured</span>
+                        </div>
+                      </div>
+                      <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div style={{ fontSize: '14px', marginBottom: '8px', opacity: 0.9 }}>Visibility</div>
+                        <div style={{ fontSize: '20px', fontWeight: '600' }}>Public</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* View Only Notice */}
+                  <div style={{ 
+                    marginTop: '24px', 
+                    padding: '16px', 
+                    background: '#f3f4f6', 
+                    borderRadius: '8px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      ℹ️ Social media links are view-only. Contact administrators to update your social media profiles.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Photos & Media Tab */}
+              {activeTab === 'photos' && (
+                <div className="settings-section">
+                  <div className="section-header">
+                    <h3>Photos & Media</h3>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
+                    {/* Theater Photo */}
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>Theater Photo</h4>
+                      <div style={{ 
+                        border: '2px solid #e5e7eb', 
+                        borderRadius: '8px', 
+                        padding: '16px',
+                        background: '#f9fafb'
+                      }}>
+                        <div style={{ 
+                          width: '100%', 
+                          height: '200px', 
+                          background: theaterData.theaterPhoto ? '#fff' : '#e5e7eb', 
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {theaterData.theaterPhoto ? (
+                            <img 
+                              src={theaterData.theaterPhoto} 
+                              alt="Theater" 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { 
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="font-size: 48px;">🎬</div>';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: '48px' }}>🎬</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+                          {theaterData.theaterPhoto ? 'Theater main photo' : 'No photo uploaded'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Theater Logo */}
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>Theater Logo</h4>
+                      <div style={{ 
+                        border: '2px solid #e5e7eb', 
+                        borderRadius: '8px', 
+                        padding: '16px',
+                        background: '#f9fafb'
+                      }}>
+                        <div style={{ 
+                          width: '100%', 
+                          height: '200px', 
+                          background: theaterData.logoUrl ? '#fff' : '#e5e7eb', 
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {theaterData.logoUrl ? (
+                            <img 
+                              src={theaterData.logoUrl} 
+                              alt="Logo" 
+                              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '20px' }}
+                              onError={(e) => { 
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="font-size: 48px;">🎭</div>';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: '48px' }}>🎭</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+                          {theaterData.logoUrl ? 'Theater logo image' : 'No logo uploaded'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Aadhar Card */}
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>Aadhar Card</h4>
+                      <div style={{ 
+                        border: '2px solid #e5e7eb', 
+                        borderRadius: '8px', 
+                        padding: '16px',
+                        background: '#f9fafb'
+                      }}>
+                        <div style={{ 
+                          width: '100%', 
+                          height: '200px', 
+                          background: theaterData.aadharCard ? '#fff' : '#e5e7eb', 
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {theaterData.aadharCard ? (
+                            <img 
+                              src={theaterData.aadharCard} 
+                              alt="Aadhar Card" 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { 
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="font-size: 48px;">🪪</div>';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: '48px' }}>🪪</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+                          {theaterData.aadharCard ? 'Aadhar card document' : 'No document uploaded'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PAN Card */}
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>PAN Card</h4>
+                      <div style={{ 
+                        border: '2px solid #e5e7eb', 
+                        borderRadius: '8px', 
+                        padding: '16px',
+                        background: '#f9fafb'
+                      }}>
+                        <div style={{ 
+                          width: '100%', 
+                          height: '200px', 
+                          background: theaterData.panCard ? '#fff' : '#e5e7eb', 
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {theaterData.panCard ? (
+                            <img 
+                              src={theaterData.panCard} 
+                              alt="PAN Card" 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { 
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="font-size: 48px;">💳</div>';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: '48px' }}>💳</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+                          {theaterData.panCard ? 'PAN card document' : 'No document uploaded'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* GST Certificate */}
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>GST Certificate</h4>
+                      <div style={{ 
+                        border: '2px solid #e5e7eb', 
+                        borderRadius: '8px', 
+                        padding: '16px',
+                        background: '#f9fafb'
+                      }}>
+                        <div style={{ 
+                          width: '100%', 
+                          height: '200px', 
+                          background: theaterData.gstCertificate ? '#fff' : '#e5e7eb', 
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {theaterData.gstCertificate ? (
+                            <img 
+                              src={theaterData.gstCertificate} 
+                              alt="GST Certificate" 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { 
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="font-size: 48px;">📄</div>';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: '48px' }}>📄</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+                          {theaterData.gstCertificate ? 'GST certificate' : 'No document uploaded'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* FSSAI Certificate */}
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>FSSAI Certificate</h4>
+                      <div style={{ 
+                        border: '2px solid #e5e7eb', 
+                        borderRadius: '8px', 
+                        padding: '16px',
+                        background: '#f9fafb'
+                      }}>
+                        <div style={{ 
+                          width: '100%', 
+                          height: '200px', 
+                          background: theaterData.fssaiCertificate ? '#fff' : '#e5e7eb', 
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {theaterData.fssaiCertificate ? (
+                            <img 
+                              src={theaterData.fssaiCertificate} 
+                              alt="FSSAI Certificate" 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { 
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="font-size: 48px;">🍽️</div>';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: '48px' }}>🍽️</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+                          {theaterData.fssaiCertificate ? 'FSSAI certificate' : 'No document uploaded'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Agreement Copy */}
+                    <div>
+                      <h4 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>Agreement Copy</h4>
+                      <div style={{ 
+                        border: '2px solid #e5e7eb', 
+                        borderRadius: '8px', 
+                        padding: '16px',
+                        background: '#f9fafb'
+                      }}>
+                        <div style={{ 
+                          width: '100%', 
+                          height: '200px', 
+                          background: theaterData.agreementCopy ? '#fff' : '#e5e7eb', 
+                          borderRadius: '6px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden'
+                        }}>
+                          {theaterData.agreementCopy ? (
+                            <img 
+                              src={theaterData.agreementCopy} 
+                              alt="Agreement Copy" 
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => { 
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML = '<div style="font-size: 48px;">📋</div>';
+                              }}
+                            />
+                          ) : (
+                            <div style={{ fontSize: '48px' }}>📋</div>
+                          )}
+                        </div>
+                        <div style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', textAlign: 'center' }}>
+                          {theaterData.agreementCopy ? 'Agreement copy' : 'No document uploaded'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* View Only Notice */}
+                  <div style={{ 
+                    marginTop: '24px', 
+                    padding: '16px', 
+                    background: '#f3f4f6', 
+                    borderRadius: '8px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                      ℹ️ Photos and documents are view-only. Contact administrators to upload or update media files.
+                    </div>
                   </div>
                 </div>
               )}
@@ -439,54 +1007,36 @@ function TheaterSettings() {
               {activeTab === 'documents' && (
                 <div className="settings-section">
                   <div className="section-header">
-                    <h3>Theater Documents</h3>
+                    <h3>Theater Documents (View Only)</h3>
                   </div>
                   
                   <div className="documents-grid">
                     <div className="document-upload">
                       <h4>Theater Logo</h4>
-                      <p>Upload your theater logo (PNG, JPG, GIF - Max 5MB)</p>
-                      <div className="upload-area">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleFileUpload('logo', e.target.files[0])}
-                          className="form-input"
-                        />
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-                          Recommended size: 200x200 pixels
+                      <p>Theater logo information</p>
+                      <div className="upload-area" style={{ background: '#f3f4f6', padding: '16px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                          View only mode - Contact admin to update documents
                         </div>
                       </div>
                     </div>
 
                     <div className="document-upload">
                       <h4>Business License</h4>
-                      <p>Upload business license document (PDF, JPG, PNG - Max 10MB)</p>
-                      <div className="upload-area">
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => handleFileUpload('license', e.target.files[0])}
-                          className="form-input"
-                        />
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-                          Official business registration document
+                      <p>Business license document</p>
+                      <div className="upload-area" style={{ background: '#f3f4f6', padding: '16px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                          View only mode - Contact admin to update documents
                         </div>
                       </div>
                     </div>
 
                     <div className="document-upload">
                       <h4>GST Certificate</h4>
-                      <p>Upload GST registration certificate (PDF, JPG, PNG - Max 10MB)</p>
-                      <div className="upload-area">
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => handleFileUpload('gstCertificate', e.target.files[0])}
-                          className="form-input"
-                        />
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-                          Valid GST registration document
+                      <p>GST registration certificate</p>
+                      <div className="upload-area" style={{ background: '#f3f4f6', padding: '16px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                          View only mode - Contact admin to update documents
                         </div>
                       </div>
                     </div>
@@ -498,12 +1048,12 @@ function TheaterSettings() {
               {activeTab === 'preferences' && (
                 <div className="settings-section">
                   <div className="section-header">
-                    <h3>Theater Preferences</h3>
+                    <h3>Theater Preferences (View Only)</h3>
                   </div>
                   
                   <div className="config-grid">
                     <FormGroup label="Default Currency">
-                      <select className="form-input">
+                      <select className="form-input" disabled>
                         <option value="INR">Indian Rupee (₹)</option>
                         <option value="USD">US Dollar ($)</option>
                       </select>
@@ -515,12 +1065,14 @@ function TheaterSettings() {
                           type="time" 
                           placeholder="Opening time"
                           defaultValue="09:00"
+                          readOnly
                         />
                         <span style={{ color: '#6b7280', fontSize: '14px' }}>to</span>
                         <FormInput 
                           type="time" 
                           placeholder="Closing time"
                           defaultValue="23:00"
+                          readOnly
                         />
                       </div>
                     </FormGroup>
@@ -528,30 +1080,22 @@ function TheaterSettings() {
                     <FormGroup label="Notifications">
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                          <input type="checkbox" defaultChecked />
+                          <input type="checkbox" defaultChecked disabled />
                           Email notifications for new orders
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                          <input type="checkbox" defaultChecked />
+                          <input type="checkbox" defaultChecked disabled />
                           SMS alerts for urgent matters
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
-                          <input type="checkbox" />
+                          <input type="checkbox" disabled />
                           Weekly performance reports
                         </label>
                       </div>
                     </FormGroup>
                   </div>
 
-                  <div className="action-buttons">
-                    <Button 
-                      variant="primary" 
-                      className="btn-primary"
-                      disabled={loading}
-                    >
-                      {loading ? 'Saving...' : 'Save Preferences'}
-                    </Button>
-                  </div>
+                  {/* Remove Save Button - View Only Mode */}
                 </div>
               )}
             </div>
