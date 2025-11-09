@@ -1,0 +1,944 @@
+/* ============================================
+   THEATER ADMIN DASHBOARD - UNIQUE CLASS NAMES
+   All class names prefixed with "tadmin-" to avoid conflicts
+   Stunning modern design inspired by Super Admin Dashboard
+   ============================================ */
+
+.tadmin-wrapper {
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+/* ============================================
+   HERO BANNER WITH GRADIENT
+   ============================================ */
+.tadmin-hero-banner {
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  border-radius: 16px;
+  padding: 40px;
+  margin-bottom: 32px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(124, 58, 237, 0.3);
+}
+
+.tadmin-hero-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  transform: translate(30%, -30%);
+}
+
+.tadmin-hero-content {
+  position: relative;
+  z-index: 2;
+}
+
+.tadmin-hero-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 8px 0;
+  font-family: 'Poppins', sans-serif;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.tadmin-hero-subtitle {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ============================================
+   LOADING & ERROR STATES
+   ============================================ */
+.tadmin-loading,
+.tadmin-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+  background: white;
+  border-radius: 16px;
+  margin: 20px;
+  padding: 48px;
+}
+
+.tadmin-spinner {
+  width: 56px;
+  height: 56px;
+  border: 5px solid #e9ecef;
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: tadmin-spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes tadmin-spin {
+  to { transform: rotate(360deg); }
+}
+
+.tadmin-loading p {
+  font-size: 1.1rem;
+  color: #64748b;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+}
+
+.tadmin-error {
+  border: 2px solid #fee2e2;
+  background: #fef2f2;
+}
+
+.tadmin-error-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+.tadmin-error h3 {
+  color: #dc2626;
+  font-size: 1.5rem;
+  margin-bottom: 8px;
+  font-family: 'Poppins', sans-serif;
+}
+
+.tadmin-error p {
+  color: #991b1b;
+  font-size: 1rem;
+}
+
+/* ============================================
+   STATS CARDS ROW - 4 COLUMN GRID
+   ============================================ */
+.tadmin-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.tadmin-stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid #e5e7eb;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.tadmin-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #7c3aed 0%, #a855f7 100%);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tadmin-stat-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(124, 58, 237, 0.15);
+  border-color: #7c3aed;
+}
+
+.tadmin-stat-card:hover::before {
+  transform: scaleX(1);
+}
+
+.tadmin-stat-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tadmin-stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  transition: all 0.3s ease;
+}
+
+.tadmin-stat-card:hover .tadmin-stat-icon {
+  transform: rotate(10deg) scale(1.1);
+}
+
+.tadmin-icon-orders {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+}
+
+.tadmin-icon-revenue {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 8px 16px rgba(245, 158, 11, 0.3);
+}
+
+.tadmin-icon-products {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  box-shadow: 0 8px 16px rgba(139, 92, 246, 0.3);
+}
+
+.tadmin-icon-customers {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);
+}
+
+.tadmin-stat-trend {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.tadmin-trend-up {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.tadmin-trend-down {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.tadmin-stat-content {
+  flex: 1;
+}
+
+.tadmin-stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+  font-family: 'Poppins', sans-serif;
+  line-height: 1.2;
+}
+
+.tadmin-stat-label {
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 600;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ============================================
+   MAIN CONTENT GRID
+   ============================================ */
+.tadmin-content-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+/* ============================================
+   RECENT ORDERS TABLE
+   ============================================ */
+.tadmin-orders-widget {
+  background: white;
+  border-radius: 16px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.tadmin-widget-header {
+  padding: 24px 28px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.tadmin-widget-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tadmin-widget-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.tadmin-widget-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+}
+
+.tadmin-view-all-btn {
+  background: #7c3aed;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'Inter', sans-serif;
+}
+
+.tadmin-view-all-btn:hover {
+  background: #6d28d9;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(124, 58, 237, 0.3);
+}
+
+.tadmin-orders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tadmin-orders-table thead {
+  background: #f8fafc;
+}
+
+.tadmin-orders-table th {
+  padding: 16px 28px;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Inter', sans-serif;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tadmin-orders-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: all 0.2s ease;
+}
+
+.tadmin-orders-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.tadmin-orders-table td {
+  padding: 20px 28px;
+  font-size: 0.95rem;
+  color: #475569;
+  font-family: 'Inter', sans-serif;
+}
+
+.tadmin-order-id {
+  font-weight: 700;
+  color: #1e293b;
+  font-family: 'Poppins', sans-serif;
+}
+
+.tadmin-order-customer {
+  font-weight: 600;
+  color: #334155;
+}
+
+.tadmin-order-amount {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.tadmin-status-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  font-family: 'Inter', sans-serif;
+}
+
+.tadmin-status-completed {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.tadmin-status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tadmin-status-cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.tadmin-status-processing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+/* ============================================
+   QUICK STATS SIDEBAR
+   ============================================ */
+.tadmin-quick-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tadmin-stat-mini-card {
+  background: white;
+  border-radius: 14px;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.tadmin-stat-mini-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.tadmin-stat-mini-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tadmin-stat-mini-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.tadmin-icon-total-revenue {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.tadmin-icon-yearly-revenue {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.tadmin-stat-mini-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+.tadmin-stat-mini-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+}
+
+.tadmin-stat-mini-sublabel {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  margin-top: 4px;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ============================================
+   ORDER STATUS OVERVIEW
+   ============================================ */
+.tadmin-status-overview {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.tadmin-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.tadmin-status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.tadmin-status-item:hover {
+  background: #f1f5f9;
+  transform: translateX(4px);
+}
+
+.tadmin-status-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tadmin-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tadmin-dot-overdue {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
+.tadmin-dot-pending {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+}
+
+.tadmin-dot-progress {
+  background: #3b82f6;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+.tadmin-dot-completed {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+}
+
+.tadmin-dot-cancelled {
+  background: #6b7280;
+  box-shadow: 0 0 8px rgba(107, 114, 128, 0.5);
+}
+
+.tadmin-status-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+  font-family: 'Inter', sans-serif;
+}
+
+.tadmin-status-value {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tadmin-status-count {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e293b;
+  font-family: 'Poppins', sans-serif;
+}
+
+.tadmin-status-amount {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #64748b;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ============================================
+   RESPONSIVE DESIGN
+   ============================================ */
+@media (max-width: 1400px) {
+  .tadmin-content-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .tadmin-quick-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .tadmin-stats-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  
+  .tadmin-hero-title {
+    font-size: 1.75rem;
+  }
+  
+  .tadmin-hero-banner {
+    padding: 32px 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .tadmin-stats-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .tadmin-quick-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .tadmin-hero-title {
+    font-size: 1.5rem;
+  }
+  
+  .tadmin-hero-banner {
+    padding: 24px 20px;
+  }
+  
+  .tadmin-stat-value {
+    font-size: 1.75rem;
+  }
+  
+  .tadmin-orders-table th,
+  .tadmin-orders-table td {
+    padding: 12px 16px;
+    font-size: 0.85rem;
+  }
+
+  /* Theater Admin Orders Table Mobile Optimization */
+  .tadmin-orders-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tadmin-orders-table {
+    min-width: 700px;
+  }
+
+  /* Make status badges smaller on mobile */
+  .tadmin-status-badge {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+  }
+
+  /* Optimize text sizes for mobile */
+  .tadmin-order-id,
+  .tadmin-order-customer,
+  .tadmin-order-amount {
+    font-size: 0.8rem;
+  }
+  
+  .tadmin-widget-header {
+    padding: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+/* ============================================
+   REVENUE CHART WIDGET
+   ============================================ */
+.tadmin-revenue-chart-widget {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  grid-column: 1 / -1;
+  margin-top: 24px;
+}
+
+.tadmin-chart-container {
+  margin-top: 24px;
+}
+
+.tadmin-line-chart {
+  width: 100%;
+  height: 200px;
+  margin-bottom: 16px;
+  background: linear-gradient(to bottom, rgba(124, 58, 237, 0.05) 0%, transparent 100%);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.tadmin-chart-labels {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.tadmin-chart-label {
+  text-align: center;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.tadmin-chart-date {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.tadmin-chart-value {
+  font-size: 0.875rem;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* ============================================
+   TOP PRODUCTS WIDGET
+   ============================================ */
+.tadmin-top-products-widget {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  grid-column: 1 / -1;
+  margin-top: 24px;
+}
+
+.tadmin-products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.tadmin-product-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.tadmin-product-item:hover {
+  background: #e9ecef;
+  transform: translateX(4px);
+}
+
+.tadmin-product-rank {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+  color: white;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tadmin-product-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tadmin-product-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.tadmin-product-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.tadmin-product-stats span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tadmin-product-stats span:first-child::before {
+  content: '📦';
+  margin-right: 4px;
+}
+
+.tadmin-product-stats span:last-child::before {
+  content: '💰';
+  margin-right: 4px;
+}
+
+/* Responsive adjustments for charts */
+@media (max-width: 1024px) {
+  .tadmin-chart-labels {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .tadmin-revenue-chart-widget,
+  .tadmin-top-products-widget {
+    margin-top: 16px;
+    padding: 20px;
+  }
+
+  .tadmin-chart-labels {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tadmin-line-chart {
+    height: 150px;
+  }
+
+  .tadmin-product-item {
+    padding: 12px;
+  }
+
+  .tadmin-product-rank {
+    width: 36px;
+    height: 36px;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .tadmin-chart-labels {
+    grid-template-columns: 1fr;
+  }
+
+  .tadmin-product-stats {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* Mobile Small - 480px breakpoint */
+@media (max-width: 480px) {
+  .tadmin-hero-title {
+    font-size: 1.25rem;
+  }
+  
+  .tadmin-hero-banner {
+    padding: 20px 16px;
+  }
+  
+  .tadmin-stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .tadmin-orders-table th,
+  .tadmin-orders-table td {
+    padding: 8px 12px;
+    font-size: 0.75rem;
+  }
+
+  /* Ultra compact table for small mobile */
+  .tadmin-orders-table {
+    min-width: 600px;
+  }
+
+  /* Extra small status badges */
+  .tadmin-status-badge {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+  }
+
+  /* Ultra compact text */
+  .tadmin-order-id,
+  .tadmin-order-customer,
+  .tadmin-order-amount {
+    font-size: 0.75rem;
+  }
+  
+  .tadmin-widget-header {
+    padding: 16px;
+  }
+  
+  .tadmin-stat-card {
+    padding: 16px;
+  }
+}
+
+/* Mobile Extra Small - 360px breakpoint */
+@media (max-width: 360px) {
+  .tadmin-hero-title {
+    font-size: 1.1rem;
+  }
+  
+  .tadmin-hero-banner {
+    padding: 16px 12px;
+  }
+  
+  .tadmin-orders-table {
+    min-width: 550px;
+  }
+  
+  .tadmin-orders-table th,
+  .tadmin-orders-table td {
+    padding: 6px 8px;
+    font-size: 0.7rem;
+  }
+  
+  .tadmin-status-badge {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes tadmin-fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tadmin-stat-card,
+.tadmin-orders-widget,
+.tadmin-stat-mini-card,
+.tadmin-status-overview {
+  animation: tadmin-fadeIn 0.5s ease-out forwards;
+}
+
+.tadmin-stat-card:nth-child(1) { animation-delay: 0.1s; }
+.tadmin-stat-card:nth-child(2) { animation-delay: 0.2s; }
+.tadmin-stat-card:nth-child(3) { animation-delay: 0.3s; }
+.tadmin-stat-card:nth-child(4) { animation-delay: 0.4s; }

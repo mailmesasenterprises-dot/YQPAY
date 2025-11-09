@@ -88,7 +88,10 @@ const orderSchema = new mongoose.Schema({
       enum: ['pending', 'paid', 'failed', 'refunded', 'partially_refunded'],
       default: 'pending'
     },
-    transactionId: String,
+    transactionId: String,  // Our internal transaction document ID
+    razorpayPaymentId: String,  // Razorpay payment ID (e.g., pay_XXXXXX)
+    razorpayOrderId: String,  // Razorpay order ID (e.g., order_XXXXXX)
+    razorpaySignature: String,  // Payment signature for verification
     paidAt: Date,
     refundAmount: { type: Number, default: 0 }
   },

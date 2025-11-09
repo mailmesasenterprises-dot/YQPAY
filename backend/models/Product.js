@@ -32,8 +32,8 @@ const productSchema = new mongoose.Schema({
   },
   sku: {
     type: String,
-    trim: true,
-    unique: true
+    trim: true
+    // Removed global unique constraint - will use compound index below
   },
   quantity: {
     type: mongoose.Schema.Types.Mixed, // Accepts both string and number
@@ -139,7 +139,8 @@ const productSchema = new mongoose.Schema({
 productSchema.index({ theaterId: 1, categoryId: 1 });
 productSchema.index({ theaterId: 1, isActive: 1, status: 1 });
 productSchema.index({ theaterId: 1, isFeatured: 1 });
-productSchema.index({ sku: 1 });
+// SKU unique per theater (allows same SKU in different theaters, allows null SKUs)
+productSchema.index({ theaterId: 1, sku: 1 }, { unique: true, sparse: true });
 productSchema.index({ barcode: 1 });
 productSchema.index({ 'pricing.basePrice': 1 });
 productSchema.index({ tags: 1 });

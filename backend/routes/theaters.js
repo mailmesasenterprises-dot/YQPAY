@@ -45,15 +45,25 @@ router.get('/', [
       ];
     }
 
-    // Execute query
-    const theaters = await Theater.find(query)
-      .select('-password')
-      .sort({ createdAt: 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(); // Use lean() for better performance
-
-    const total = await Theater.countDocuments(query);
+    // 🚀 PERFORMANCE: Optimized query with lean and field selection
+    const { optimizedFind, optimizedCount } = require('../utils/queryOptimizer');
+    
+    // Execute query with optimization
+    const [theaters, total] = await Promise.all([
+      optimizedFind(Theater, query, {
+        select: '-password -__v', // Exclude password and version field
+        sort: { createdAt: 1 },
+        skip,
+        limit,
+        lean: true,
+        cache: true, // Enable caching for frequently accessed data
+        cacheTTL: 60000 // 1 minute cache
+      }),
+      optimizedCount(Theater, query, {
+        cache: true,
+        cacheTTL: 60000
+      })
+    ]);
 
     // Set cache headers for better performance
     res.set('Cache-Control', 'public, max-age=60'); // Cache for 1 minute
@@ -89,7 +99,15 @@ router.get('/', [
  */
 router.get('/:id', async (req, res) => {
   try {
-    const theater = await Theater.findById(req.params.id).select('-password');
+    // 🚀 PERFORMANCE: Optimized findOne with caching
+    const { optimizedFindOne } = require('../utils/queryOptimizer');
+    
+    const theater = await optimizedFindOne(Theater, { _id: req.params.id }, {
+      select: '-password -__v',
+      lean: true,
+      cache: true,
+      cacheTTL: 120000 // 2 minute cache for individual theater
+    });
     
     if (!theater) {
       return res.status(404).json({

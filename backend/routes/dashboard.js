@@ -39,7 +39,10 @@ router.get('/super-admin-stats', authenticateToken, requireRole(['super_admin'])
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-    // Parallel data fetching for better performance
+    // 🚀 PERFORMANCE: Optimized parallel data fetching with query optimizer
+    const { optimizedFind, optimizedCount, optimizedAggregate } = require('../utils/queryOptimizer');
+    
+    // Parallel data fetching for better performance (with caching)
     const [
       // Theater Stats
       totalTheaters,
@@ -79,55 +82,54 @@ router.get('/super-admin-stats', authenticateToken, requireRole(['super_admin'])
       topTheatersByRevenue,
       
     ] = await Promise.all([
-      // Theater counts
-      Theater.countDocuments(),
-      Theater.countDocuments({ isActive: true }),
-      Theater.countDocuments({ isActive: false }),
-      Theater.countDocuments({ createdAt: { $gte: startOfMonth } }),
+      // Theater counts (with caching)
+      optimizedCount(Theater, {}, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Theater, { isActive: true }, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Theater, { isActive: false }, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Theater, { createdAt: { $gte: startOfMonth } }, { cache: true, cacheTTL: 30000 }),
       
-      // Order counts
-      Order.countDocuments(),
-      Order.countDocuments({ createdAt: { $gte: startOfToday } }),
-      Order.countDocuments({ status: 'pending' }),
-      Order.countDocuments({ status: 'completed' }),
-      Order.countDocuments({ status: 'cancelled' }),
+      // Order counts (with caching)
+      optimizedCount(Order, {}, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Order, { createdAt: { $gte: startOfToday } }, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Order, { status: 'pending' }, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Order, { status: 'completed' }, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Order, { status: 'cancelled' }, { cache: true, cacheTTL: 30000 }),
       
-      // Revenue calculations
-      Order.aggregate([
+      // Revenue calculations (optimized aggregation)
+      optimizedAggregate(Order, [
         { $match: { status: 'completed' } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-      ]),
-      Order.aggregate([
+      ], { cache: true, cacheTTL: 60000 }),
+      optimizedAggregate(Order, [
         { $match: { status: 'completed', createdAt: { $gte: startOfToday } } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-      ]),
-      Order.aggregate([
+      ], { cache: true, cacheTTL: 60000 }),
+      optimizedAggregate(Order, [
         { $match: { status: 'completed', createdAt: { $gte: startOfMonth } } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-      ]),
-      Order.aggregate([
+      ], { cache: true, cacheTTL: 60000 }),
+      optimizedAggregate(Order, [
         { $match: { status: 'completed', createdAt: { $gte: startOfYear } } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-      ]),
+      ], { cache: true, cacheTTL: 60000 }),
       
       // Product counts
-      Product.countDocuments(),
-      Product.countDocuments({ isActive: true }),
-      Product.countDocuments({ stockQuantity: { $lte: 0 } }),
+      optimizedCount(Product, {}, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Product, { isActive: true }, { cache: true, cacheTTL: 30000 }),
+      optimizedCount(Product, { stockQuantity: { $lte: 0 } }, { cache: true, cacheTTL: 30000 }),
       
       // User management counts
-      Role.countDocuments(),
-      // PageAccess.countDocuments(), // OLD - Global page access
-      PageAccessArray.countDocuments(), // NEW - Theater-based page access
-      QRCode ? QRCode.countDocuments() : Promise.resolve(0),
-      QRCodeName ? QRCodeName.countDocuments() : Promise.resolve(0),
-      TheaterUser ? TheaterUser.countDocuments() : Promise.resolve(0),
-      TheaterUser ? TheaterUser.countDocuments({ isActive: true }) : Promise.resolve(0),
+      optimizedCount(Role, {}, { cache: true, cacheTTL: 60000 }),
+      optimizedCount(PageAccessArray, {}, { cache: true, cacheTTL: 60000 }),
+      QRCode ? optimizedCount(QRCode, {}, { cache: true, cacheTTL: 60000 }) : Promise.resolve(0),
+      QRCodeName ? optimizedCount(QRCodeName, {}, { cache: true, cacheTTL: 60000 }) : Promise.resolve(0),
+      TheaterUser ? optimizedCount(TheaterUser, {}, { cache: true, cacheTTL: 60000 }) : Promise.resolve(0),
+      TheaterUser ? optimizedCount(TheaterUser, { isActive: true }, { cache: true, cacheTTL: 60000 }) : Promise.resolve(0),
       
-      // Recent activities
-      Theater.find().sort({ createdAt: -1 }).limit(5).select('name createdAt isActive'),
-      Order.find().sort({ createdAt: -1 }).limit(10).select('orderNumber totalAmount status createdAt theaterId'),
-      Order.aggregate([
+      // Recent activities (optimized with lean and select)
+      optimizedFind(Theater, {}, { select: 'name createdAt isActive', sort: { createdAt: -1 }, limit: 5, lean: true, cache: true, cacheTTL: 30000 }),
+      optimizedFind(Order, {}, { select: 'orderNumber totalAmount status createdAt theaterId', sort: { createdAt: -1 }, limit: 10, lean: true, cache: true, cacheTTL: 30000 }),
+      optimizedAggregate(Order, [
         { $match: { status: 'completed' } },
         { $group: { 
             _id: '$theaterId', 
@@ -137,7 +139,7 @@ router.get('/super-admin-stats', authenticateToken, requireRole(['super_admin'])
         },
         { $sort: { totalRevenue: -1 } },
         { $limit: 5 }
-      ]),
+      ], { cache: true, cacheTTL: 60000 }),
     ]);
 
     // Calculate task-related stats (based on theater setup completeness)

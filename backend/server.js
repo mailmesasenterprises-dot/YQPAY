@@ -56,7 +56,8 @@ app.use('/api/', limiter);
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
-  'https://localhost:3001',
+  'http://localhost:3001',
+  'http://localhost:5173',
   'https://yqpaynow.com',
   'https://yqpay-78918378061.us-central1.run.app',
   
@@ -157,11 +158,50 @@ app.get('/api/health', (req, res) => {
 });
 
 // Image proxy endpoint to bypass CORS
+// Supports both GET (for small URLs) and POST (for large URLs to avoid 431 header size errors)
 app.get('/api/proxy-image', async (req, res) => {
   const { url } = req.query;
   
   if (!url) {
     return res.status(400).json({ error: 'URL parameter is required' });
+  }
+  
+  // Don't proxy data URLs (base64) - they're already complete
+  if (url.startsWith('data:')) {
+    return res.status(400).json({ error: 'Data URLs should not be proxied' });
+  }
+  
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    
+    const contentType = response.headers.get('content-type');
+    const buffer = await response.buffer();
+    
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    res.send(buffer);
+  } catch (error) {
+    console.error('Image proxy error:', error);
+    res.status(500).json({ error: 'Failed to proxy image' });
+  }
+});
+
+// POST endpoint for large URLs (avoids header size limits)
+app.post('/api/proxy-image', async (req, res) => {
+  const { url } = req.body;
+  
+  if (!url) {
+    return res.status(400).json({ error: 'URL parameter is required' });
+  }
+  
+  // Don't proxy data URLs (base64) - they're already complete
+  if (url.startsWith('data:')) {
+    return res.status(400).json({ error: 'Data URLs should not be proxied' });
   }
   
   try {
@@ -207,6 +247,7 @@ app.use('/api/qrcodenames', qrCodeNameRoutes);
 app.use('/api/single-qrcodes', singleQRCodeRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/roles', rolesRoutes);
+app.use('/api/role-names', require('./routes/roleNames')); // Role Name Management routes
 app.use('/api/reports', reportsRoutes); // Reports route
 app.use('/api/payments', paymentRoutes); // Payment gateway routes
 app.use('/api/theater-users', require('./routes/theaterUsersArray'));

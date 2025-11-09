@@ -7,12 +7,16 @@ class PaymentService {
    * Determine which channel (kiosk or online) based on order type
    */
   determineChannel(orderType) {
-    if (orderType === 'kiosk' || orderType === 'pos') {
+    // Map order types/sources to channels
+    const kioskTypes = ['kiosk', 'pos', 'counter', 'qr_code', 'staff'];
+    const onlineTypes = ['online', 'qr', 'app'];
+    
+    if (kioskTypes.includes(orderType)) {
       return 'kiosk';
-    } else if (orderType === 'online' || orderType === 'qr') {
+    } else if (onlineTypes.includes(orderType)) {
       return 'online';
     }
-    return 'online'; // default
+    return 'kiosk'; // default to kiosk for in-person orders
   }
   
   /**
@@ -23,13 +27,15 @@ class PaymentService {
       throw new Error('Payment gateway not configured for this theater');
     }
     
-    if (channel === 'kiosk' || channel === 'pos') {
+    // Normalize channel name
+    if (channel === 'kiosk' || channel === 'pos' || channel === 'counter') {
       return theater.paymentGateway.kiosk;
-    } else if (channel === 'online' || channel === 'qr') {
+    } else if (channel === 'online' || channel === 'qr' || channel === 'app') {
       return theater.paymentGateway.online;
     }
     
-    throw new Error('Invalid channel specified');
+    // Default to kiosk
+    return theater.paymentGateway.kiosk;
   }
   
   /**
@@ -86,6 +92,25 @@ class PaymentService {
       }
       
       console.log(`🔑 Using Razorpay Key ID: ${razorpayCredentials.keyId} for ${channel}`);
+      console.log(`📦 Order structure:`, JSON.stringify({
+        _id: order._id,
+        orderNumber: order.orderNumber,
+        pricing: order.pricing,
+        totalAmount: order.totalAmount,
+        payment: order.payment
+      }, null, 2));
+      
+      // Get total amount - handle different order structures
+      let totalAmount;
+      if (order.pricing && order.pricing.total) {
+        totalAmount = order.pricing.total;
+      } else if (order.totalAmount) {
+        totalAmount = order.totalAmount;
+      } else {
+        throw new Error('Order total amount not found. Order structure: ' + JSON.stringify(order));
+      }
+      
+      console.log(`💰 Total amount: ${totalAmount}`);
       
       // Initialize Razorpay with channel-specific credentials
       const razorpay = new Razorpay({
@@ -95,8 +120,8 @@ class PaymentService {
       
       // Create Razorpay order
       const razorpayOrder = await razorpay.orders.create({
-        amount: Math.round(order.pricing.total * 100), // Amount in paise
-        currency: order.pricing.currency || 'INR',
+        amount: Math.round(totalAmount * 100), // Amount in paise
+        currency: order.pricing?.currency || 'INR',
         receipt: order.orderNumber || `ORD-${order._id}`,
         notes: {
           theaterId: theater._id.toString(),
@@ -119,18 +144,18 @@ class PaymentService {
           orderId: razorpayOrder.id
         },
         amount: {
-          value: order.pricing.total,
-          currency: order.pricing.currency || 'INR'
+          value: totalAmount,
+          currency: order.pricing?.currency || 'INR'
         },
         status: 'initiated',
         method: order.payment?.method || 'card',
         customer: {
           name: order.customerInfo?.name,
-          phone: order.customerInfo?.phone,
+          phone: order.customerInfo?.phone || order.customerInfo?.phoneNumber,
           email: order.customerInfo?.email
         },
         metadata: {
-          orderType: order.orderType,
+          orderType: order.orderType || order.source,
           gatewayUsed: 'razorpay',
           channel: channel,
           notes: {
@@ -143,11 +168,13 @@ class PaymentService {
       
       return {
         success: true,
-        orderId: razorpayOrder.id,
+        id: razorpayOrder.id, // Razorpay order ID (for frontend compatibility)
+        orderId: razorpayOrder.id, // Same as above
         amount: razorpayOrder.amount,
         currency: razorpayOrder.currency,
         keyId: razorpayCredentials.keyId,
         transaction: transaction,
+        transactionId: transaction._id.toString(), // Add explicit transactionId for frontend
         channel: channel,
         provider: 'razorpay'
       };
