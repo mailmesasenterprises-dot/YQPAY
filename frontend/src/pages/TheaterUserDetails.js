@@ -416,6 +416,10 @@ const TheaterUserDetails = () => {
   const handleCreateUser = (e) => {
     if (e) e.preventDefault();
     
+    // ✅ FIX: Get current theaterId from URL to avoid stale closure
+    const urlParts = window.location.pathname.split('/');
+    const currentTheaterId = urlParts[urlParts.length - 1] || theaterId;
+    
     // Reset errors
     setCreateUserErrors({});
     
@@ -454,8 +458,8 @@ const TheaterUserDetails = () => {
     }
     
     if (!createUserData.role) errors.role = 'Role is required';
-    if (!theaterId) errors.theater = 'Theater ID is missing';
-    if (theaterId && theaterId.length !== 24 && theaterId.length !== 25) errors.theater = 'Invalid theater ID format';
+    if (!currentTheaterId) errors.theater = 'Theater ID is missing';
+    if (currentTheaterId && currentTheaterId.length !== 24 && currentTheaterId.length !== 25) errors.theater = 'Invalid theater ID format';
     if (availableRoles.length === 0) errors.role = 'No roles available. Please create roles in Role Management first.';
     
     if (Object.keys(errors).length > 0) {
@@ -472,9 +476,18 @@ const TheaterUserDetails = () => {
     try {
       setLoadingUsers(true);
       
+      // ✅ FIX: Extract theaterId from URL to avoid stale closure issues
+      const urlParts = window.location.pathname.split('/');
+      const currentTheaterId = urlParts[urlParts.length - 1] || theaterId;
+      
+      // ✅ DEBUG: Log current theaterId to detect stale closures
+      console.log('🔍 [confirmCreateUser] theaterId from useParams:', theaterId);
+      console.log('🔍 [confirmCreateUser] theaterId from URL:', currentTheaterId);
+      console.log('🔍 [confirmCreateUser] URL pathname:', window.location.pathname);
+      
       // ✅ FIX: Use array-based structure with theaterId (same as roles implementation)
       const payload = {
-        theaterId: theaterId, // Theater ID for array-based structure
+        theaterId: currentTheaterId, // ✅ Use current theater ID from URL
         username: createUserData.username?.trim() || '',
         email: createUserData.email?.trim().toLowerCase() || '',
         password: createUserData.password || '',
@@ -503,7 +516,13 @@ const TheaterUserDetails = () => {
       }
       
 
-      const response = await fetch(`${config.api.baseUrl}/theater-users`, {
+      // ✅ DEBUG: Log the actual API URL being used
+      const apiUrl = `${config.api.baseUrl}/theater-users`;
+      console.log('🔍 [DEBUG] Creating user with API URL:', apiUrl);
+      console.log('🔍 [DEBUG] Config API base URL:', config.api.baseUrl);
+      console.log('🔍 [DEBUG] Payload:', payload);
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -532,19 +551,27 @@ const TheaterUserDetails = () => {
           result.errors.forEach((error, index) => {
 
             if (error.path || error.param) {
-              fieldErrors[error.path || error.param] = error.msg || error.message;
+              const fieldName = error.path || error.param;
+              const errorMsg = error.msg || error.message;
+              fieldErrors[fieldName] = errorMsg;
+              
+              // ✅ Enhanced logging for debugging
+              console.error(`❌ Validation error on field "${fieldName}":`, errorMsg);
             }
           });
 
           // If no field errors were mapped, show general error
           if (Object.keys(fieldErrors).length === 0) {
             setCreateUserErrors({ submit: 'Validation failed. Please check all fields.' });
+            console.error('❌ Validation failed with no specific field errors');
           } else {
             setCreateUserErrors(fieldErrors);
+            console.error('❌ Validation errors:', fieldErrors);
           }
         } else {
           // ✅ Better error message for username conflicts
           const errorMessage = result.message || result.error || 'Failed to create user';
+          console.error('❌ Create user failed:', errorMessage);
           if (errorMessage.includes('already exists')) {
             setCreateUserErrors({ 
               username: '❌ This username is already taken. Please try a different one.',

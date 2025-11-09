@@ -76,7 +76,8 @@ router.get('/', [
  */
 router.post('/', [
   authenticateToken,
-  body('theaterId').isMongoId().withMessage('Valid theater ID is required'),
+  body('theaterId').optional().isMongoId().withMessage('Valid theater ID is required'),
+  body('theater').optional().isMongoId().withMessage('Valid theater ID is required'), // Accept both fields
   body('username').trim().isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
   body('email').isEmail().normalizeEmail().withMessage('Valid email required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
@@ -89,10 +90,14 @@ router.post('/', [
   body('isEmailVerified').optional().isBoolean().withMessage('isEmailVerified must be boolean')
 ], async (req, res) => {
   try {
+    console.log('🔵 [POST /theater-users] ========== NEW REQUEST ==========');
+    console.log('🔵 [POST /theater-users] Request body:', JSON.stringify(req.body, null, 2));
+    console.log('🔵 [POST /theater-users] User:', req.user);
 
     // Validate request
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ [POST /theater-users] Validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -100,8 +105,21 @@ router.post('/', [
       });
     }
 
+    console.log('✅ [POST /theater-users] Validation passed');
+
+    // Accept both 'theater' and 'theaterId' fields for compatibility
+    const theaterId = req.body.theaterId || req.body.theater;
+    
+    console.log('🔵 [POST /theater-users] Theater ID:', theaterId);
+    
+    if (!theaterId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Theater ID is required (theater or theaterId field)'
+      });
+    }
+
     const { 
-      theaterId, 
       username, 
       email, 
       password, 
@@ -115,11 +133,20 @@ router.post('/', [
       profileImage = null
     } = req.body;
 
+    console.log('🔵 [POST /theater-users] Extracted data:', { username, email, fullName, phoneNumber, pin, role });
+
     // Hash password
+    console.log('🔵 [POST /theater-users] Hashing password...');
     const hashedPassword = await bcrypt.hash(password, 10);
+    console.log('✅ [POST /theater-users] Password hashed');
+    
     // Find or create users document for theater
+    console.log('🔵 [POST /theater-users] Finding/creating users document for theater:', theaterId);
     let usersDoc = await TheaterUserArray.findOrCreateByTheater(theaterId);
+    console.log('✅ [POST /theater-users] Users document found/created:', usersDoc._id);
+    
     // Add new user
+    console.log('🔵 [POST /theater-users] Adding new user...');
     const newUser = await usersDoc.addUser({
       username: username.trim(),
       email: email.trim(),
@@ -134,8 +161,13 @@ router.post('/', [
       profileImage,
       createdBy: req.user?.userId || null
     });
+    console.log('✅ [POST /theater-users] User added successfully:', newUser._id);
+    
     // Populate theater info (field is theaterId, not theater)
+    console.log('🔵 [POST /theater-users] Populating theater info...');
     await usersDoc.populate('theaterId', 'name location');
+    console.log('✅ [POST /theater-users] Theater info populated');
+    
     res.status(201).json({
       success: true,
       message: 'Theater user created successfully',
@@ -148,6 +180,8 @@ router.post('/', [
 
   } catch (error) {
     console.error('❌ Error creating theater user:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error message:', error.message);
     
     // Handle specific errors
     if (error.message.includes('already exists')) {

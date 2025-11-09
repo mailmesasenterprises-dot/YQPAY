@@ -219,10 +219,13 @@ const PageAccessManagement = () => {
 
   // Handle page toggle - POST to backend when toggled ON, DELETE when toggled OFF
   const handlePageToggleChange = useCallback(async (page, isEnabled) => {
+    console.log('🔘 [handlePageToggleChange] Called with:', { page: page.pageName, isEnabled, theaterId });
+    
     try {
 
       // ✅ FIX: Get authentication token
       const token = config.helpers.getAuthToken();
+      console.log('🔘 [handlePageToggleChange] Token:', token ? 'Present' : 'Missing');
 
       if (!token) {
         showError('Authentication required. Please login again.');
@@ -230,6 +233,7 @@ const PageAccessManagement = () => {
       }
       
       if (isEnabled) {
+        console.log('🔘 [handlePageToggleChange] Enabling page - POST to:', `${config.api.baseUrl}/page-access`);
         // POST to backend to save page access
         const response = await fetch(`${config.api.baseUrl}/page-access`, {
           method: 'POST',
@@ -248,6 +252,7 @@ const PageAccessManagement = () => {
           })
         });
 
+        console.log('🔘 [handlePageToggleChange] POST Response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
@@ -326,6 +331,7 @@ const PageAccessManagement = () => {
         }
       }
     } catch (error) {
+      console.error('❌ [handlePageToggleChange] Error:', error);
 
       // If backend is not available, allow local toggle but show warning
       if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {

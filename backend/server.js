@@ -261,7 +261,11 @@ app.use((req, res, next) => {
 
 // Global error handler
 app.use((error, req, res, next) => {
+  console.error('❌❌❌ [GLOBAL ERROR HANDLER] ❌❌❌');
   console.error('Error:', error);
+  console.error('Error Stack:', error.stack);
+  console.error('Request:', req.method, req.path);
+  console.error('Request Body:', req.body);
   
   // MongoDB validation errors
   if (error.name === 'ValidationError') {

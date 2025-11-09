@@ -3,10 +3,13 @@ const mongoose = require('mongoose');
 
 // JWT Authentication Middleware
 const authenticateToken = (req, res, next) => {
+  console.log('🔐 [AUTH] authenticateToken called for:', req.method, req.path);
+  
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
+    console.log('❌ [AUTH] No token provided');
     return res.status(401).json({ 
       error: 'Access token required',
       code: 'TOKEN_MISSING'
@@ -15,11 +18,14 @@ const authenticateToken = (req, res, next) => {
 
   jwt.verify(token, process.env.JWT_SECRET || 'yqpaynow-super-secret-jwt-key-development-only', async (err, decoded) => {
     if (err) {
+      console.log('❌ [AUTH] Token verification failed:', err.message);
       return res.status(403).json({ 
         error: 'Invalid or expired token',
         code: 'TOKEN_INVALID'
       });
     }
+    
+    console.log('✅ [AUTH] Token verified, user:', decoded.userId, 'type:', decoded.userType);
     
     // ✅ NEW: Check if user's theater is active (for theater users only)
     if (decoded.userType === 'theater_user' || decoded.userType === 'theater_admin') {
@@ -28,17 +34,21 @@ const authenticateToken = (req, res, next) => {
         const theater = await Theater.findById(decoded.theaterId || decoded.theater);
         
         if (!theater || !theater.isActive) {
+          console.log('❌ [AUTH] Theater deactivated');
           return res.status(403).json({
             error: 'Your theater account has been deactivated',
             code: 'THEATER_DEACTIVATED'
           });
         }
+        console.log('✅ [AUTH] Theater active');
       } catch (error) {
+        console.log('⚠️ [AUTH] Error checking theater status:', error.message);
         // Continue with auth - don't block on database errors
       }
     }
     
     req.user = decoded;
+    console.log('✅ [AUTH] Authentication successful, proceeding to next middleware');
     next();
   });
 };

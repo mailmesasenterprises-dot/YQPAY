@@ -300,6 +300,11 @@ const RoleAccessManagement = () => {
     loadRolePermissionsData(newPage, itemsPerPage, searchTerm);
   }, [itemsPerPage, searchTerm, loadRolePermissionsData]);
 
+  // Debug: Track modal state changes
+  useEffect(() => {
+    console.log('🔵 [Modal State] showEditModal changed:', showEditModal);
+  }, [showEditModal]);
+
   // CRUD Operations
   const viewRolePermission = (rolePermission) => {
     setSelectedRolePermission(rolePermission);
@@ -307,16 +312,12 @@ const RoleAccessManagement = () => {
   };
 
   const editRolePermission = (role) => {
-
-    // Check if active pages are loaded
-    if (activePages.length === 0) {
-      showError('Page permissions are still loading. Please wait a moment and try again.');
-      return;
-    }
+    console.log('🔵 [editRolePermission] Called with role:', role);
+    console.log('🔵 [editRolePermission] Active pages:', activePages);
     
     setSelectedRolePermission(role);
     
-    // Prepare form data with all active pages
+    // Prepare form data with all active pages (even if empty)
     const permissions = activePages.map(page => {
       const existingPermission = (role.permissions || []).find(p => p.page === page.page);
       return {
@@ -326,11 +327,14 @@ const RoleAccessManagement = () => {
       };
     });
     
+    console.log('🔵 [editRolePermission] Prepared permissions:', permissions);
 
     setFormData({
       roleId: role._id,
       permissions: permissions
     });
+    
+    console.log('🔵 [editRolePermission] Opening edit modal...');
     setShowEditModal(true);
   };
 

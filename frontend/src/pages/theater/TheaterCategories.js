@@ -22,10 +22,20 @@ const TheaterCategories = () => {
   // PERFORMANCE MONITORING: Track page performance metrics
   usePerformanceMonitoring('TheaterCategories');
   
-  // Data state
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState({
+  // ⚡ INSTANT LOAD: Check cache synchronously before first render
+  const initialCache = useMemo(() => {
+    if (theaterId) {
+      const cacheKey = `theaterCategoriesPage_${theaterId}_p1_l10_s`;
+      return getCachedData(cacheKey, 120000);
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theaterId]); // Only depend on theaterId
+  
+  // Data state - Initialize with cache if available
+  const [categories, setCategories] = useState(initialCache?.categories || []);
+  const [loading, setLoading] = useState(!initialCache);
+  const [summary, setSummary] = useState(initialCache?.summary || {
     activeCategories: 0,
     inactiveCategories: 0,
     totalCategories: 0
@@ -35,10 +45,10 @@ const TheaterCategories = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialCache?.currentPage || 1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [totalItems, setTotalItems] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const [totalItems, setTotalItems] = useState(initialCache?.totalItems || 0);
+  const [totalPages, setTotalPages] = useState(initialCache?.totalPages || 0);
 
   // Modal states  
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -81,23 +91,29 @@ const TheaterCategories = () => {
 
   // Load categories data
   const loadCategoriesData = useCallback(async (page = 1, limit = 10, search = '') => {
+    console.log('🔄 [loadCategoriesData] Called with:', { page, limit, search, theaterId, isMounted: isMountedRef.current });
     
     if (!isMountedRef.current || !theaterId) {
+      console.log('❌ [loadCategoriesData] Skipped - not mounted or no theaterId');
       return;
     }
 
     const cacheKey = `theaterCategoriesPage_${theaterId}_p${page}_l${limit}_s${search}`;
     
-    // Check cache first
+    // ⚡ PERFORMANCE FIX: Show cached data immediately - NO DELAY!
     const cached = getCachedData(cacheKey, 120000); // 2-minute cache
     if (cached && isMountedRef.current) {
-      console.log('⚡ [TheaterCategories] Loading from cache');
+      console.log('⚡ [TheaterCategories] Loading from cache - INSTANT display');
+      // Update UI immediately - no transition delay
       setCategories(cached.categories);
       setTotalItems(cached.totalItems);
       setTotalPages(cached.totalPages);
       setCurrentPage(page);
       setSummary(cached.summary);
       setLoading(false);
+      
+      // Don't fetch fresh data if we have recent cache
+      return;
     }
 
     // Cancel previous request
@@ -113,20 +129,15 @@ const TheaterCategories = () => {
       const params = new URLSearchParams({
         page: page,
         limit: limit,
-        q: search,
-        _cacheBuster: Date.now(),
-        _random: Math.random()
+        q: search
       });
 
       const baseUrl = `${config.api.baseUrl}/theater-categories/${theaterId}?${params.toString()}`;
-      
+      console.log('📡 [loadCategoriesData] Fetching from:', baseUrl);
 
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
           'Accept': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -138,7 +149,7 @@ const TheaterCategories = () => {
       }
 
       const data = await response.json();
-      
+      console.log('✅ [loadCategoriesData] Response data:', data);
       
       if (!isMountedRef.current) return;
 
@@ -152,29 +163,38 @@ const TheaterCategories = () => {
           return idA.localeCompare(idB);
         });
         
-        setCategories(sortedCategories);
-        
         // Batch pagination state updates
         const paginationData = data.data?.pagination || {};
         const totalItemsCount = paginationData.totalItems || 0;
         const totalPagesCount = paginationData.totalPages || 1;
-        setTotalItems(totalItemsCount);
-        setTotalPages(totalPagesCount);
-        setCurrentPage(page);
         
         // Calculate summary statistics
         const statisticsData = data.data?.statistics || {};
-        const summary = {
+        const summaryData = {
           activeCategories: statisticsData.active || 0,
           inactiveCategories: statisticsData.inactive || 0,
           totalCategories: statisticsData.total || 0
         };
 
-        setSummary(summary);
+        // ⚡ Update UI with fresh data
+        setCategories(sortedCategories);
+        setTotalItems(totalItemsCount);
+        setTotalPages(totalPagesCount);
+        setCurrentPage(page);
+        setSummary(summaryData);
+
+        // Cache the fresh data for next time
+        setCachedData(cacheKey, {
+          categories: sortedCategories,
+          totalItems: totalItemsCount,
+          totalPages: totalPagesCount,
+          summary: summaryData
+        });
       } else {
         throw new Error(data.message || 'Failed to load categories');
       }
     } catch (error) {
+      console.error('❌ [loadCategoriesData] Error:', error);
       if (error.name !== 'AbortError' && isMountedRef.current) {
         // Removed error modal - just show empty state
         setCategories([]);
@@ -384,12 +404,13 @@ const TheaterCategories = () => {
     return null; // No image
   };
 
-  // Initial load
+  // Initial load - Only depend on theaterId to prevent unnecessary re-renders
   useEffect(() => {
     if (theaterId) {
       loadCategoriesData(1, 10, '');
     }
-  }, [theaterId, loadCategoriesData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theaterId]);
 
   // Cleanup effect
   useEffect(() => {
