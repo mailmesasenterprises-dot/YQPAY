@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import config from '../config';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import PageContainer from '../components/PageContainer';
 import VerticalPageHeader from '../components/VerticalPageHeader';
@@ -97,7 +97,19 @@ TableRowSkeleton.displayName = 'TableRowSkeleton';
 
 const RoleCreate = () => {
   const navigate = useNavigate();
-  const { theaterId } = useParams(); // Get theaterId from URL
+  const { theaterId: pathTheaterId } = useParams(); // Get from path (/roles/:theaterId)
+  const [searchParams] = useSearchParams(); // Get from query string (?theaterId=xxx)
+  
+  // FIXED: Support both path parameter and query parameter for theaterId
+  // Priority: query parameter > path parameter
+  const theaterId = searchParams.get('theaterId') || pathTheaterId;
+  
+  console.log('🎭 RoleCreate theaterId:', { 
+    fromQuery: searchParams.get('theaterId'), 
+    fromPath: pathTheaterId,
+    final: theaterId 
+  });
+  
   const { showError, showSuccess } = useModal();
   
   // PERFORMANCE MONITORING: Track page performance metrics

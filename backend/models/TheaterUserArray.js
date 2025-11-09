@@ -67,8 +67,8 @@ const theaterUserArraySchema = new mongoose.Schema({
     // Role reference (optional - can be assigned later)
     role: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Role',
-      required: false // ✅ FIX: Make role optional
+      required: false,
+      default: null
     },
     
     // User permissions (legacy support)

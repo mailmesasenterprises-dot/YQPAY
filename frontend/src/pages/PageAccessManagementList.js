@@ -161,12 +161,11 @@ const PageAccessManagementList = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
 
+      // PERFORMANCE OPTIMIZATION: Enable caching for faster loads
       const response = await fetch(`${config.api.baseUrl}/theaters?${params.toString()}`, {
         signal: abortControllerRef.current.signal,
         headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+          'Cache-Control': 'max-age=60', // Cache for 1 minute
           'Accept': 'application/json'
         }
       });

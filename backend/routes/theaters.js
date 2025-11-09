@@ -50,10 +50,15 @@ router.get('/', [
       .select('-password')
       .sort({ createdAt: 1 })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean(); // Use lean() for better performance
 
     const total = await Theater.countDocuments(query);
 
+    // Set cache headers for better performance
+    res.set('Cache-Control', 'public, max-age=60'); // Cache for 1 minute
+    res.set('ETag', `theaters-${page}-${limit}-${total}`); // Enable conditional requests
+    
     res.json({
       success: true,
       data: theaters,
@@ -575,14 +580,17 @@ router.put('/:id',
 
 /**
  * DELETE /api/theaters/:id
- * Delete a theater (soft delete) and optionally clean up GCS files
+ * Permanently delete a theater and all related data (CASCADE DELETE)
+ * Deletes: Theater, Users, Roles, Products, Orders, QR Codes, Settings, Files
  */
 router.delete('/:id',
   authenticateToken,
   requireRole(['super_admin']),
   async (req, res) => {
     try {
-      const theater = await Theater.findById(req.params.id);
+      const theaterId = req.params.id;
+      const theater = await Theater.findById(theaterId);
+      
       if (!theater) {
         return res.status(404).json({
           success: false,
@@ -591,49 +599,149 @@ router.delete('/:id',
         });
       }
 
-      const deleteFiles = req.query.deleteFiles === 'true';
+      console.log(`🗑️  Starting CASCADE DELETE for theater: ${theater.name} (${theaterId})`);
+      
+      const deletionResults = {
+        theater: theater.name,
+        theaterId: theaterId,
+        deleted: {},
+        errors: []
+      };
 
-      if (deleteFiles) {
-        // Hard delete with file cleanup
-        const filesToDelete = [];
-        
-        if (theater.documents?.theaterPhoto) filesToDelete.push(theater.documents.theaterPhoto);
-        if (theater.documents?.logo) filesToDelete.push(theater.documents.logo);
-        if (theater.documents?.aadharCard) filesToDelete.push(theater.documents.aadharCard);
-        if (theater.documents?.panCard) filesToDelete.push(theater.documents.panCard);
-        if (theater.documents?.gstCertificate) filesToDelete.push(theater.documents.gstCertificate);
-        if (theater.documents?.fssaiCertificate) filesToDelete.push(theater.documents.fssaiCertificate);
-        if (theater.agreementDetails?.copy) filesToDelete.push(theater.agreementDetails.copy);
-
-        if (filesToDelete.length > 0) {
-          try {
-            const deletedCount = await deleteFiles(filesToDelete);
-          } catch (fileError) {
-            console.warn('⚠️  Some files could not be deleted:', fileError.message);
-          }
+      // 1. Delete Theater Users (array-based)
+      try {
+        const TheaterUserArray = require('../models/TheaterUserArray');
+        const usersDoc = await TheaterUserArray.findOne({ theaterId: theaterId });
+        if (usersDoc) {
+          const userCount = usersDoc.users.length;
+          await TheaterUserArray.deleteOne({ theaterId: theaterId });
+          deletionResults.deleted.users = userCount;
+          console.log(`✅ Deleted ${userCount} theater users`);
+        } else {
+          deletionResults.deleted.users = 0;
         }
-
-        // Remove from database
-        await Theater.findByIdAndDelete(req.params.id);
-        res.json({
-          success: true,
-          message: 'Theater and associated files deleted successfully'
-        });
-      } else {
-        // Soft delete - Use findByIdAndUpdate to avoid validation issues with old theaters
-        await Theater.findByIdAndUpdate(
-          req.params.id,
-          { 
-            isActive: false, 
-            status: 'inactive' 
-          },
-          { runValidators: false } // Don't run validators to avoid issues with old data
-        );
-        res.json({
-          success: true,
-          message: 'Theater deactivated successfully'
-        });
+      } catch (error) {
+        console.error('❌ Error deleting users:', error.message);
+        deletionResults.errors.push({ type: 'users', error: error.message });
+        deletionResults.deleted.users = 0;
       }
+
+      // 2. Delete Roles (array-based)
+      try {
+        const RoleArray = require('../models/RoleArray');
+        const rolesDoc = await RoleArray.findOne({ theaterId: theaterId });
+        if (rolesDoc) {
+          const roleCount = rolesDoc.roles.length;
+          await RoleArray.deleteOne({ theaterId: theaterId });
+          deletionResults.deleted.roles = roleCount;
+          console.log(`✅ Deleted ${roleCount} roles`);
+        } else {
+          deletionResults.deleted.roles = 0;
+        }
+      } catch (error) {
+        console.error('❌ Error deleting roles:', error.message);
+        deletionResults.errors.push({ type: 'roles', error: error.message });
+        deletionResults.deleted.roles = 0;
+      }
+
+      // 3. Delete Products
+      try {
+        const ProductList = require('../models/ProductList');
+        const products = await ProductList.find({ theater: theaterId });
+        const productCount = products.length;
+        await ProductList.deleteMany({ theater: theaterId });
+        deletionResults.deleted.products = productCount;
+        console.log(`✅ Deleted ${productCount} products`);
+      } catch (error) {
+        console.error('❌ Error deleting products:', error.message);
+        deletionResults.errors.push({ type: 'products', error: error.message });
+        deletionResults.deleted.products = 0;
+      }
+
+      // 4. Delete Orders
+      try {
+        const TheaterOrder = require('../models/TheaterOrder');
+        const orders = await TheaterOrder.find({ theater: theaterId });
+        const orderCount = orders.length;
+        await TheaterOrder.deleteMany({ theater: theaterId });
+        deletionResults.deleted.orders = orderCount;
+        console.log(`✅ Deleted ${orderCount} orders`);
+      } catch (error) {
+        console.error('❌ Error deleting orders:', error.message);
+        deletionResults.errors.push({ type: 'orders', error: error.message });
+        deletionResults.deleted.orders = 0;
+      }
+
+      // 5. Delete QR Codes
+      try {
+        const QRCodeName = require('../models/QRCodeName');
+        const qrCodes = await QRCodeName.find({ theater: theaterId });
+        const qrCount = qrCodes.length;
+        await QRCodeName.deleteMany({ theater: theaterId });
+        deletionResults.deleted.qrCodes = qrCount;
+        console.log(`✅ Deleted ${qrCount} QR codes`);
+      } catch (error) {
+        console.error('❌ Error deleting QR codes:', error.message);
+        deletionResults.errors.push({ type: 'qrCodes', error: error.message });
+        deletionResults.deleted.qrCodes = 0;
+      }
+
+      // 6. Delete Settings
+      try {
+        const Setting = require('../models/Setting');
+        const settings = await Setting.findOne({ theater: theaterId });
+        if (settings) {
+          await Setting.deleteOne({ theater: theaterId });
+          deletionResults.deleted.settings = 1;
+          console.log(`✅ Deleted settings`);
+        } else {
+          deletionResults.deleted.settings = 0;
+        }
+      } catch (error) {
+        console.error('❌ Error deleting settings:', error.message);
+        deletionResults.errors.push({ type: 'settings', error: error.message });
+        deletionResults.deleted.settings = 0;
+      }
+
+      // 7. Delete uploaded files from storage
+      const filesToDelete = [];
+      if (theater.documents?.theaterPhoto) filesToDelete.push(theater.documents.theaterPhoto);
+      if (theater.documents?.logo) filesToDelete.push(theater.documents.logo);
+      if (theater.documents?.aadharCard) filesToDelete.push(theater.documents.aadharCard);
+      if (theater.documents?.panCard) filesToDelete.push(theater.documents.panCard);
+      if (theater.documents?.gstCertificate) filesToDelete.push(theater.documents.gstCertificate);
+      if (theater.documents?.fssaiCertificate) filesToDelete.push(theater.documents.fssaiCertificate);
+      if (theater.agreementDetails?.copy) filesToDelete.push(theater.agreementDetails.copy);
+
+      if (filesToDelete.length > 0) {
+        try {
+          const { deleteFiles: deleteFilesUtil } = require('../utils/gcsUploadUtil');
+          await deleteFilesUtil(filesToDelete);
+          deletionResults.deleted.files = filesToDelete.length;
+          console.log(`✅ Deleted ${filesToDelete.length} files from storage`);
+        } catch (fileError) {
+          console.warn('⚠️  Some files could not be deleted:', fileError.message);
+          deletionResults.errors.push({ type: 'files', error: fileError.message });
+          deletionResults.deleted.files = 0;
+        }
+      } else {
+        deletionResults.deleted.files = 0;
+      }
+
+      // 8. Finally, delete the theater itself
+      await Theater.findByIdAndDelete(theaterId);
+      deletionResults.deleted.theater = true;
+      console.log(`✅ Deleted theater document`);
+
+      console.log(`🎉 CASCADE DELETE completed for theater: ${theater.name}`);
+      console.log('📊 Deletion summary:', JSON.stringify(deletionResults.deleted, null, 2));
+
+      res.json({
+        success: true,
+        message: `Theater "${theater.name}" and all related data deleted permanently`,
+        summary: deletionResults.deleted,
+        warnings: deletionResults.errors.length > 0 ? deletionResults.errors : undefined
+      });
 
     } catch (error) {
       console.error('❌ Delete theater error:', error);

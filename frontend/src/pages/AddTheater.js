@@ -190,7 +190,7 @@ const AddTheater = React.memo(() => {
   // Memoized validation rules
   const validationRules = useMemo(() => ({
     email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    phone: /^\d{10,15}$/,
+    phone: /^\d{10}$/,
     pincode: /^\d{6}$/
   }), []);
 
@@ -276,7 +276,7 @@ const AddTheater = React.memo(() => {
       case 'phone':
       case 'ownerContactNumber':
         if (value && !validationRules.phone.test(value)) {
-          error = 'Please enter a valid phone number (10-15 digits)';
+          error = 'Please enter exactly 10 digits';
         }
         break;
       case 'pincode':
@@ -290,12 +290,20 @@ const AddTheater = React.memo(() => {
         }
     }
 
-    if (error) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: error
-      }));
-    }
+    // Always update errors state - set error if validation failed, clear if validation passed
+    setErrors(prev => {
+      if (error) {
+        return {
+          ...prev,
+          [name]: error
+        };
+      } else {
+        // Remove error if validation passed
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      }
+    });
   }, [validationRules]);
 
   // Optimized file change handler
@@ -370,11 +378,11 @@ const AddTheater = React.memo(() => {
 
     // Phone validation
     if (formData.phone && !validationRules.phone.test(formData.phone)) {
-      newErrors.phone = 'Please enter a valid phone number (10-15 digits)';
+      newErrors.phone = 'Please enter exactly 10 digits';
     }
 
     if (formData.ownerContactNumber && !validationRules.phone.test(formData.ownerContactNumber)) {
-      newErrors.ownerContactNumber = 'Please enter a valid phone number (10-15 digits)';
+      newErrors.ownerContactNumber = 'Please enter exactly 10 digits';
     }
 
     // Pincode validation
@@ -464,6 +472,48 @@ const AddTheater = React.memo(() => {
     
 
     if (!formValidationStatus.isValid) {
+      console.log('🛑 Form validation failed:', {
+        formValidationStatus,
+        formData,
+        errors
+      });
+      
+      // Show validation error alert
+      const requiredFields = ['name', 'address', 'city', 'state', 'pincode', 'phone', 'email', 'ownerName', 'ownerContactNumber'];
+      const missingFields = requiredFields.filter(field => !formData[field]?.trim());
+      
+      const fieldNames = {
+        name: 'Theater Name',
+        address: 'Address',
+        city: 'City',
+        state: 'State',
+        pincode: 'Pincode',
+        phone: 'Phone',
+        email: 'Email',
+        ownerName: 'Owner Name',
+        ownerContactNumber: 'Owner Contact Number'
+      };
+      
+      let errorMessage = 'Please complete the form:\n\n';
+      if (missingFields.length > 0) {
+        errorMessage += 'Missing required fields:\n' + missingFields.map(field => 
+          `• ${fieldNames[field]}`
+        ).join('\n');
+      }
+      
+      if (Object.keys(errors).length > 0) {
+        errorMessage += '\n\nValidation errors:\n' + Object.entries(errors).map(([field, error]) => 
+          `• ${fieldNames[field] || field}: ${error}`
+        ).join('\n');
+      }
+      
+      console.error('❌ Validation failed:', errorMessage);
+      
+      modal.alert({
+        title: 'Form Validation Error',
+        message: errorMessage,
+        type: 'error'
+      });
       
       // Scroll to first error field
       const firstErrorField = document.querySelector('.error-field');
@@ -735,7 +785,9 @@ const AddTheater = React.memo(() => {
                   value={formData.phone}
                   onChange={handleInputChange}
                   className={errors.phone ? 'error' : ''}
-                  placeholder="Enter theater phone number"
+                  placeholder="Enter theater phone number (10 digits)"
+                  maxLength="10"
+                  pattern="[0-9]{10}"
                   required
                 />
                 {errors.phone && <span className="error-message">{errors.phone}</span>}
@@ -750,7 +802,9 @@ const AddTheater = React.memo(() => {
                   value={formData.ownerContactNumber}
                   onChange={handleInputChange}
                   className={errors.ownerContactNumber ? 'error' : ''}
-                  placeholder="Enter owner contact number"
+                  placeholder="Enter owner contact number (10 digits)"
+                  maxLength="10"
+                  pattern="[0-9]{10}"
                   required
                 />
                 {errors.ownerContactNumber && <span className="error-message">{errors.ownerContactNumber}</span>}

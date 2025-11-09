@@ -71,6 +71,9 @@ const RoleAccessManagement = () => {
       const response = await fetch(`${config.api.baseUrl}/page-access?theaterId=${theaterId}`, {
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           // Add auth token if it exists
           ...(localStorage.getItem('authToken') && {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -122,6 +125,9 @@ const RoleAccessManagement = () => {
       const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
         headers: {
           'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           // Add auth token if it exists
           ...(localStorage.getItem('authToken') && {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -183,6 +189,9 @@ const RoleAccessManagement = () => {
         signal: abortController.signal,
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           // Add auth token if it exists
           ...(localStorage.getItem('authToken') && {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -230,7 +239,7 @@ const RoleAccessManagement = () => {
         setLoading(false);
       }
     }
-  }, [showError]);
+  }, [theaterId, showError]);
 
   // Load active roles
   const loadActiveRoles = useCallback(async () => {
@@ -247,6 +256,9 @@ const RoleAccessManagement = () => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           // Add auth token if it exists
           ...(localStorage.getItem('authToken') && {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -385,6 +397,9 @@ const RoleAccessManagement = () => {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
             // Add auth token if it exists
             ...(localStorage.getItem('authToken') && {
               'Authorization': `Bearer ${localStorage.getItem('authToken')}`
@@ -399,10 +414,24 @@ const RoleAccessManagement = () => {
           const data = await response.json();
           
 
-          // Reload the role permissions data to get the latest state from server
-          await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
+          // Update local state immediately with the updated role from response
+          if (data.success && data.data?.role) {
+            setRolePermissions(prevRoles => 
+              prevRoles.map(role => 
+                role._id === selectedRolePermission._id 
+                  ? { ...role, permissions: data.data.role.permissions }
+                  : role
+              )
+            );
+          }
           
+          // Close modal
           setShowEditModal(false);
+          
+          // Also reload from server to ensure consistency
+          setTimeout(async () => {
+            await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
+          }, 100);
           
           // ✅ Better success message for default roles
           if (selectedRolePermission.isDefault) {
@@ -467,6 +496,9 @@ const RoleAccessManagement = () => {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           // Add auth token if it exists
           ...(localStorage.getItem('authToken') && {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
