@@ -152,7 +152,8 @@ const QRCodeNameManagement = () => {
   // Load theater data when theaterId is present
   useEffect(() => {
     if (theaterId) {
-      loadTheaterData();
+      // 🔄 FORCE REFRESH: Always force refresh theater data on mount
+      loadTheaterData(true);
     } else {
       setTheaterLoading(false);
     }
@@ -160,27 +161,45 @@ const QRCodeNameManagement = () => {
 
   // Load QR code name data with pagination and search
   useEffect(() => {
-    loadQRCodeNameData();
+    // 🔄 FORCE REFRESH: Force refresh on initial mount (first page, no search)
+    const isInitialMount = currentPage === 1 && !debouncedSearchTerm;
+    loadQRCodeNameData(isInitialMount);
   }, [currentPage, debouncedSearchTerm, itemsPerPage, theaterId]);
 
-  const loadTheaterData = useCallback(async () => {
+  const loadTheaterData = useCallback(async (forceRefresh = false) => {
     if (!theaterId) return;
     
     try {
       setTheaterLoading(true);
 
+      // � FORCE REFRESH: Add cache-busting parameter when force refreshing
+      const params = new URLSearchParams();
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [QRCodeNameManagement] FORCE REFRESHING theater data from server (bypassing ALL caches)');
+      }
+
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
-      const apiUrl = `${config.api.baseUrl}/theaters/${theaterId}`;
+      const apiUrl = `${config.api.baseUrl}/theaters/${theaterId}${params.toString() ? '?' + params.toString() : ''}`;
       const result = await optimizedFetch(
         apiUrl,
         {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          }
+          headers
         },
-        `theater_${theaterId}`,
+        forceRefresh ? null : `theater_${theaterId}`,
         120000 // 2-minute cache
       );
       
@@ -205,7 +224,7 @@ const QRCodeNameManagement = () => {
     }
   }, [theaterId]);
 
-  const loadQRCodeNameData = useCallback(async () => {
+  const loadQRCodeNameData = useCallback(async (forceRefresh = false) => {
     try {
       // Cancel previous request if still pending
       if (abortControllerRef.current) {
@@ -232,20 +251,35 @@ const QRCodeNameManagement = () => {
       if (debouncedSearchTerm.trim()) {
         params.append('q', debouncedSearchTerm.trim());
       }
+
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [QRCodeNameManagement] FORCE REFRESHING QR code names from server (bypassing ALL caches)');
+      }
+
+      // � FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
+      // �🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
       const apiUrl = `${config.api.baseUrl}/qrcodenames?${params.toString()}`;
       const cacheKey = `qrcodenames_theater_${theaterId || 'all'}_page_${currentPage}_limit_${itemsPerPage}_search_${debouncedSearchTerm || 'none'}`;
       const data = await optimizedFetch(
         apiUrl,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey,
         120000 // 2-minute cache
       );
       
@@ -376,8 +410,9 @@ const QRCodeNameManagement = () => {
         const data = await response.json();
 
         setDeleteModal({ show: false, qrCodeName: null });
-        showSuccess('QR Code Name deleted successfully!');
-        loadQRCodeNameData(); // Refresh the list
+        showSuccess('QR Code Name deleted successfully!', { position: 'toast' });
+        // 🔄 FORCE REFRESH: Force refresh after delete operation
+        await loadQRCodeNameData(true);
       } else {
         const errorData = await response.json();
 
@@ -405,11 +440,21 @@ const QRCodeNameManagement = () => {
         return;
       }
 
+      // 🔄 CLIENT-SIDE VALIDATION: Validate required fields
+      if (!formData.qrName || !formData.qrName.trim()) {
+        showError('QR Code Name is required');
+        return;
+      }
 
-        if (!theaterId && !isEdit) {
-          showError('Theater ID is required for creating QR code names. Please navigate from the theater list.');
-          return;
-        }
+      if (!formData.seatClass || !formData.seatClass.trim()) {
+        showError('Seat Class is required');
+        return;
+      }
+
+      if (!theaterId && !isEdit) {
+        showError('Theater ID is required for creating QR code names. Please navigate from the theater list.');
+        return;
+      }
       
       const url = isEdit 
         ? `${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}` 
@@ -418,9 +463,9 @@ const QRCodeNameManagement = () => {
       
       // Include theaterId in the form data when creating/editing QR code names
       const qrCodeNameData = {
-        qrName: formData.qrName,
-        seatClass: formData.seatClass,
-        description: formData.description,
+        qrName: formData.qrName.trim(),
+        seatClass: formData.seatClass.trim(),
+        description: formData.description?.trim() || '',
         isActive: formData.isActive,
         ...(theaterId && { theaterId }) // Add theater field if theaterId exists
       };
@@ -439,15 +484,17 @@ const QRCodeNameManagement = () => {
       if (response.ok) {
         const result = await response.json();
 
-        showSuccess(isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!');
-        if (isEditMode) {
+        showSuccess(
+          isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!',
+          { position: 'toast' }
+        );
+        if (isEdit) {
           setShowEditModal(false);
-          toast.success('QR Code Name updated successfully!');
         } else {
           setShowCreateModal(false);
-          toast.success('QR Code Name created successfully!');
         }
-        loadQRCodeNameData(); // Refresh the list
+        // 🔄 FORCE REFRESH: Force refresh after create/update operation
+        await loadQRCodeNameData(true);
         setFormData({
           qrName: '',
           seatClass: 'GENERAL', 

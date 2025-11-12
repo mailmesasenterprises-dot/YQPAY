@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
+import '../styles/GlobalToast.css'; // Import toast styles
 
 /**
  * Custom Alert Dialog - Exact Mirror of Delete Confirmation Modal
  * Uses same structure as TheaterList delete modal with violet header
+ * Now supports TOAST MODE for right-top notifications
  */
 const AlertDialog = ({
   isOpen,
@@ -14,7 +16,8 @@ const AlertDialog = ({
   type = 'info', // 'info', 'success', 'warning', 'error'
   icon = null,
   autoClose = false,
-  autoCloseDelay = 3000
+  autoCloseDelay = 3000,
+  position = 'center' // 'center' or 'toast' (right-top)
 }) => {
   // Auto close functionality
   React.useEffect(() => {
@@ -51,48 +54,49 @@ const AlertDialog = ({
     }
   };
 
-  const getIconForType = () => {
+  const getIconForType = (forToast = false) => {
     if (icon) return icon;
 
-    switch (type) {
-      case 'success':
-        return (
-          <div className="alert-icon success">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="20,6 9,17 4,12"></polyline>
-            </svg>
-          </div>
-        );
-      case 'warning':
-        return (
-          <div className="alert-icon warning">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-              <line x1="12" y1="9" x2="12" y2="13"></line>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-          </div>
-        );
-      case 'error':
-        return (
-          <div className="alert-icon error">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </div>
-        );
-      default: // info
-        return (
-          <div className="alert-icon info">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="16" x2="12" y2="12"></line>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-            </svg>
-          </div>
-        );
+    const iconSVG = {
+      success: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <polyline points="20,6 9,17 4,12"></polyline>
+        </svg>
+      ),
+      warning: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      ),
+      error: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      ),
+      info: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      )
+    };
+
+    // For toast mode, return just the SVG
+    if (forToast) {
+      return iconSVG[type] || iconSVG.info;
     }
+
+    // For modal mode, wrap in div with class
+    const svg = iconSVG[type] || iconSVG.info;
+    return (
+      <div className={`alert-icon ${type}`}>
+        {svg}
+      </div>
+    );
   };
 
   const getButtonClass = () => {
@@ -106,6 +110,35 @@ const AlertDialog = ({
 
   if (!isOpen) return null;
 
+  // TOAST MODE - Right-top notification
+  if (position === 'toast') {
+    const toastContent = (
+      <div className="toast-container">
+        <div className={`global-toast global-toast-${type}`}>
+          <div className="global-toast-icon">
+            {getIconForType(true)}
+          </div>
+          <div className="global-toast-message">
+            {typeof message === 'string' ? message : message}
+          </div>
+          <button 
+            className="global-toast-close" 
+            onClick={handleClose}
+            aria-label="Close"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+
+    return ReactDOM.createPortal(toastContent, document.body);
+  }
+
+  // MODAL MODE - Center dialog (default)
   const modalContent = (
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="alert-modal">

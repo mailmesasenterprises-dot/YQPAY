@@ -182,7 +182,8 @@ const RoleManagementList = () => {
   }, [searchTerm]);
 
   // Fetch theaters function - OPTIMIZED: optimizedFetch handles cache automatically
-  const fetchTheaters = useCallback(async () => {
+  // 🔄 FORCE REFRESH: Added forceRefresh parameter to bypass all caches
+  const fetchTheaters = useCallback(async (forceRefresh = false) => {
     try {
       // 🚀 PERFORMANCE: Only set loading if we didn't have initial cache
       if (!hasInitialCache.current) {
@@ -208,19 +209,34 @@ const RoleManagementList = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
       
-      // 🚀 PERFORMANCE: Use optimizedFetch - it handles cache automatically
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when forceRefresh is true
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 RoleManagementList FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+      
+      // � FORCE REFRESH: Add no-cache headers when forceRefresh is true
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+      
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+      
+      // �🚀 PERFORMANCE: Use optimizedFetch - it handles cache automatically
       // If cache exists, this returns instantly (< 50ms), otherwise fetches from API
       const cacheKey = getCacheKey(currentPage, itemsPerPage, debouncedSearchTerm);
       const result = await optimizedFetch(
         `${config.api.baseUrl}/theaters?${params.toString()}`,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey, // 🔄 FORCE REFRESH: Skip cache key when forceRefresh is true
         120000 // 2-minute cache
       );
       
@@ -255,7 +271,8 @@ const RoleManagementList = () => {
   }, [currentPage, itemsPerPage, debouncedSearchTerm]);
 
   useEffect(() => {
-    fetchTheaters();
+    // 🔄 FORCE REFRESH: Always force refresh on component mount to ensure fresh data
+    fetchTheaters(true);
   }, [fetchTheaters, debouncedSearchTerm]);
 
   // Handle view theater role management - navigate to role management page for specific theater

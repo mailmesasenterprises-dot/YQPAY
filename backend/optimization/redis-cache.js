@@ -88,7 +88,7 @@ class RedisCache {
       await this.client.connect();
       return true;
     } catch (error) {
-      console.error('❌ Redis connection failed:', error);
+      // console.error('❌ Redis connection failed:', error);
       console.log('⚠️  Continuing without Redis cache (using in-memory fallback)');
       this.isConnected = false;
       return false;

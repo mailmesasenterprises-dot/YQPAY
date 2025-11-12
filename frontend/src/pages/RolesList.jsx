@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { ActionButton, ActionButtons } from '../components/ActionButton';
 import Pagination from '../components/Pagination';
 import { optimizedFetch } from '../utils/apiOptimizer';
+import { clearCachePattern } from '../utils/cacheUtils';
 import config from '../config';
 import '../styles/TheaterGlobalModals.css'; // Global theater modal styles
 import '../styles/TheaterList.css';
@@ -17,6 +18,7 @@ import { ultraFetch } from '../utils/ultraFetch';
 
 const RolesList = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { theaterId } = useParams();
   
   // State management
@@ -87,9 +89,10 @@ const RolesList = () => {
   }
   }, [theaterId]);
 
-  // Fetch roles
+  // Fetch roles - ALWAYS bypass cache to ensure fresh data
   const fetchRoles = useCallback(async () => {
     try {
+      console.log('🔄 fetchRoles called - fetching fresh data from API');
       setLoading(true);
       setError('');
       
@@ -111,20 +114,34 @@ const RolesList = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
-      const cacheKey = `roles_${theaterId || 'all'}_page_${currentPage}_limit_${itemsPerPage}_search_${debouncedSearchTerm || 'none'}`;
-      const result = await optimizedFetch(
-        `${config.api.baseUrl}/roles?${params.toString()}`,
-        {
-          signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
-        },
-        cacheKey,
-        120000 // 2-minute cache
-      );
+      // ALWAYS clear cache before fetching to ensure fresh data
+      clearCachePattern('roles_');
+      if (theaterId) {
+        clearCachePattern(`theater_${theaterId}`);
+      }
+      
+      // ALWAYS use regular fetch (bypass all caching) to ensure fresh data
+      // Add timestamp to prevent any browser-level caching
+      const apiUrl = `${config.api.baseUrl}/roles?${params.toString()}&_t=${Date.now()}`;
+      console.log('📡 Fetching from:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        signal: abortControllerRef.current.signal,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log('✅ Roles fetched:', result?.data?.roles?.length || 0, 'roles');
       
       if (!result) {
         throw new Error('Failed to fetch roles');
@@ -140,27 +157,104 @@ const RolesList = () => {
         if (result.data.theater) {
           setTheater(result.data.theater);
         }
+      } else {
+        console.warn('⚠️ Unexpected response format:', result);
+        setRoles([]);
+        setTotalPages(0);
+        setTotalItems(0);
       }
       
     } catch (error) {
       if (error.name === 'AbortError') {
-
+        console.log('⏹️ Request aborted');
         return;
       }
 
-      setError('Failed to load roles');
+      console.error('❌ Error fetching roles:', error);
+      setError(`Failed to load roles: ${error.message}`);
+      setRoles([]);
     } finally {
       setLoading(false);
     }
   }, [currentPage, itemsPerPage, debouncedSearchTerm, theaterId]);
 
   useEffect(() => {
+    fetchRoles();
+  }, [fetchRoles]); 
+
+  useEffect(() => {
     fetchTheater();
   }, [fetchTheater]);
 
+  // Refresh when component mounts (check if coming from create/edit)
   useEffect(() => {
-    fetchRoles();
-  }, [fetchRoles]);
+    // Check if we're returning from create/edit page
+    const lastRoleAction = sessionStorage.getItem('last_role_action');
+    const now = Date.now();
+    
+    if (lastRoleAction && now - parseInt(lastRoleAction) < 60000) { // Within last 60 seconds
+      console.log('🔄 Detected recent role action, forcing refresh on mount');
+      clearCachePattern('roles_');
+      if (theaterId) {
+        clearCachePattern(`theater_${theaterId}`);
+      }
+      // Force refresh - fetchRoles always bypasses cache now
+      setTimeout(() => {
+        fetchRoles();
+      }, 200);
+      sessionStorage.removeItem('last_role_action');
+    }
+  }, [theaterId, fetchRoles]);
+
+  // Refresh when location changes (navigating back from create/edit)
+  useEffect(() => {
+    const currentPath = location.pathname;
+    // Check if we're on a roles page (could be /roles or /roles/:theaterId)
+    const isRolesListPage = currentPath.match(/^\/roles(\/|$)/) && 
+                           !currentPath.includes('/create') && 
+                           !currentPath.includes('/edit');
+    
+    if (isRolesListPage) {
+      const navigationState = sessionStorage.getItem('roles_navigation_state');
+      if (navigationState === 'from_create_or_edit') {
+        console.log('🔄 Navigation from create/edit detected, forcing refresh');
+        sessionStorage.removeItem('roles_navigation_state');
+        clearCachePattern('roles_');
+        if (theaterId) {
+          clearCachePattern(`theater_${theaterId}`);
+        }
+        // Small delay to ensure component is ready
+        setTimeout(() => {
+          fetchRoles();
+        }, 200);
+      }
+    }
+  }, [location.pathname, theaterId, fetchRoles]);
+  
+  // Also refresh when page becomes visible (user switches tabs/windows)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        const lastRoleAction = sessionStorage.getItem('last_role_action');
+        const now = Date.now();
+        if (lastRoleAction && now - parseInt(lastRoleAction) < 60000) {
+          console.log('📱 Page became visible, refreshing roles');
+          clearCachePattern('roles_');
+          if (theaterId) {
+            clearCachePattern(`theater_${theaterId}`);
+          }
+          fetchRoles();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [theaterId, fetchRoles]);
+
+
 
   // Handle delete role
   const handleDeleteClick = (role) => {
@@ -181,7 +275,7 @@ const RolesList = () => {
       const response = await fetch(`${config.api.baseUrl}/roles/${confirmModal.roleId}?permanent=true`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           'Content-Type': 'application/json'
         }
       });
@@ -189,7 +283,13 @@ const RolesList = () => {
       const result = await response.json();
 
       if (response.ok) {
+        // Clear cache and force refresh
+        clearCachePattern('roles_');
+        if (theaterId) {
+          clearCachePattern(`theater_${theaterId}`);
+        }
         alert('Role deleted successfully');
+        // fetchRoles always bypasses cache now
         fetchRoles();
       } else {
         alert(result.message || result.error || 'Failed to delete role');
@@ -209,15 +309,36 @@ const RolesList = () => {
       return;
     }
     
-    navigate(`/roles/edit/${role._id}`);
+    // Mark navigation state for refresh detection
+    sessionStorage.setItem('roles_navigation_state', 'from_create_or_edit');
+    sessionStorage.setItem('last_role_action', Date.now().toString());
+    
+    // Navigate to RoleCreate page with theaterId and roleId in query params for editing
+    if (theaterId) {
+      navigate(`/roles/${theaterId}?editRoleId=${role._id}`);
+    } else {
+      // If no theaterId, try to get it from role
+      const roleTheaterId = role.theater?._id || role.theater;
+      if (roleTheaterId) {
+        navigate(`/roles/${roleTheaterId}?editRoleId=${role._id}`);
+      } else {
+        alert('Cannot edit role: Theater ID not found');
+      }
+    }
   };
 
   // Handle create role
   const handleCreateRole = () => {
+    // Mark navigation state for refresh detection
+    sessionStorage.setItem('roles_navigation_state', 'from_create_or_edit');
+    sessionStorage.setItem('last_role_action', Date.now().toString());
+    
+    // Navigate to RoleCreate page - the route is /roles/:theaterId
     if (theaterId) {
-      navigate(`/roles/create?theaterId=${theaterId}`);
+      navigate(`/roles/${theaterId}`);
     } else {
-      navigate('/roles/create');
+      // If no theaterId, navigate to roles list to select a theater first
+      navigate('/roles');
     }
   };
 

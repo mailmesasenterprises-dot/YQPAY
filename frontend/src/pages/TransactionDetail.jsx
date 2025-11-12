@@ -87,20 +87,36 @@ const TransactionDetail = () => {
   }, [searchTerm]);
 
   // Fetch theater info
-  const fetchTheater = useCallback(async () => {
+  const fetchTheater = useCallback(async (forceRefresh = false) => {
     if (!theaterId) return;
     
     try {
+      // � FORCE REFRESH: Add cache-busting parameter when force refreshing
+      const params = new URLSearchParams();
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TransactionDetail] FORCE REFRESHING theater data from server (bypassing ALL caches)');
+      }
+
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
       const data = await optimizedFetch(
-        `${config.api.baseUrl}/theaters/${theaterId}`,
+        `${config.api.baseUrl}/theaters/${theaterId}${params.toString() ? '?' + params.toString() : ''}`,
         {
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          }
+          headers
         },
-        `theater_${theaterId}`,
+        forceRefresh ? null : `theater_${theaterId}`,
         120000 // 2-minute cache
       );
       
@@ -113,7 +129,7 @@ const TransactionDetail = () => {
   }, [theaterId]);
 
   // Fetch all orders with filters (POS, KIOSK, ONLINE)
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (forceRefresh = false) => {
     if (!theaterId || !isMountedRef.current) return;
 
     try {
@@ -149,18 +165,34 @@ const TransactionDetail = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TransactionDetail] FORCE REFRESHING transactions from server (bypassing ALL caches)');
+      }
+
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading (shorter TTL for orders)
+      // 🔄 FORCE REFRESH: Skip cache by passing null as cacheKey when force refreshing
       const cacheKey = `orders_theater_${theaterId}_page_${currentPage}_limit_${itemsPerPage}_date_${JSON.stringify(dateFilter)}_search_${debouncedSearchTerm || 'none'}`;
       const data = await optimizedFetch(
         `${config.api.baseUrl}/orders/theater-nested?${params.toString()}`,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey,
         60000 // 1-minute cache for orders (fresher data)
       );
 
@@ -262,8 +294,9 @@ const TransactionDetail = () => {
   // Load data on mount and when dependencies change
   useEffect(() => {
     isMountedRef.current = true;
-    fetchTheater();
-    fetchOrders();
+    // 🔄 FORCE REFRESH: Always force refresh on mount to ensure fresh data
+    fetchTheater(true);
+    fetchOrders(true);
 
     return () => {
       isMountedRef.current = false;

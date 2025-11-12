@@ -739,3 +739,73 @@ input:disabled + .slider {
   40% { content: '..'; }
   60%, 100% { content: '...'; }
 }
+
+/* ========================================
+   HORIZONTAL SCROLL TABLE STYLES
+   ======================================== */
+
+/* Table Container with Horizontal Scroll */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+}
+
+/* Custom Scrollbar for Table */
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: #6D28D9;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #5B21B6;
+}
+
+/* Ensure table has minimum width for horizontal scroll */
+.table-wrapper .theater-table {
+  min-width: 900px;
+  width: 100%;
+}
+
+/* Mobile Responsive - Make table scrollable on small screens */
+@media (max-width: 768px) {
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .table-wrapper .theater-table {
+    min-width: 800px;
+  }
+  
+  /* Adjust column widths for mobile */
+  .sno-col { min-width: 60px; }
+  .name-col { min-width: 150px; }
+  .description-col { min-width: 150px; }
+  .status-col { min-width: 100px; }
+  .access-status-col { min-width: 120px; }
+  .actions-col { min-width: 150px; }
+}
+
+@media (max-width: 480px) {
+  .table-wrapper .theater-table {
+    min-width: 700px;
+  }
+}

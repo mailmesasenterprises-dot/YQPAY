@@ -441,7 +441,7 @@ const TheaterUserDetails = () => {
   }, [theaterId]);
 
   // Fetch users by theater (using array-based structure with query params, same as roles)
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (forceRefresh = false) => {
     if (!theaterId) return;
     
     try {
@@ -455,18 +455,33 @@ const TheaterUserDetails = () => {
         isActive: 'true'
       });
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when forceRefresh is true
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 TheaterUserDetails FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+      
+      // � FORCE REFRESH: Add no-cache headers when forceRefresh is true
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+      
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+      
+      // �🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
       const cacheKey = `theater_users_${theaterId}_page_1_limit_100_active`;
       const result = await optimizedFetch(
         `${config.api.baseUrl}/theater-users?${params.toString()}`,
         {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey, // 🔄 FORCE REFRESH: Skip cache key when forceRefresh is true
         120000 // 2-minute cache
       );
 
@@ -617,7 +632,8 @@ const TheaterUserDetails = () => {
 
         setCreateConfirmModal({ show: false, userData: null });
         closeCreateUserModal();
-        await fetchUsers(); // Refresh users list
+        // 🔄 FORCE REFRESH: Refresh with cache bypass after create
+        await fetchUsers(true); // Refresh users list
         // Show success modal instead of alert
         setSuccessModal({ show: true, message: 'User created successfully!' });
       } else {
@@ -803,7 +819,8 @@ const TheaterUserDetails = () => {
 
         setEditConfirmModal({ show: false, userData: null });
         closeEditUserModal();
-        await fetchUsers();
+        // 🔄 FORCE REFRESH: Refresh with cache bypass after update
+        await fetchUsers(true);
         // Show success modal instead of alert
         setSuccessModal({ show: true, message: 'User updated successfully!' });
       } else {
@@ -861,8 +878,8 @@ const TheaterUserDetails = () => {
       if (result.success) {
 
         setDeleteConfirmModal({ show: false, userId: null, userName: '' });
-        // Refresh users list
-        await fetchUsers();
+        // 🔄 FORCE REFRESH: Refresh with cache bypass after delete
+        await fetchUsers(true);
         // Show success modal instead of alert
         setSuccessModal({ show: true, message: 'User deleted successfully!' });
       } else {
@@ -936,11 +953,12 @@ const TheaterUserDetails = () => {
     }
     
     // 🚀 OPTIMIZATION: Load all data in parallel
+    // 🔄 FORCE REFRESH: Always force refresh on component mount to ensure fresh data
     // If cache exists, data is already set in state initialization, so this will refresh in background
     Promise.allSettled([
       fetchTheater(),
       fetchAvailableRoles(),
-      fetchUsers()
+      fetchUsers(true)
     ]).then(() => {
       // All data loaded (from cache or API)
       setLoading(false);

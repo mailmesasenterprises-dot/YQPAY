@@ -146,6 +146,7 @@ const RoleNameManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [togglingRoleId, setTogglingRoleId] = useState(null); // Track which role is being toggled
   
   // Performance refs (matching TheaterList)
   const searchTimeoutRef = useRef(null);
@@ -179,8 +180,9 @@ const RoleNameManagement = () => {
   }, [theaterId]);
 
   // Load role data with pagination and search
+  // 🔄 FORCE REFRESH: Always force refresh on component mount to ensure fresh data
   useEffect(() => {
-    loadRoleData();
+    loadRoleData(true);
   }, [currentPage, debouncedSearchTerm, itemsPerPage, theaterId, filterStatus]);
 
   const loadTheaterData = useCallback(async () => {
@@ -226,7 +228,46 @@ const RoleNameManagement = () => {
 
   // Toggle role active status
   const toggleRoleStatus = async (roleId, currentStatus) => {
+    const newStatus = !currentStatus;
+    
+    // Prevent multiple clicks on the same role
+    if (togglingRoleId === roleId) {
+      console.log('⚠️ Toggle already in progress for role:', roleId);
+      return;
+    }
+    
     try {
+      console.log('🔄 Toggling email notification status:', { 
+        roleId, 
+        currentStatus, 
+        newStatus,
+        currentStatusType: typeof currentStatus,
+        newStatusType: typeof newStatus
+      });
+
+      // Set loading state for this specific role
+      setTogglingRoleId(roleId);
+
+      // 🚀 INSTANT UI UPDATE: Update local state immediately
+      setRoleNames(prevRoleNames => 
+        prevRoleNames.map(role => 
+          role._id === roleId 
+            ? { ...role, isActive: newStatus }
+            : role
+        )
+      );
+      
+      // Update summary counts immediately
+      setSummary(prev => ({
+        ...prev,
+        activeRoles: newStatus ? prev.activeRoles + 1 : prev.activeRoles - 1,
+        inactiveRoles: newStatus ? prev.inactiveRoles - 1 : prev.inactiveRoles + 1
+      }));
+
+      console.log('📤 Sending API request:', {
+        url: `${config.api.baseUrl}/email-notification/${roleId}`,
+        body: { isActive: newStatus }
+      });
 
       const response = await fetch(`${config.api.baseUrl}/email-notification/${roleId}`, {
         method: 'PUT',
@@ -234,51 +275,58 @@ const RoleNameManagement = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
-        body: JSON.stringify({ isActive: !currentStatus })
+        body: JSON.stringify({ isActive: newStatus })
       });
 
-
       if (!response.ok) {
-        const errorData = await response.json();
-
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API response not OK:', response.status, errorData);
         throw new Error(errorData.message || 'Failed to update email notification status');
       }
 
       const result = await response.json();
+      console.log('✅ Email notification status updated successfully:', result);
 
       if (result.success) {
-        // Update local roleNames state
-        setRoleNames(prevRoleNames => 
-          prevRoleNames.map(role => 
-            role._id === roleId 
-              ? { ...role, isActive: !currentStatus }
-              : role
-          )
-        );
+        // 🔄 Invalidate cache
+        clearTheaterCache();
         
-        // Update summary counts
-        setSummary(prev => ({
-          ...prev,
-          activeRoles: !currentStatus ? prev.activeRoles + 1 : prev.activeRoles - 1,
-          inactiveRoles: !currentStatus ? prev.inactiveRoles - 1 : prev.inactiveRoles + 1
-        }));
+        // 🔄 FORCE REFRESH: Refresh data with cache bypass after toggle
+        setTimeout(() => {
+          loadRoleData(true);
+        }, 500);
         
-        showSuccess(`Email Notification ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-        
-        // Reload data to ensure sync with backend
-        await loadRoleData();
+        showSuccess(`Email Notification ${newStatus ? 'activated' : 'deactivated'} successfully`);
       } else {
         throw new Error(result.message || 'Failed to update role status');
       }
     } catch (error) {
+      console.error('❌ Failed to toggle email notification status:', error);
+      
+      // 🔄 ROLLBACK: Revert the optimistic update
+      setRoleNames(prevRoleNames => 
+        prevRoleNames.map(role => 
+          role._id === roleId 
+            ? { ...role, isActive: currentStatus }
+            : role
+        )
+      );
+      
+      // Revert summary counts
+      setSummary(prev => ({
+        ...prev,
+        activeRoles: currentStatus ? prev.activeRoles + 1 : prev.activeRoles - 1,
+        inactiveRoles: currentStatus ? prev.inactiveRoles - 1 : prev.inactiveRoles + 1
+      }));
 
       showError(`Failed to update email notification status: ${error.message}`);
-      // Reload data to revert UI if update failed
-      await loadRoleData();
+    } finally {
+      // Clear loading state
+      setTogglingRoleId(null);
     }
   };
 
-  const loadRoleData = useCallback(async () => {
+  const loadRoleData = useCallback(async (forceRefresh = false) => {
     try {
       // Cancel previous request if still pending
       if (abortControllerRef.current) {
@@ -311,7 +359,25 @@ const RoleNameManagement = () => {
         params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
       }
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when forceRefresh is true
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('� RoleNameManagement FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+      
+      // 🔄 FORCE REFRESH: Add no-cache headers when forceRefresh is true
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+      
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+      
+      // �🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
       const cacheKey = `email_notification_theater_${theaterId}_page_${currentPage}_limit_${itemsPerPage}_status_${filterStatus}_search_${debouncedSearchTerm || 'none'}`;
       const apiUrl = `${config.api.baseUrl}/email-notification?${params.toString()}`;
       console.log('📡 API Call:', apiUrl); // Debug: Show actual API endpoint
@@ -319,12 +385,9 @@ const RoleNameManagement = () => {
         apiUrl,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey, // 🔄 FORCE REFRESH: Skip cache key when forceRefresh is true
         120000 // 2-minute cache
       );
       
@@ -493,8 +556,8 @@ const RoleNameManagement = () => {
           });
         }
         
-        // Refresh the list
-        await loadRoleData();
+        // 🔄 FORCE REFRESH: Refresh with cache bypass after create/update
+        await loadRoleData(true);
         
         showSuccess(
           isEdit 
@@ -540,8 +603,8 @@ const RoleNameManagement = () => {
         setShowDeleteModal(false);
         setSelectedRole(null);
         
-        // Refresh the list
-        await loadRoleData();
+        // 🔄 FORCE REFRESH: Refresh with cache bypass after delete
+        await loadRoleData(true);
         
         showSuccess(`Email Notification "${deletedEmailNotification}" permanently deleted`);
       } else {
@@ -746,12 +809,15 @@ const RoleNameManagement = () => {
                           position: 'relative',
                           display: 'inline-block',
                           width: '50px',
-                          height: '24px'
+                          height: '24px',
+                          opacity: togglingRoleId === role._id ? 0.7 : 1,
+                          pointerEvents: togglingRoleId === role._id ? 'none' : 'auto'
                         }}>
                           <input
                             type="checkbox"
                             checked={role.isActive !== false}
                             onChange={() => toggleRoleStatus(role._id, role.isActive)}
+                            disabled={togglingRoleId === role._id}
                             style={{
                               opacity: 0,
                               width: 0,

@@ -102,6 +102,19 @@ async function cacheFirstStrategy(request, cacheName) {
 // Network First Strategy - for API and navigation
 async function networkFirstStrategy(request, cacheName) {
   try {
+    // 🔄 FORCE REFRESH: Check for cache-busting timestamp parameter
+    const url = new URL(request.url);
+    const hasCacheBuster = url.searchParams.has('_t');
+    const hasCacheControl = request.headers.get('Cache-Control');
+    
+    // If cache-busting parameter or no-cache header present, bypass cache completely
+    if (hasCacheBuster || (hasCacheControl && hasCacheControl.includes('no-cache'))) {
+      console.log('🔄 Service Worker: FORCE REFRESH detected - bypassing ALL caches');
+      const networkResponse = await fetch(request);
+      // Don't cache force-refresh responses to ensure fresh data next time
+      return networkResponse;
+    }
+    
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
       const cache = await caches.open(cacheName);

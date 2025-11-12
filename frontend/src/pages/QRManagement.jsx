@@ -203,7 +203,7 @@ const QRManagement = () => {
   }, [searchTerm]);
 
   // Define loadManagementData with useCallback
-  const loadManagementData = useCallback(async () => {
+  const loadManagementData = useCallback(async (forceRefresh = false) => {
     try {
       // Cancel previous request if still pending
       if (abortControllerRef.current) {
@@ -226,20 +226,36 @@ const QRManagement = () => {
       if (debouncedSearchTerm.trim()) {
         params.append('search', debouncedSearchTerm.trim());
       }
+
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [QRManagement] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
       
       // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
+      // 🔄 FORCE REFRESH: Skip cache by passing null as cacheKey when force refreshing
       const baseUrl = `${config.api.baseUrl}/theaters?${params.toString()}`;
       const cacheKey = `qr_management_theaters_page_${currentPage}_limit_${itemsPerPage}_search_${debouncedSearchTerm || 'none'}`;
       const data = await optimizedFetch(
         baseUrl,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey,
         120000 // 2-minute cache
       );
       
@@ -296,12 +312,15 @@ const QRManagement = () => {
 
   // Load management data with pagination and search
   useEffect(() => {
-    loadManagementData();
+    // 🔄 FORCE REFRESH: Force refresh on initial mount (first page, no search)
+    const isInitialMount = currentPage === 1 && !debouncedSearchTerm;
+    loadManagementData(isInitialMount);
   }, [loadManagementData]);
 
   // Force reload when navigating back to this page
   useEffect(() => {
-    loadManagementData();
+    // 🔄 FORCE REFRESH: Always force refresh when returning to page
+    loadManagementData(true);
   }, [location.key, loadManagementData]);
 
   // Pagination handlers (matching TheaterList)

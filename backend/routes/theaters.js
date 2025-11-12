@@ -17,11 +17,47 @@ router.get('/', [
   query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
   query('status').optional().isIn(['active', 'inactive', 'suspended']).withMessage('Invalid status'),
-  query('search').optional().isLength({ min: 1 }).withMessage('Search term must not be empty')
+  query('search').optional().isLength({ min: 1 }).withMessage('Search term must not be empty'),
+  query('q').optional().isLength({ min: 1 }).withMessage('Search term must not be empty')
 ], async (req, res) => {
   try {
+    console.log('📥 [GET /api/theaters] Request received:', {
+      query: req.query,
+      headers: { authorization: req.headers.authorization ? 'present' : 'missing' }
+    });
+    
+    // Check MongoDB connection FIRST before doing anything else
+    const mongoose = require('mongoose');
+    const connectionState = mongoose.connection.readyState;
+    console.log('🔍 [GET /api/theaters] MongoDB connection state:', connectionState, {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    }[connectionState]);
+    
+    if (connectionState !== 1) {
+      const errorMsg = 'Database connection not available. Please check MongoDB connection.';
+      console.error('❌ [GET /api/theaters]', errorMsg, 'State:', connectionState);
+      return res.status(503).json({
+        success: false,
+        error: 'Service Unavailable',
+        message: errorMsg,
+        details: {
+          connectionState,
+          stateDescription: {
+            0: 'disconnected',
+            1: 'connected',
+            2: 'connecting',
+            3: 'disconnecting'
+          }[connectionState]
+        }
+      });
+    }
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.warn('⚠️ [GET /api/theaters] Validation errors:', errors.array());
       return res.status(400).json({
         error: 'Validation failed',
         details: errors.array()
@@ -31,45 +67,58 @@ router.get('/', [
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const { status, search, isActive } = req.query;
+    const { status, search, q, isActive } = req.query;
+    
+    console.log('🔍 [GET /api/theaters] Query params:', { page, limit, skip, status, search, q, isActive });
 
-    // Build query
-    const query = {};
-    if (status) query.status = status;
-    if (isActive !== undefined) query.isActive = isActive === 'true';
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { username: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+    // Build MongoDB query filter
+    const filter = {};
+    if (status) filter.status = status;
+    if (isActive !== undefined) filter.isActive = isActive === 'true';
+    // Support both 'search' and 'q' parameters for compatibility
+    const searchTerm = search || q;
+    if (searchTerm) {
+      filter.$or = [
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { username: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } },
+        { 'address.city': { $regex: searchTerm, $options: 'i' } },
+        { 'location.city': { $regex: searchTerm, $options: 'i' } }
       ];
     }
 
     // 🚀 PERFORMANCE: Optimized query with lean and field selection
-    const { optimizedFind, optimizedCount } = require('../utils/queryOptimizer');
+    // const { optimizedFind, optimizedCount } = require('../utils/queryOptimizer');
     
-    // Execute query with optimization
-    const [theaters, total] = await Promise.all([
-      optimizedFind(Theater, query, {
-        select: '-password -__v', // Exclude password and version field
-        sort: { createdAt: 1 },
-        skip,
-        limit,
-        lean: true,
-        cache: true, // Enable caching for frequently accessed data
-        cacheTTL: 60000 // 1 minute cache
-      }),
-      optimizedCount(Theater, query, {
-        cache: true,
-        cacheTTL: 60000
-      })
-    ]);
+    // Execute query with basic mongoose methods
+    let theaters, total;
+    try {
+      console.log('🔍 [GET /api/theaters] Executing database query with filter:', JSON.stringify(filter));
+      console.log('🔍 [GET /api/theaters] Theater model:', Theater ? 'loaded' : 'NOT loaded');
+      
+      [theaters, total] = await Promise.all([
+        Theater.find(filter)
+          .select('-password -__v')
+          .sort({ createdAt: 1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
+        Theater.countDocuments(filter)
+      ]);
+      console.log(`✅ [GET /api/theaters] Query successful: Found ${theaters.length} theaters, Total: ${total}`);
+    } catch (dbError) {
+      console.error('❌ [GET /api/theaters] Database query error:', dbError);
+      console.error('❌ [GET /api/theaters] Error name:', dbError.name);
+      console.error('❌ [GET /api/theaters] Error message:', dbError.message);
+      console.error('❌ [GET /api/theaters] Error stack:', dbError.stack);
+      throw dbError;
+    }
 
     // Set cache headers for better performance
     res.set('Cache-Control', 'public, max-age=60'); // Cache for 1 minute
     res.set('ETag', `theaters-${page}-${limit}-${total}`); // Enable conditional requests
     
-    res.json({
+    const response = {
       success: true,
       data: theaters,
       pagination: {
@@ -82,14 +131,37 @@ router.get('/', [
         hasNext: page < Math.ceil(total / limit),
         hasPrev: page > 1
       }
+    };
+    
+    console.log('📤 [GET /api/theaters] Sending response:', {
+      success: response.success,
+      theaterCount: theaters.length,
+      total: total,
+      pagination: response.pagination
     });
+    
+    res.json(response);
 
   } catch (error) {
-    console.error('Get theaters error:', error);
-    res.status(500).json({
+    console.error('❌ [GET /api/theaters] Error:', error);
+    console.error('❌ [GET /api/theaters] Error stack:', error.stack);
+    console.error('❌ [GET /api/theaters] Error name:', error.name);
+    console.error('❌ [GET /api/theaters] Error message:', error.message);
+    
+    // Send detailed error response
+    const errorResponse = {
+      success: false,
       error: 'Failed to fetch theaters',
-      message: 'Internal server error'
-    });
+      message: error.message || 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : undefined
+    };
+    
+    console.error('❌ [GET /api/theaters] Sending error response:', errorResponse);
+    res.status(500).json(errorResponse);
   }
 });
 
@@ -472,25 +544,35 @@ router.put('/:id',
       if (req.body.email) updateData.email = req.body.email.toLowerCase().trim();
       if (req.body.phone) updateData.phone = req.body.phone;
       if (req.body.isActive !== undefined) {
-        updateData.isActive = req.body.isActive;
+        // ✅ FIX: Convert to boolean properly (handles string or boolean input)
+        const isActiveValue = req.body.isActive === true || req.body.isActive === 'true';
+        updateData.isActive = isActiveValue;
+        console.log('🔄 Updating theater isActive status:', { 
+          theaterId: req.params.id, 
+          receivedValue: req.body.isActive, 
+          convertedValue: isActiveValue 
+        });
+        
         // ✅ NEW: Handle related credentials when theater is deactivated/reactivated
-        if (req.body.isActive === false) {
+        if (isActiveValue === false) {
           // Update all QR codes for this theater to inactive
           try {
             const qrUpdateResult = await Theater.updateOne(
               { _id: req.params.id },
               { $set: { 'qrCodes.$[].isActive': false } }
             );
+            console.log('✅ QR codes deactivated for theater:', req.params.id);
           } catch (qrError) {
             console.warn('⚠️ Failed to deactivate QR codes:', qrError.message);
           }
-        } else if (req.body.isActive === true) {
+        } else if (isActiveValue === true) {
           // Automatically reactivate all QR codes for this theater
           try {
             const qrUpdateResult = await Theater.updateOne(
               { _id: req.params.id },
               { $set: { 'qrCodes.$[].isActive': true } }
             );
+            console.log('✅ QR codes reactivated for theater:', req.params.id);
           } catch (qrError) {
             console.warn('⚠️ Failed to reactivate QR codes:', qrError.message);
           }

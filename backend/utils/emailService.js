@@ -8,42 +8,6 @@ const nodemailer = require('nodemailer');
 const ExcelJS = require('exceljs');
 
 /**
- * Get active email notifications for a theater
- * Fetches from emailnotification collection (EmailNotificationArray)
- */
-async function getTheaterEmailNotifications(theaterId) {
-  try {
-    const db = mongoose.connection.db;
-    
-    // Convert theaterId to ObjectId if it's a string
-    const theaterObjectId = typeof theaterId === 'string' 
-      ? new mongoose.Types.ObjectId(theaterId) 
-      : theaterId;
-    
-    const emailNotificationDoc = await db.collection('emailnotification').findOne({
-      theater: theaterObjectId
-    });
-    
-    if (!emailNotificationDoc || !emailNotificationDoc.emailNotificationList) {
-      console.warn(`⚠️  No email notifications configured for theater ${theaterId}`);
-      return [];
-    }
-    
-    // Filter for active email notifications
-    const activeEmails = emailNotificationDoc.emailNotificationList
-      .filter(notification => notification.isActive === true)
-      .map(notification => notification.emailNotification);
-    
-    console.log(`✅ Found ${activeEmails.length} active email notification(s) for theater ${theaterId}:`, activeEmails);
-    
-    return activeEmails;
-  } catch (error) {
-    console.error('❌ Error fetching theater email notifications:', error);
-    return [];
-  }
-}
-
-/**
  * Get SMTP configuration from database
  */
 async function getSMTPConfig() {
@@ -236,15 +200,9 @@ async function generateStockExcelBuffer(stockData, reportTitle = 'Stock Report')
  */
 async function sendStockExpirationWarning(theater, products) {
   try {
-    // Get theater's email notifications
-    const emailList = await getTheaterEmailNotifications(theater._id);
-    
-    // Fallback to theater.email if no email notifications configured
-    const recipients = emailList.length > 0 ? emailList : (theater.email ? [theater.email] : []);
-    
-    if (recipients.length === 0) {
-      console.warn(`⚠️  Theater ${theater.name} has no email notifications configured. Skipping expiration warning.`);
-      return { success: false, error: 'No email notifications configured for theater' };
+    if (!theater.email) {
+      console.warn(`⚠️  Theater ${theater.name} has no email configured. Skipping expiration warning.`);
+      return { success: false, error: 'No email configured for theater' };
     }
     
     const stockData = products.map(p => ({
@@ -269,7 +227,7 @@ async function sendStockExpirationWarning(theater, products) {
       <head>
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .header { background-color: #8B5CF6; color: white; padding: 20px; text-center; }
+          .header { background-color: #8B5CF6; color: white; padding: 20px; text-align: center; }
           .content { padding: 20px; }
           .warning { background-color: #FFF3CD; border-left: 4px solid #FFC107; padding: 15px; margin: 20px 0; }
           .product-list { margin: 20px 0; }
@@ -311,10 +269,8 @@ async function sendStockExpirationWarning(theater, products) {
       </html>
     `;
     
-    console.log(`📧 Sending expiration warning to ${recipients.length} recipient(s) for theater ${theater.name}`);
-    
     return await sendEmail({
-      to: recipients,
+      to: theater.email,
       subject: `⚠️ Stock Expiration Warning - ${theater.name}`,
       html,
       attachments: [{
@@ -333,15 +289,9 @@ async function sendStockExpirationWarning(theater, products) {
  */
 async function sendLowStockAlert(theater, products) {
   try {
-    // Get theater's email notifications
-    const emailList = await getTheaterEmailNotifications(theater._id);
-    
-    // Fallback to theater.email if no email notifications configured
-    const recipients = emailList.length > 0 ? emailList : (theater.email ? [theater.email] : []);
-    
-    if (recipients.length === 0) {
-      console.warn(`⚠️  Theater ${theater.name} has no email notifications configured. Skipping low stock alert.`);
-      return { success: false, error: 'No email notifications configured for theater' };
+    if (!theater.email) {
+      console.warn(`⚠️  Theater ${theater.name} has no email configured. Skipping low stock alert.`);
+      return { success: false, error: 'No email configured for theater' };
     }
     
     const stockData = products.map(p => ({
@@ -407,10 +357,8 @@ async function sendLowStockAlert(theater, products) {
       </html>
     `;
     
-    console.log(`📧 Sending low stock alert to ${recipients.length} recipient(s) for theater ${theater.name}`);
-    
     return await sendEmail({
-      to: recipients,
+      to: theater.email,
       subject: `📦 Low Stock Alert - ${theater.name}`,
       html,
       attachments: [{
@@ -429,15 +377,9 @@ async function sendLowStockAlert(theater, products) {
  */
 async function sendStockAddedNotification(theater, stockEntry) {
   try {
-    // Get theater's email notifications
-    const emailList = await getTheaterEmailNotifications(theater._id);
-    
-    // Fallback to theater.email if no email notifications configured
-    const recipients = emailList.length > 0 ? emailList : (theater.email ? [theater.email] : []);
-    
-    if (recipients.length === 0) {
-      console.warn(`⚠️  Theater ${theater.name} has no email notifications configured. Skipping stock added notification.`);
-      return { success: false, error: 'No email notifications configured for theater' };
+    if (!theater.email) {
+      console.warn(`⚠️  Theater ${theater.name} has no email configured. Skipping stock added notification.`);
+      return { success: false, error: 'No email configured for theater' };
     }
     
     const stockData = [{
@@ -497,10 +439,8 @@ async function sendStockAddedNotification(theater, stockEntry) {
       </html>
     `;
     
-    console.log(`📧 Sending stock added notification to ${recipients.length} recipient(s) for theater ${theater.name}`);
-    
     return await sendEmail({
-      to: recipients,
+      to: theater.email,
       subject: `✅ Stock Added - ${stockEntry.productName} - ${theater.name}`,
       html,
       attachments: [{
@@ -519,15 +459,9 @@ async function sendStockAddedNotification(theater, stockEntry) {
  */
 async function sendDailySalesReport(theater, salesData) {
   try {
-    // Get theater's email notifications
-    const emailList = await getTheaterEmailNotifications(theater._id);
-    
-    // Fallback to theater.email if no email notifications configured
-    const recipients = emailList.length > 0 ? emailList : (theater.email ? [theater.email] : []);
-    
-    if (recipients.length === 0) {
-      console.warn(`⚠️  Theater ${theater.name} has no email notifications configured. Skipping daily sales report.`);
-      return { success: false, error: 'No email notifications configured for theater' };
+    if (!theater.email) {
+      console.warn(`⚠️  Theater ${theater.name} has no email configured. Skipping daily sales report.`);
+      return { success: false, error: 'No email configured for theater' };
     }
     
     // Generate Excel for sales report (reuse existing sales report generation logic)
@@ -605,10 +539,8 @@ async function sendDailySalesReport(theater, salesData) {
       </html>
     `;
     
-    console.log(`📧 Sending daily sales report to ${recipients.length} recipient(s) for theater ${theater.name}`);
-    
     return await sendEmail({
-      to: recipients,
+      to: theater.email,
       subject: `📊 Daily Sales Report - ${theater.name} - ${new Date().toLocaleDateString('en-IN')}`,
       html,
       attachments: [{

@@ -482,6 +482,9 @@ const AddTheater = React.memo(() => {
         errors
       });
       
+      // Reset submitting state
+      setIsSubmitting(false);
+      
       // Show validation error alert
       const requiredFields = ['name', 'address', 'city', 'state', 'pincode', 'phone', 'email', 'ownerName', 'ownerContactNumber'];
       const missingFields = requiredFields.filter(field => !formData[field]?.trim());
@@ -513,10 +516,14 @@ const AddTheater = React.memo(() => {
       
       console.error('❌ Validation failed:', errorMessage);
       
+      // Reset submitting state in case it was set
+      setIsSubmitting(false);
+      
       modal.alert({
         title: 'Form Validation Error',
         message: errorMessage,
-        type: 'error'
+        type: 'error',
+        position: 'toast' // Use toast position for errors
       });
       
       // Scroll to first error field
@@ -615,7 +622,8 @@ const AddTheater = React.memo(() => {
           await modal.alert({
             title: 'Authentication Required',
             message: errorMessage + '\n\nYou will be redirected to the login page.',
-            type: 'error'
+            type: 'error',
+            position: 'toast' // Use toast position
           });
           
           navigate('/login');
@@ -666,7 +674,10 @@ const AddTheater = React.memo(() => {
         await modal.alert({
           title: 'Success',
           message: 'Theater added successfully!',
-          type: 'success'
+          type: 'success',
+          position: 'toast', // Use toast position
+          autoClose: true,
+          autoCloseDelay: 3000
         });
       }
       
@@ -681,7 +692,8 @@ const AddTheater = React.memo(() => {
       modal.alert({
         title: 'Error',
         message: error.message || 'Failed to add theater. Please try again.',
-        type: 'error'
+        type: 'error',
+        position: 'toast' // Use toast position
       });
     } finally {
       setLoading(false);

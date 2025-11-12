@@ -172,7 +172,7 @@ const RoleAccessManagement = () => {
   const searchTimeoutRef = useRef(null);
 
   // Load role permissions data
-  const loadRolePermissionsData = useCallback(async (page = 1, limit = 10, search = '') => {
+  const loadRolePermissionsData = useCallback(async (page = 1, limit = 10, search = '', forceRefresh = false) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -194,21 +194,35 @@ const RoleAccessManagement = () => {
         params.append('theaterId', theaterId);
       }
 
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
+      // � FORCE REFRESH: Add cache-busting timestamp when forceRefresh is true
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 RoleAccessManagement FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+      
+      // 🔄 FORCE REFRESH: Add no-cache headers when forceRefresh is true
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(localStorage.getItem('authToken') && {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        })
+      };
+      
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
+      // �🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
       const cacheKey = `roles_theater_${theaterId || 'all'}_page_${page}_limit_${limit}_search_${search || 'none'}`;
       const data = await optimizedFetch(
         `${config.api.baseUrl}/roles?${params}`,
         {
           signal: abortController.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            // Add auth token if it exists
-            ...(localStorage.getItem('authToken') && {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-            })
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey, // 🔄 FORCE REFRESH: Skip cache key when forceRefresh is true
         120000 // 2-minute cache
       );
 
@@ -440,9 +454,9 @@ const RoleAccessManagement = () => {
           setShowEditModal(false);
           toast.success('Record updated successfully!');
           
-          // Also reload from server to ensure consistency
+          // 🔄 FORCE REFRESH: Reload from server with cache bypass to ensure consistency
           setTimeout(async () => {
-            await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
+            await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm, true);
           }, 100);
           
           // ✅ Better success message for default roles
@@ -554,7 +568,8 @@ const RoleAccessManagement = () => {
     isMountedRef.current = true;
     
     fetchTheater();
-    loadRolePermissionsData(1, 10, '');
+    // 🔄 FORCE REFRESH: Always force refresh on component mount to ensure fresh data
+    loadRolePermissionsData(1, 10, '', true);
     loadActiveRoles();
     loadActivePages();
     

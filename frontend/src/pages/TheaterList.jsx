@@ -228,6 +228,15 @@ const TheaterList = React.memo(() => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [togglingTheaterId, setTogglingTheaterId] = useState(null); // Track which theater is being toggled
+  
+  // Summary state for statistics
+  const [summary, setSummary] = useState({
+    totalTheaters: 0,
+    activeTheaters: 0,
+    inactiveTheaters: 0,
+    activeAgreements: 0
+  });
 
   // Sort theaters by ID in ascending order
   const sortedTheaters = useMemo(() => {
@@ -343,6 +352,23 @@ const TheaterList = React.memo(() => {
       setPagination(paginationData);
       setTotalPages(paginationData.totalPages || 0);
       setTotalItems(paginationData.totalItems || 0);
+      
+      // Calculate and update summary statistics
+      const activeCount = newTheaters.filter(theater => theater.isActive).length;
+      const inactiveCount = newTheaters.filter(theater => !theater.isActive).length;
+      const activeAgreementsCount = newTheaters.filter(theater => 
+        theater.agreementDetails && 
+        theater.agreementDetails.startDate && 
+        theater.agreementDetails.endDate &&
+        new Date(theater.agreementDetails.endDate) > new Date()
+      ).length;
+      
+      setSummary({
+        totalTheaters: newTheaters.length,
+        activeTheaters: activeCount,
+        inactiveTheaters: inactiveCount,
+        activeAgreements: activeAgreementsCount
+      });
       
     } catch (error) {
       // Handle AbortError gracefully
@@ -639,25 +665,99 @@ const TheaterList = React.memo(() => {
   };
 
   const toggleTheaterStatus = async (theaterId, currentStatus) => {
+    const newStatus = !currentStatus;
+    
+    // Prevent multiple clicks on the same theater
+    if (togglingTheaterId === theaterId) {
+      console.log('⚠️ Toggle already in progress for theater:', theaterId);
+      return;
+    }
+    
     try {
+      console.log('🔄 Toggling theater status:', { 
+        theaterId, 
+        currentStatus, 
+        newStatus,
+        currentStatusType: typeof currentStatus,
+        newStatusType: typeof newStatus
+      });
+      
+      // Set loading state for this specific theater
+      setTogglingTheaterId(theaterId);
+      
+      // 🚀 INSTANT UI UPDATE: Update local state immediately for instant feedback
+      setTheaters(prevTheaters => 
+        prevTheaters.map(theater => 
+          theater._id === theaterId 
+            ? { ...theater, isActive: newStatus }
+            : theater
+        )
+      );
+
+      // Also update summary counts immediately for better UX
+      setSummary(prev => ({
+        ...prev,
+        activeTheaters: newStatus ? prev.activeTheaters + 1 : prev.activeTheaters - 1,
+        inactiveTheaters: newStatus ? prev.inactiveTheaters - 1 : prev.inactiveTheaters + 1
+      }));
+
+      // Now make the API call in the background
+      console.log('📤 Sending API request to update theater status:', {
+        url: `${config.api.baseUrl}/theaters/${theaterId}`,
+        body: { isActive: newStatus }
+      });
+      
       const response = await fetch(`${config.api.baseUrl}/theaters/${theaterId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           ...config.helpers.getAuthToken() ? { 'Authorization': `Bearer ${config.helpers.getAuthToken()}` } : {}
         },
-        body: JSON.stringify({ isActive: !currentStatus })
+        body: JSON.stringify({ isActive: newStatus })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update theater status');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API response not OK:', response.status, errorData);
+        throw new Error(errorData.message || 'Failed to update theater status');
       }
 
-      // Refresh the current page to get updated data
-      fetchTheaters();
-    } catch (error) {
+      const result = await response.json();
+      console.log('✅ Theater status updated successfully:', result);
+      
+      // 🔄 Invalidate cache to ensure data consistency
+      clearTheaterCache();
+      invalidateRelatedCaches('theaters');
 
-      modal.showError('Failed to update theater status');
+      // Optional: Show success message
+      if (modal.showSuccess) {
+        modal.showSuccess(`Theater ${newStatus ? 'activated' : 'deactivated'} successfully`);
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to toggle theater status:', error);
+      
+      // 🔄 ROLLBACK: Revert the optimistic update if API fails
+      setTheaters(prevTheaters => 
+        prevTheaters.map(theater => 
+          theater._id === theaterId 
+            ? { ...theater, isActive: currentStatus } // Revert to original status
+            : theater
+        )
+      );
+
+      // Revert summary counts as well
+      setSummary(prev => ({
+        ...prev,
+        activeTheaters: currentStatus ? prev.activeTheaters + 1 : prev.activeTheaters - 1,
+        inactiveTheaters: currentStatus ? prev.inactiveTheaters - 1 : prev.inactiveTheaters + 1
+      }));
+
+      // Show error message
+      modal.showError('Failed to update theater status. Please try again.');
+    } finally {
+      // Clear loading state
+      setTogglingTheaterId(null);
     }
   };
 
@@ -947,12 +1047,15 @@ const TheaterList = React.memo(() => {
                             position: 'relative',
                             display: 'inline-block',
                             width: '50px',
-                            height: '24px'
+                            height: '24px',
+                            opacity: togglingTheaterId === theater._id ? 0.7 : 1,
+                            pointerEvents: togglingTheaterId === theater._id ? 'none' : 'auto'
                           }}>
                             <input
                               type="checkbox"
                               checked={theater.isActive}
                               onChange={() => toggleTheaterStatus(theater._id, theater.isActive)}
+                              disabled={togglingTheaterId === theater._id}
                               style={{
                                 opacity: 0,
                                 width: 0,
@@ -1556,536 +1659,76 @@ const TheaterList = React.memo(() => {
                   </div>
                 </div>
 
-                {/* Documents & Media Section - Integrated Form Fields */}
+                {/* Documents & Media Section - View Only (Like View Modal) */}
                 <div className="form-section">
-                  <h3>Documents & Media</h3>
+                  <h3>📁 Documents & Media</h3>
                   
-                  {/* Theater Photo Field */}
-                  <div className="form-group upload-form-group">
-                    <label>Theater Photo</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*"
-                          onChange={(e) => handleFileUpload(e, 'theaterPhoto')}
-                          className="form-control file-input"
-                          id="theaterPhoto-upload"
-                        />
-                        <div className="upload-instructions">
-                          Choose a high-quality photo of your theater (JPG, PNG)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {uploadFiles.theaterPhoto ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={URL.createObjectURL(uploadFiles.theaterPhoto)} 
-                              alt="Theater Photo"
-                              className="preview-image"
-                              onClick={() => window.open(URL.createObjectURL(uploadFiles.theaterPhoto), '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('theaterPhoto')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : editModal.theater?.documents?.theaterPhoto ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={editModal.theater.documents.theaterPhoto} 
-                              alt="Theater Photo"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents.theaterPhoto, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('theaterPhoto')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">📷</div>
-                            <div className="placeholder-text">No photo uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Theater Logo Field */}
-                  <div className="form-group upload-form-group">
-                    <label>Theater Logo</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*"
-                          onChange={(e) => handleFileUpload(e, 'logo')}
-                          className="form-control file-input"
-                          id="logo-upload"
-                        />
-                        <div className="upload-instructions">
-                          Upload your theater's official logo (JPG, PNG)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {uploadFiles.logo ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={URL.createObjectURL(uploadFiles.logo)} 
-                              alt="Theater Logo"
-                              className="preview-image"
-                              onClick={() => window.open(URL.createObjectURL(uploadFiles.logo), '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('logo')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (editModal.theater?.documents?.logo || editModal.theater?.branding?.logo || editModal.theater?.branding?.logoUrl) ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl} 
-                              alt="Theater Logo"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('logo')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">🏢</div>
-                            <div className="placeholder-text">No logo uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Aadhar Card Field */}
-                  <div className="form-group upload-form-group">
-                    <label>Aadhar Card</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*,.pdf"
-                          onChange={(e) => handleFileUpload(e, 'aadharCard')}
-                          className="form-control file-input"
-                          id="aadharCard-upload"
-                        />
-                        <div className="upload-instructions">
-                          Upload Aadhar card copy (JPG, PNG, PDF)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {uploadFiles.aadharCard ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={URL.createObjectURL(uploadFiles.aadharCard)} 
-                              alt="Aadhar Card"
-                              className="preview-image"
-                              onClick={() => window.open(URL.createObjectURL(uploadFiles.aadharCard), '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('aadharCard')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : editModal.theater?.documents?.aadharCard ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={editModal.theater.documents.aadharCard} 
-                              alt="Aadhar Card"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents.aadharCard, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('aadharCard')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">🆔</div>
-                            <div className="placeholder-text">No Aadhar card uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PAN Card Field */}
-                  <div className="form-group upload-form-group">
-                    <label>PAN Card</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*,.pdf"
-                          onChange={(e) => handleFileUpload(e, 'panCard')}
-                          className="form-control file-input"
-                          id="panCard-upload"
-                        />
-                        <div className="upload-instructions">
-                          Upload PAN card copy (JPG, PNG, PDF)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {uploadFiles.panCard ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={URL.createObjectURL(uploadFiles.panCard)} 
-                              alt="PAN Card"
-                              className="preview-image"
-                              onClick={() => window.open(URL.createObjectURL(uploadFiles.panCard), '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('panCard')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : editModal.theater?.documents?.panCard ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={editModal.theater.documents.panCard} 
-                              alt="PAN Card"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents.panCard, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('panCard')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">📄</div>
-                            <div className="placeholder-text">No PAN card uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* GST Certificate Field */}
-                  <div className="form-group upload-form-group">
-                    <label>GST Certificate</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*,.pdf"
-                          onChange={(e) => handleFileUpload(e, 'gstCertificate')}
-                          className="form-control file-input"
-                          id="gstCertificate-upload"
-                        />
-                        <div className="upload-instructions">
-                          Upload GST certificate (JPG, PNG, PDF)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {uploadFiles.gstCertificate ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={URL.createObjectURL(uploadFiles.gstCertificate)} 
-                              alt="GST Certificate"
-                              className="preview-image"
-                              onClick={() => window.open(URL.createObjectURL(uploadFiles.gstCertificate), '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('gstCertificate')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : editModal.theater?.documents?.gstCertificate ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={editModal.theater.documents.gstCertificate} 
-                              alt="GST Certificate"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents.gstCertificate, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('gstCertificate')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">📋</div>
-                            <div className="placeholder-text">No GST certificate uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* FSSAI Certificate Field */}
-                  <div className="form-group upload-form-group">
-                    <label>FSSAI Certificate</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*,.pdf"
-                          onChange={(e) => handleFileUpload(e, 'fssaiCertificate')}
-                          className="form-control file-input"
-                          id="fssaiCertificate-upload"
-                        />
-                        <div className="upload-instructions">
-                          Upload FSSAI certificate (JPG, PNG, PDF)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {uploadFiles.fssaiCertificate ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={URL.createObjectURL(uploadFiles.fssaiCertificate)} 
-                              alt="FSSAI Certificate"
-                              className="preview-image"
-                              onClick={() => window.open(URL.createObjectURL(uploadFiles.fssaiCertificate), '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('fssaiCertificate')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : editModal.theater?.documents?.fssaiCertificate ? (
-                          <div className="current-file-preview">
-                            <InstantImage 
-                              src={editModal.theater.documents.fssaiCertificate} 
-                              alt="FSSAI Certificate"
-                              className="preview-image"
-                              onClick={() => window.open(editModal.theater.documents.fssaiCertificate, '_blank')}
-                            />
-                            <div className="preview-actions">
-                              <button 
-                                type="button" 
-                                className="preview-btn remove-btn"
-                                onClick={() => handleRemoveFile('fssaiCertificate')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">🍽️</div>
-                            <div className="placeholder-text">No FSSAI certificate uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Agreement Copy Field */}
-                  <div className="form-group upload-form-group">
-                    <label>Agreement Copy</label>
-                    <div className="upload-field-container">
-                      <div className="upload-input-section">
-                        <input 
-                          type="file" 
-                          accept="image/*,.pdf"
-                          onChange={(e) => handleFileUpload(e, 'agreementCopy')}
-                          className="form-control file-input"
-                          id="agreementCopy-upload"
-                        />
-                        <div className="upload-instructions">
-                          Upload agreement document (JPG, PNG, PDF)
-                        </div>
-                      </div>
-                      <div className="upload-preview-section">
-                        {uploadFiles.agreementCopy ? (
-                          <div className="current-file-preview">
-                            {uploadFiles.agreementCopy.type === 'application/pdf' ? (
-                              <div className="pdf-preview">
-                                <span style={{fontSize: '2em'}}>📄</span>
-                                <div className="file-name">{uploadFiles.agreementCopy.name}</div>
-                                <button 
-                                  type="button" 
-                                  className="preview-btn remove-btn"
-                                  onClick={() => handleRemoveFile('agreementCopy')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                              </div>
-                            ) : (
-                              <>
-                                <InstantImage 
-                                  src={URL.createObjectURL(uploadFiles.agreementCopy)} 
-                                  alt="Agreement Copy"
-                                  className="preview-image"
-                                  onClick={() => window.open(URL.createObjectURL(uploadFiles.agreementCopy), '_blank')}
-                                />
-                                <div className="preview-actions">
-                                  <button 
-                                    type="button" 
-                                    className="preview-btn remove-btn"
-                                    onClick={() => handleRemoveFile('agreementCopy')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                                </div>
-                              </>
+                  <div className="documents-grid">
+                    {/* Theater Photo */}
+                    {editModal.theater?.documents?.theaterPhoto && (
+                      <div className="document-item">
+                        <label>Theater Photo</label>
+                        <div className="document-preview">
+                          <InstantImage 
+                            src={editModal.theater.documents.theaterPhoto} 
+                            alt="Theater Photo"
+                            className="document-image"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'block';
+                            }}
+                          />
+                          <button 
+                            className="action-btn download-btn download-btn-overlay"
+                            onClick={() => handleDownloadFile(
+                              editModal.theater.documents.theaterPhoto,
+                              `${editModal.theater.name}_Theater_Photo.jpg`
                             )}
+                            title="Download Theater Photo"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                            </svg>
+                          </button>
+                          <div className="document-placeholder" style={{display: 'none'}}>
+                            📷 Theater Photo
                           </div>
-                        ) : editModal.theater?.documents?.agreementCopy ? (
-                          <div className="current-file-preview">
-                            {editModal.theater.documents.agreementCopy.endsWith('.pdf') ? (
-                              <div className="pdf-preview">
-                                <span style={{fontSize: '2em'}}>📄</span>
-                                <div className="file-name">Agreement Copy (PDF)</div>
-                                <button 
-                                  type="button" 
-                                  className="preview-btn remove-btn"
-                                  onClick={() => handleRemoveFile('agreementCopy')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                              </div>
-                            ) : (
-                              <>
-                                <InstantImage 
-                                  src={editModal.theater.documents.agreementCopy} 
-                                  alt="Agreement Copy"
-                                  className="preview-image"
-                                  onClick={() => window.open(editModal.theater.documents.agreementCopy, '_blank')}
-                                />
-                                <div className="preview-actions">
-                                  <button 
-                                    type="button" 
-                                    className="preview-btn remove-btn"
-                                    onClick={() => handleRemoveFile('agreementCopy')}
-                                title="Remove"
-                              >
-                                <svg viewBox="0 0 24 24" fill="currentColor">
-                                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                                </svg>
-                              </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder">
-                            <div className="placeholder-icon">📝</div>
-                            <div className="placeholder-text">No agreement copy uploaded</div>
-                            <div className="placeholder-hint">Click "Choose File" to upload</div>
-                          </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Theater Logo */}
+                    {(editModal.theater?.documents?.logo || editModal.theater?.branding?.logo || editModal.theater?.branding?.logoUrl) && (
+                      <div className="document-item">
+                        <label>Theater Logo</label>
+                        <div className="document-preview">
+                          <InstantImage 
+                            src={editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl} 
+                            alt="Theater Logo"
+                            className="document-image"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'block';
+                            }}
+                          />
+                          <button 
+                            className="action-btn download-btn download-btn-overlay"
+                            onClick={() => handleDownloadFile(
+                              editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl,
+                              `${editModal.theater.name}_Logo.jpg`
+                            )}
+                            title="Download Theater Logo"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                            </svg>
+                          </button>
+                          <div className="document-placeholder" style={{display: 'none'}}>
+                            🏢 Theater Logo
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

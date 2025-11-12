@@ -1,9 +1,13 @@
 /**
  * API Response Caching Middleware
  * Cache API responses to reduce database load
+ * 
+ * NOTE: Redis caching is DISABLED - this middleware now acts as a no-op
+ * All requests will pass through without caching
  */
 
-const redis = require('./redis-cache');
+// Redis cache is disabled - set to null
+const redis = null;
 const crypto = require('crypto');
 
 /**
@@ -40,80 +44,28 @@ function cacheMiddleware(options = {}) {
   } = options;
 
   return async (req, res, next) => {
-    // Skip caching if Redis is not connected
-    if (!redis.isConnected) {
-      return next();
-    }
-
-    // Generate cache key
-    const cacheKey = keyGenerator(req);
-
-    // Try to get from cache
-    try {
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        console.log(`✅ Cache HIT: ${req.path}`);
-        return res.json(cached);
-      }
-    } catch (error) {
-      console.error('Cache GET error:', error);
-    }
-
-    // Store original json method
-    const originalJson = res.json.bind(res);
-
-    // Override json method to cache response
-    res.json = function(data) {
-      // Cache the response if conditions are met
-      if (shouldCache(req, res)) {
-        redis.set(cacheKey, data, ttl).catch(err => {
-          console.error('Cache SET error:', err);
-        });
-        console.log(`💾 Cached: ${req.path} (TTL: ${ttl}s)`);
-      }
-
-      // Call original json method
-      return originalJson(data);
-    };
-
-    next();
+    // Redis cache is DISABLED - always skip caching and pass through
+    // This ensures all API responses are fresh from the database
+    return next();
   };
 }
 
 /**
  * Invalidate cache by pattern
+ * NOTE: Redis cache is disabled - this is a no-op function
  */
 async function invalidateCache(pattern) {
-  if (!redis.isConnected) {
-    return false;
-  }
-
-  try {
-    await redis.delPattern(`api_cache:*${pattern}*`);
-    console.log(`🗑️  Cache invalidated: ${pattern}`);
-    return true;
-  } catch (error) {
-    console.error('Cache invalidation error:', error);
-    return false;
-  }
+  // Redis cache is disabled - no-op
+  return false;
 }
 
 /**
  * Clear all API cache
+ * NOTE: Redis cache is disabled - this is a no-op function
  */
 async function clearAllCache() {
-  if (!redis.isConnected) {
-    return false;
-  }
-
-  try {
-    await redis.delPattern('api_cache:*');
-    console.log('🗑️  All API cache cleared');
-    return true;
-  } catch (error) {
-    console.error('Clear cache error:', error);
-    return false;
-  }
+  // Redis cache is disabled - no-op
+  return false;
 }
 
 module.exports = {

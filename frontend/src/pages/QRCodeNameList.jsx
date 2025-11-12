@@ -171,7 +171,7 @@ const QRCodeNameList = () => {
   }, [searchTerm]);
 
   // Fetch theaters with error handling and caching - OPTIMIZED: optimizedFetch handles cache automatically
-  const fetchTheaters = useCallback(async () => {
+  const fetchTheaters = useCallback(async (forceRefresh = false) => {
     try {
       // Cancel previous request
       if (abortControllerRef.current) {
@@ -192,19 +192,35 @@ const QRCodeNameList = () => {
         ...(debouncedSearchTerm && { q: debouncedSearchTerm })
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [QRCodeNameList] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       // 🚀 PERFORMANCE: Use optimizedFetch - it handles cache automatically
       // If cache exists, this returns instantly (< 50ms), otherwise fetches from API
+      // 🔄 FORCE REFRESH: Skip cache by passing null as cacheKey when force refreshing
       const cacheKey = getCacheKey(currentPage, itemsPerPage, debouncedSearchTerm);
       const data = await optimizedFetch(
         `${config.api.baseUrl}/theaters?${params.toString()}`,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey,
         120000 // 2-minute cache
       );
 
@@ -233,7 +249,9 @@ const QRCodeNameList = () => {
 
   // Load theaters on component mount and when dependencies change
   useEffect(() => {
-    fetchTheaters();
+    // 🔄 FORCE REFRESH: Always force refresh on initial mount to ensure fresh data
+    const isInitialMount = currentPage === 1 && !debouncedSearchTerm;
+    fetchTheaters(isInitialMount);
   }, [fetchTheaters, debouncedSearchTerm]);
 
   // Handle view theater QR Code Name management - navigate to QR name management page for specific theater

@@ -5,54 +5,16 @@
 
 const rateLimit = require('express-rate-limit');
 
-// Try to load Redis cache (optional)
-let redis;
-try {
-  redis = require('./redis-cache');
-} catch (error) {
-  redis = null;
-}
+// Redis cache is DISABLED - rate limiting will use in-memory store
+// This ensures rate limiting works without Redis dependency
+let redis = null;
 
 // Create Redis store for distributed rate limiting
+// NOTE: Redis is disabled, so this always returns undefined (uses memory store)
 const createRedisStore = () => {
-  if (!redis || !redis.isConnected) {
-    return undefined; // Fall back to memory store
-  }
-
-  return {
-    async increment(key) {
-      try {
-        const current = await redis.get(key);
-        const currentValue = current ? parseInt(current) : 0;
-        const newValue = currentValue + 1;
-        await redis.set(key, newValue.toString(), 900); // 15 minutes TTL
-        return {
-          totalHits: newValue,
-          resetTime: new Date(Date.now() + 900000)
-        };
-      } catch (error) {
-        console.error('Redis rate limit error:', error);
-        return { totalHits: 1, resetTime: new Date() };
-      }
-    },
-    async decrement(key) {
-      try {
-        const current = await redis.get(key);
-        const currentValue = current ? parseInt(current) : 0;
-        const newValue = Math.max(0, currentValue - 1);
-        await redis.set(key, newValue.toString(), 900);
-      } catch (error) {
-        console.error('Redis rate limit decrement error:', error);
-      }
-    },
-    async resetKey(key) {
-      try {
-        await redis.del(key);
-      } catch (error) {
-        console.error('Redis rate limit reset error:', error);
-      }
-    }
-  };
+  // Redis cache is disabled - always use in-memory store
+  // express-rate-limit will automatically use its default memory store
+  return undefined;
 };
 
 // General API rate limiter (for unauthenticated users)

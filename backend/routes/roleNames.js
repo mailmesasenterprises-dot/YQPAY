@@ -241,7 +241,14 @@ router.put('/:id', [authenticateToken], async (req, res) => {
         
         // Also allow isActive toggle (optional)
         if (isActive !== undefined) {
-          roleNameDoc.isActive = isActive;
+          // ✅ FIX: Convert to boolean properly (handles string or boolean input)
+          const isActiveValue = isActive === true || isActive === 'true';
+          roleNameDoc.isActive = isActiveValue;
+          console.log('🔄 Updating default role isActive status:', { 
+            roleId: id, 
+            receivedValue: isActive, 
+            convertedValue: isActiveValue 
+          });
         }
         
         await roleNameDoc.save();
@@ -291,7 +298,16 @@ router.put('/:id', [authenticateToken], async (req, res) => {
     if (permissions !== undefined) roleNameDoc.permissions = permissions;
     if (isGlobal !== undefined) roleNameDoc.isGlobal = isGlobal;
     if (priority !== undefined) roleNameDoc.priority = priority;
-    if (isActive !== undefined) roleNameDoc.isActive = isActive;
+    if (isActive !== undefined) {
+      // ✅ FIX: Convert to boolean properly (handles string or boolean input)
+      const isActiveValue = isActive === true || isActive === 'true';
+      roleNameDoc.isActive = isActiveValue;
+      console.log('🔄 Updating email notification isActive status:', { 
+        roleId: id, 
+        receivedValue: isActive, 
+        convertedValue: isActiveValue 
+      });
+    }
 
     await roleNameDoc.save();
     await roleNameDoc.populate('theater', 'name location');

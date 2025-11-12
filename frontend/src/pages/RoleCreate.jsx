@@ -147,6 +147,9 @@ const RoleCreate = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   
+  // Toggle state to prevent double clicks (like TheaterList)
+  const [togglingRoleId, setTogglingRoleId] = useState(null);
+  
   // Performance refs (matching TheaterList)
   const searchTimeoutRef = useRef(null);
   const abortControllerRef = useRef(null);
@@ -179,8 +182,9 @@ const RoleCreate = () => {
   }, [theaterId]);
 
   // Load role data with pagination and search
+  // 🔄 FORCE REFRESH: Always force refresh on component mount to ensure fresh data
   useEffect(() => {
-    loadRoleData();
+    loadRoleData(true);
   }, [currentPage, debouncedSearchTerm, itemsPerPage, theaterId, filterStatus]);
 
   const loadTheaterData = useCallback(async () => {
@@ -224,61 +228,96 @@ const RoleCreate = () => {
     }
   }, [theaterId]);
 
-  // Toggle role active status
+  // Toggle role active status with optimistic UI (like TheaterList)
   const toggleRoleStatus = async (roleId, currentStatus) => {
+    const newStatus = !currentStatus;
+    
+    // Prevent multiple clicks on the same role
+    if (togglingRoleId === roleId) return;
+    
     try {
+      console.log('🔄 Toggling role status:', { roleId, currentStatus, newStatus });
+      
+      // Set loading state for this specific role
+      setTogglingRoleId(roleId);
+      
+      // 🚀 INSTANT UI UPDATE: Update local state immediately for instant feedback
+      setRoles(prevRoles => 
+        prevRoles.map(role => 
+          role._id === roleId 
+            ? { ...role, isActive: newStatus }
+            : role
+        )
+      );
 
+      // Also update summary counts immediately for better UX
+      setSummary(prev => ({
+        ...prev,
+        activeRoles: newStatus ? prev.activeRoles + 1 : prev.activeRoles - 1,
+        inactiveRoles: newStatus ? prev.inactiveRoles - 1 : prev.inactiveRoles + 1
+      }));
+
+      // Now make the API call in the background
       const response = await fetch(`${config.api.baseUrl}/roles/${roleId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
-        body: JSON.stringify({ isActive: !currentStatus })
+        body: JSON.stringify({ isActive: newStatus })
       });
-
 
       if (!response.ok) {
         const errorData = await response.json();
-
         throw new Error(errorData.message || 'Failed to update role status');
       }
 
       const result = await response.json();
-
+      
       if (result.success) {
-        // Update local roles state
-        setRoles(prevRoles => 
-          prevRoles.map(role => 
-            role._id === roleId 
-              ? { ...role, isActive: !currentStatus }
-              : role
-          )
-        );
+        console.log('✅ Role status updated successfully:', result);
         
-        // Update summary counts
-        setSummary(prev => ({
-          ...prev,
-          activeRoles: !currentStatus ? prev.activeRoles + 1 : prev.activeRoles - 1,
-          inactiveRoles: !currentStatus ? prev.inactiveRoles - 1 : prev.inactiveRoles + 1
-        }));
+        // 🔄 FORCE REFRESH: Refresh data with cache bypass after toggle
+        setTimeout(() => {
+          loadRoleData(true);
+        }, 500);
         
-        showSuccess(`Role ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-        
-        // Reload data to ensure sync with backend
-        await loadRoleData();
+        // Optional: Show success message
+        if (showSuccess) {
+          showSuccess(`Role ${newStatus ? 'activated' : 'deactivated'} successfully`);
+        }
       } else {
         throw new Error(result.message || 'Failed to update role status');
       }
-    } catch (error) {
 
+    } catch (error) {
+      console.error('❌ Failed to toggle role status:', error);
+      
+      // 🔄 ROLLBACK: Revert the optimistic update if API fails
+      setRoles(prevRoles => 
+        prevRoles.map(role => 
+          role._id === roleId 
+            ? { ...role, isActive: currentStatus } // Revert to original status
+            : role
+        )
+      );
+
+      // Revert summary counts as well
+      setSummary(prev => ({
+        ...prev,
+        activeRoles: currentStatus ? prev.activeRoles + 1 : prev.activeRoles - 1,
+        inactiveRoles: currentStatus ? prev.inactiveRoles - 1 : prev.inactiveRoles + 1
+      }));
+
+      // Show error message
       showError(`Failed to update role status: ${error.message}`);
-      // Reload data to revert UI if update failed
-      await loadRoleData();
+    } finally {
+      // Clear loading state
+      setTogglingRoleId(null);
     }
   };
 
-  const loadRoleData = useCallback(async () => {
+  const loadRoleData = useCallback(async (forceRefresh = false) => {
     try {
       // Cancel previous request if still pending
       if (abortControllerRef.current) {
@@ -311,18 +350,33 @@ const RoleCreate = () => {
         params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
       }
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when forceRefresh is true
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('� RoleCreate FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+      
+      // 🔄 FORCE REFRESH: Add no-cache headers when forceRefresh is true
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+      
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+      
+      // �🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
       const cacheKey = `roles_theater_${theaterId}_page_${currentPage}_limit_${itemsPerPage}_status_${filterStatus}_search_${debouncedSearchTerm || 'none'}`;
       const data = await optimizedFetch(
         `${config.api.baseUrl}/roles?${params.toString()}`,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey, // 🔄 FORCE REFRESH: Skip cache key when forceRefresh is true
         120000 // 2-minute cache
       );
       
@@ -428,10 +482,15 @@ const RoleCreate = () => {
 
   const handleSubmitRole = async (isEdit = false) => {
     try {
-
       const token = config.helpers.getAuthToken();
       if (!token) {
         showError('Authentication required. Please login again.');
+        return;
+      }
+      
+      // Validate required fields
+      if (!formData.name || formData.name.trim() === '') {
+        showError('Role name is required');
         return;
       }
       
@@ -443,10 +502,68 @@ const RoleCreate = () => {
       // Include theaterId in the form data when creating/editing roles
       const roleData = {
         ...formData,
+        name: formData.name.trim(), // Trim whitespace
         ...(theaterId && { theaterId: theaterId }) // Add theaterId field for array-based structure
       };
       
+      console.log(`🔄 ${isEdit ? 'Updating' : 'Creating'} role:`, roleData);
 
+      // 🚀 OPTIMISTIC UPDATE: Update UI immediately for instant feedback
+      if (isEdit) {
+        // Update existing role in the list
+        const updatedRole = { ...selectedRole, ...roleData };
+        setRoles(prevRoles => 
+          prevRoles.map(role => 
+            role._id === selectedRole._id 
+              ? updatedRole
+              : role
+          )
+        );
+      } else {
+        // Add new role optimistically with temporary ID
+        const tempRole = {
+          _id: `temp_${Date.now()}`, // Temporary ID for optimistic update
+          ...roleData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        setRoles(prevRoles => [tempRole, ...prevRoles]);
+        
+        // Update summary counts immediately
+        setSummary(prev => ({
+          ...prev,
+          totalRoles: prev.totalRoles + 1,
+          activeRoles: roleData.isActive ? prev.activeRoles + 1 : prev.activeRoles,
+          inactiveRoles: roleData.isActive ? prev.inactiveRoles : prev.inactiveRoles + 1
+        }));
+      }
+
+      // 🚀 CLOSE MODAL IMMEDIATELY for better UX
+      if (isEdit) {
+        setShowEditModal(false);
+        setSelectedRole(null);
+      } else {
+        setShowCreateModal(false);
+      }
+      
+      // Reset form data
+      setFormData({
+        name: '',
+        description: '',
+        permissions: [],
+        isActive: true
+      });
+
+      // Show success message immediately
+      const successMessage = isEdit 
+        ? `Role "${roleData.name}" updated successfully` 
+        : `Role "${roleData.name}" created successfully`;
+      
+      if (showSuccess) {
+        showSuccess(successMessage);
+      }
+
+      // Now make the actual API call in the background
       const response = await fetch(url, {
         method,
         headers: {
@@ -455,67 +572,143 @@ const RoleCreate = () => {
         },
         body: JSON.stringify(roleData)
       });
-      
 
       if (response.ok) {
         const result = await response.json();
-
-        if (isEditMode) {
-          setShowEditModal(false);
-          toast.success('Role updated successfully!');
-        } else {
-          setShowCreateModal(false);
-          toast.success('Role created successfully!');
-        }
-        loadRoleData(); // Refresh the list
-        showSuccess && showSuccess(
-          isEdit 
-            ? `Role "${formData.name}" updated successfully` 
-            : `Role "${formData.name}" created successfully`
-        );
+        console.log(`✅ ${isEdit ? 'Updated' : 'Created'} role successfully:`, result);
+        
+        // Mark that a role was created/updated so RolesList can refresh when user navigates back
+        sessionStorage.setItem('last_role_action', Date.now().toString());
+        sessionStorage.setItem('roles_navigation_state', 'from_create_or_edit');
+        
+        // 🔄 FORCE REFRESH: Refresh data with cache bypass to ensure sync with backend
+        setTimeout(() => {
+          loadRoleData(true);
+        }, 500);
+        
       } else {
         const errorData = await response.json().catch(() => ({}));
-
         throw new Error(errorData.error || `Failed to save role: ${response.status}`);
       }
     } catch (error) {
-
-      showError && showError(`Failed to save role: ${error.message}`);
+      console.error(`❌ Failed to ${isEdit ? 'update' : 'create'} role:`, error);
+      
+      // 🔄 ROLLBACK: Revert optimistic updates if API fails
+      if (isEdit) {
+        // Revert to original role data
+        setRoles(prevRoles => 
+          prevRoles.map(role => 
+            role._id === selectedRole._id 
+              ? selectedRole // Revert to original
+              : role
+          )
+        );
+      } else {
+        // Remove the optimistically added role
+        setRoles(prevRoles => 
+          prevRoles.filter(role => !role._id.toString().startsWith('temp_'))
+        );
+        
+        // Revert summary counts
+        setSummary(prev => ({
+          ...prev,
+          totalRoles: Math.max(0, prev.totalRoles - 1),
+          activeRoles: formData.isActive ? Math.max(0, prev.activeRoles - 1) : prev.activeRoles,
+          inactiveRoles: formData.isActive ? prev.inactiveRoles : Math.max(0, prev.inactiveRoles - 1)
+        }));
+      }
+      
+      // Show error message
+      if (showError) {
+        showError(`Failed to ${isEdit ? 'update' : 'create'} role: ${error.message}`);
+      }
+      
+      // Reopen modal for user to retry
+      if (isEdit) {
+        setShowEditModal(true);
+        setSelectedRole(selectedRole);
+      } else {
+        setShowCreateModal(true);
+      }
     }
   };
 
   const handleDeleteRole = async () => {
+    if (!selectedRole) return;
+    
     try {
-
       const token = config.helpers.getAuthToken();
       if (!token) {
         showError('Authentication required. Please login again.');
         return;
       }
       
-      const response = await fetch(`${config.api.baseUrl}/roles/${selectedRole._id}?permanent=true`, {
+      console.log('🗑️ Deleting role:', selectedRole.name);
+      
+      // 🚀 OPTIMISTIC UPDATE: Remove from UI immediately
+      const deletedRole = selectedRole;
+      setRoles(prevRoles => 
+        prevRoles.filter(role => role._id !== selectedRole._id)
+      );
+      
+      // Update summary counts immediately
+      setSummary(prev => ({
+        ...prev,
+        totalRoles: Math.max(0, prev.totalRoles - 1),
+        activeRoles: deletedRole.isActive ? Math.max(0, prev.activeRoles - 1) : prev.activeRoles,
+        inactiveRoles: deletedRole.isActive ? prev.inactiveRoles : Math.max(0, prev.inactiveRoles - 1)
+      }));
+      
+      // Close modal and clear selection immediately
+      setShowDeleteModal(false);
+      setSelectedRole(null);
+      
+      // Show success message immediately
+      if (showSuccess) {
+        showSuccess(`Role "${deletedRole.name}" deleted successfully`);
+      }
+      
+      // Make API call in background
+      const response = await fetch(`${config.api.baseUrl}/roles/${deletedRole._id}?permanent=true`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-      
 
       if (response.ok) {
-
-        setShowDeleteModal(false);
-          toast.success('Role deleted successfully!');
-        setSelectedRole(null);
-        loadRoleData(); // Refresh the list
-        showSuccess && showSuccess(`Role "${selectedRole.name}" permanently deleted`);
+        console.log('✅ Role deleted successfully from backend');
+        
+        // 🔄 FORCE REFRESH: Refresh data with cache bypass to ensure sync with backend
+        setTimeout(() => {
+          loadRoleData(true);
+        }, 500);
+        
       } else {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to delete role: ${response.status}`);
       }
     } catch (error) {
-
-      showError && showError(`Failed to delete role: ${error.message}`);
+      console.error('❌ Failed to delete role:', error);
+      
+      // 🔄 ROLLBACK: Restore the deleted role if API fails
+      if (selectedRole) {
+        setRoles(prevRoles => [selectedRole, ...prevRoles]);
+        
+        // Restore summary counts
+        setSummary(prev => ({
+          ...prev,
+          totalRoles: prev.totalRoles + 1,
+          activeRoles: selectedRole.isActive ? prev.activeRoles + 1 : prev.activeRoles,
+          inactiveRoles: selectedRole.isActive ? prev.inactiveRoles : prev.inactiveRoles + 1
+        }));
+      }
+      
+      // Show error message
+      if (showError) {
+        showError(`Failed to delete role: ${error.message}`);
+      }
     }
   };
 
@@ -710,12 +903,15 @@ const RoleCreate = () => {
                           position: 'relative',
                           display: 'inline-block',
                           width: '50px',
-                          height: '24px'
+                          height: '24px',
+                          opacity: togglingRoleId === role._id ? 0.6 : 1,
+                          pointerEvents: togglingRoleId === role._id ? 'none' : 'auto'
                         }}>
                           <input
                             type="checkbox"
                             checked={role.isActive !== false}
                             onChange={() => toggleRoleStatus(role._id, role.isActive)}
+                            disabled={togglingRoleId === role._id}
                             style={{
                               opacity: 0,
                               width: 0,
@@ -724,7 +920,7 @@ const RoleCreate = () => {
                           />
                           <span className="slider" style={{
                             position: 'absolute',
-                            cursor: 'pointer',
+                            cursor: togglingRoleId === role._id ? 'wait' : 'pointer',
                             top: 0,
                             left: 0,
                             right: 0,

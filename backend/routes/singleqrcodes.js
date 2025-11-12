@@ -710,6 +710,17 @@ router.put('/:id/details/:detailId', [
       console.log('ℹ️  No regeneration needed, updating metadata only');
     }
 
+    // ✅ FIX: Convert isActive to boolean properly (handles string or boolean input)
+    if (updates.isActive !== undefined) {
+      const isActiveValue = updates.isActive === true || updates.isActive === 'true';
+      updates.isActive = isActiveValue;
+      console.log('🔄 Updating QR detail isActive status:', { 
+        detailId, 
+        receivedValue: req.body.isActive, 
+        convertedValue: isActiveValue 
+      });
+    }
+
     // Update the QR detail with all changes
     await singleQR.updateQRDetail(detailId, updates);
 

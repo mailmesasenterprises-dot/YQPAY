@@ -1120,6 +1120,7 @@ const TheaterQRDetail = () => {
   const [theater, setTheater] = useState(location.state?.theater || null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
+  const [togglingQRId, setTogglingQRId] = useState(null); // Track which QR is being toggled
   
   // QR Names state for dynamic sidebar
   const [qrNames, setQrNames] = useState([]);
@@ -1769,7 +1770,24 @@ const TheaterQRDetail = () => {
     }
   };
   const toggleQRStatus = async (qrCodeId, currentStatus) => {
+    const newStatus = !currentStatus;
+    
+    // Prevent multiple clicks on the same QR
+    if (togglingQRId === qrCodeId) {
+      console.log('⚠️ Toggle already in progress for QR:', qrCodeId);
+      return;
+    }
+    
     try {
+      console.log('🔄 Toggling QR status:', { 
+        qrCodeId, 
+        currentStatus, 
+        newStatus,
+        currentStatusType: typeof currentStatus,
+        newStatusType: typeof newStatus
+      });
+      
+      setTogglingQRId(qrCodeId);
       setActionLoading(prev => ({ ...prev, [qrCodeId]: true }));
       
       // Find the QR code to get its parentDocId
@@ -1785,29 +1803,67 @@ const TheaterQRDetail = () => {
       });
       
       if (!parentDocId) {
-        // Removed error modal - errors logged to console only
+        console.error('❌ Parent document ID not found for QR:', qrCodeId);
+        showError('Failed to update QR status: Missing parent document');
         return;
       }
+      
+      // 🚀 INSTANT UI UPDATE: Update local state immediately
+      setQrCodesByName(prevQRs => {
+        const updatedQRs = { ...prevQRs };
+        Object.keys(updatedQRs).forEach(name => {
+          updatedQRs[name] = updatedQRs[name].map(qr =>
+            qr._id === qrCodeId ? { ...qr, isActive: newStatus } : qr
+          );
+        });
+        return updatedQRs;
+      });
+      
+      console.log('📤 Sending API request:', {
+        url: `${config.api.baseUrl}/single-qrcodes/${parentDocId}/details/${qrCodeId}`,
+        body: { isActive: newStatus }
+      });
       
       const response = await fetch(`${config.api.baseUrl}/single-qrcodes/${parentDocId}/details/${qrCodeId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ isActive: !currentStatus })
+        body: JSON.stringify({ isActive: newStatus })
       });
       
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API response not OK:', response.status, errorData);
+        throw new Error(errorData.message || 'Failed to update QR status');
+      }
+      
       const data = await response.json();
+      console.log('✅ QR status updated successfully:', data);
       
       if (data.success) {
-        // Reload theater data to get updated QR codes
-        await loadTheaterData();
-        showSuccess(`QR code ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+        // 🔄 Invalidate cache
+        clearTheaterCache();
+        
+        showSuccess(`QR code ${newStatus ? 'activated' : 'deactivated'} successfully`);
       } else {
-        // Removed error modal - errors logged to console only
+        throw new Error(data.message || 'Failed to update QR status');
       }
     } catch (error) {
-
-      // Removed error modal - errors logged to console only
+      console.error('❌ Failed to toggle QR status:', error);
+      
+      // 🔄 ROLLBACK: Revert the optimistic update
+      setQrCodesByName(prevQRs => {
+        const updatedQRs = { ...prevQRs };
+        Object.keys(updatedQRs).forEach(name => {
+          updatedQRs[name] = updatedQRs[name].map(qr =>
+            qr._id === qrCodeId ? { ...qr, isActive: currentStatus } : qr
+          );
+        });
+        return updatedQRs;
+      });
+      
+      showError(`Failed to update QR status: ${error.message}`);
     } finally {
+      setTogglingQRId(null);
       setActionLoading(prev => ({ ...prev, [qrCodeId]: false }));
     }
   };
@@ -2120,70 +2176,121 @@ const TheaterQRDetail = () => {
                       </div>
                     ) : (
                       <>
-                        <div className="theater-table-container">
-                          <table className="theater-table">
-                            <thead>
-                              <tr>
-                                <th className="sno-col">S NO</th>
-                                <th className="name-col">QR CODE NAME</th>
-                                <th className="description-col">TYPE</th>
-                                <th className="status-col">STATUS</th>
-                                <th className="actions-col">ACTIONS</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {currentQRs.map((qrCode, index) => (
-                                <tr key={qrCode._id} className="theater-row">
-                                  <td className="sno-cell">
-                                    <div className="sno-number">{(currentPage - 1) * itemsPerPage + index + 1}</div>
-                                  </td>
-                                  <td className="name-cell">
-                                    <div className="role-name-wrapper">
-                                      <strong>{qrCode.name}</strong>
-                                      {qrCode.qrType === 'screen' }
-                                    </div>
-                                  </td>
-                                  <td className="description-cell">
-                                    {qrCode.qrType === 'screen' ? (
-                                      <span>
-                                        <i className="fas fa-film"></i> Screen QR
-                                        {qrCode.screenName && ` - ${qrCode.screenName}`}
-                                      </span>
-                                    ) : (
-                                      <span>
-                                        <i className="fas fa-qrcode"></i> Single QR
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="status-cell">
-                                    <span className={`status-badge ${qrCode.isActive ? 'active' : 'inactive'}`}>
-                                      {qrCode.isActive ? 'Active' : 'Inactive'}
-                                    </span>
-                                  </td>
-                                  <td className="actions-cell">
-                                    <ActionButtons>
-                                      <ActionButton
-                                        type="view"
-                                        onClick={() => openCrudModal(qrCode)}
-                                        title="View QR Details"
-                                      />
-                                      <ActionButton
-                                        type="download"
-                                        onClick={() => downloadQRCode(qrCode)}
-                                        title="Download QR Code"
-                                      />
-                                      <ActionButton
-                                        type="delete"
-                                        onClick={() => deleteQRCode(qrCode._id, qrCode.name)}
-                                        disabled={actionLoading[qrCode._id]}
-                                        title="Delete QR Code"
-                                      />
-                                    </ActionButtons>
-                                  </td>
+                        <div className="table-container">
+                          <div className="table-wrapper">
+                            <table className="theater-table" style={{ textAlign: 'center', minWidth: '900px' }}>
+                              <thead>
+                                <tr>
+                                  <th className="sno-col" style={{ textAlign: 'center' }}>S NO</th>
+                                  <th className="name-col" style={{ textAlign: 'center' }}>QR CODE NAME</th>
+                                  <th className="description-col" style={{ textAlign: 'center' }}>TYPE</th>
+                                  <th className="status-col" style={{ textAlign: 'center' }}>STATUS</th>
+                                  <th className="access-status-col" style={{ textAlign: 'center' }}>ACCESS STATUS</th>
+                                  <th className="actions-col" style={{ textAlign: 'center' }}>ACTIONS</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {currentQRs.map((qrCode, index) => (
+                                  <tr key={qrCode._id} className="theater-row">
+                                    <td className="sno-cell" style={{ textAlign: 'center' }}>
+                                      <div className="sno-number">{(currentPage - 1) * itemsPerPage + index + 1}</div>
+                                    </td>
+                                    <td className="name-cell" style={{ textAlign: 'center' }}>
+                                      <div className="role-name-wrapper">
+                                        <strong>{qrCode.name}</strong>
+                                        {qrCode.qrType === 'screen' }
+                                      </div>
+                                    </td>
+                                    <td className="description-cell" style={{ textAlign: 'center' }}>
+                                      {qrCode.qrType === 'screen' ? (
+                                        <span>
+                                          <i className="fas fa-film"></i> Screen QR
+                                          {qrCode.screenName && ` - ${qrCode.screenName}`}
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          <i className="fas fa-qrcode"></i> Single QR
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="status-cell" style={{ textAlign: 'center' }}>
+                                      <span className={`status-badge ${qrCode.isActive ? 'active' : 'inactive'}`}>
+                                        {qrCode.isActive ? 'Active' : 'Inactive'}
+                                      </span>
+                                    </td>
+                                    <td className="access-status-cell" style={{ textAlign: 'center' }}>
+                                      <div className="toggle-wrapper" style={{ display: 'flex', justifyContent: 'center' }}>
+                                        <label className="switch" style={{
+                                          position: 'relative',
+                                          display: 'inline-block',
+                                          width: '50px',
+                                          height: '24px',
+                                          opacity: togglingQRId === qrCode._id ? 0.7 : 1,
+                                          pointerEvents: togglingQRId === qrCode._id ? 'none' : 'auto'
+                                        }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={qrCode.isActive !== false}
+                                            onChange={() => toggleQRStatus(qrCode._id, qrCode.isActive)}
+                                            disabled={togglingQRId === qrCode._id}
+                                            style={{
+                                              opacity: 0,
+                                              width: 0,
+                                              height: 0
+                                            }}
+                                          />
+                                          <span className="slider" style={{
+                                            position: 'absolute',
+                                            cursor: 'pointer',
+                                            top: 0,
+                                            left: 0,
+                                            right: 0,
+                                            bottom: 0,
+                                            backgroundColor: (qrCode.isActive !== false) ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+                                            transition: '.4s',
+                                            borderRadius: '24px'
+                                          }}>
+                                            <span style={{
+                                              position: 'absolute',
+                                              content: '""',
+                                              height: '18px',
+                                              width: '18px',
+                                              left: (qrCode.isActive !== false) ? '26px' : '3px',
+                                              bottom: '3px',
+                                              backgroundColor: 'white',
+                                              transition: '.4s',
+                                              borderRadius: '50%',
+                                              display: 'block'
+                                            }}></span>
+                                          </span>
+                                        </label>
+                                      </div>
+                                    </td>
+                                    <td className="actions-cell" style={{ textAlign: 'center' }}>
+                                      <ActionButtons>
+                                        <ActionButton
+                                          type="view"
+                                          onClick={() => openCrudModal(qrCode)}
+                                          title="View QR Details"
+                                        />
+                                        <ActionButton
+                                          type="download"
+                                          onClick={() => downloadQRCode(qrCode)}
+                                          title="Download QR Code"
+                                        />
+                                        <ActionButton
+                                          type="delete"
+                                          onClick={() => deleteQRCode(qrCode._id, qrCode.name)}
+                                          disabled={actionLoading[qrCode._id]}
+                                          title="Delete QR Code"
+                                        />
+                                      </ActionButtons>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
 
                         {/* Pagination */}

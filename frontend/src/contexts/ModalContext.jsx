@@ -38,7 +38,8 @@ export const ModalProvider = ({ children }) => {
     type: 'info',
     buttonText: 'OK',
     autoClose: false,
-    autoCloseDelay: 3000
+    autoCloseDelay: 3000,
+    position: 'center' // 'center' or 'toast'
   });
 
   const [inputState, setInputState] = useState({
@@ -114,6 +115,7 @@ export const ModalProvider = ({ children }) => {
         buttonText: options.buttonText || 'OK',
         autoClose: options.autoClose || false,
         autoCloseDelay: options.autoCloseDelay || 3000,
+        position: options.position || 'center', // Support toast position
         onClose: () => {
           setAlertState(prev => ({ ...prev, isOpen: false }));
           resolve();
@@ -184,7 +186,8 @@ export const ModalProvider = ({ children }) => {
       message,
       type: 'success',
       autoClose: true,
-      autoCloseDelay: 3000
+      autoCloseDelay: 3000,
+      position: 'toast' // Use toast position for success messages
     });
   }, [alert]);
 
@@ -311,6 +314,7 @@ export const ModalProvider = ({ children }) => {
         buttonText={alertState.buttonText}
         autoClose={alertState.autoClose}
         autoCloseDelay={alertState.autoCloseDelay}
+        position={alertState.position}
       />
 
       <InputDialog

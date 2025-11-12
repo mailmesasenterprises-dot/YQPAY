@@ -5,6 +5,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { ActionButton, ActionButtons } from '../components/ActionButton';
 import Pagination from '../components/Pagination';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
+import { useModal } from '../contexts/ModalContext';
 import { optimizedFetch } from '../utils/apiOptimizer';
 import config from '../config';
 import '../styles/TheaterGlobalModals.css'; // Global theater modal styles
@@ -32,6 +33,7 @@ TableSkeletonRow.displayName = 'TableSkeletonRow';
 const TheaterUserManagement = () => {
   usePerformanceMonitoring('TheaterUserManagement');
   const navigate = useNavigate();
+  const { showSuccess, showError } = useModal();
   
   const [theaters, setTheaters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ const TheaterUserManagement = () => {
     });
   }, [theaters]);
 
-  const fetchTheaters = useCallback(async () => {
+  const fetchTheaters = useCallback(async (forceRefresh = false) => {
     try {
       // Cancel previous request if still pending
       if (abortControllerRef.current) {
@@ -96,18 +98,33 @@ const TheaterUserManagement = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when forceRefresh is true
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 TheaterUserManagement FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+      
+      // � FORCE REFRESH: Add no-cache headers when forceRefresh is true
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+      
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+      
+      // �🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
       const cacheKey = `theaters_page_${currentPage}_limit_${itemsPerPage}_search_${debouncedSearchTerm || 'none'}_active`;
       const result = await optimizedFetch(
         `${config.api.baseUrl}/theaters?${params.toString()}`,
         {
           signal: abortControllerRef.current.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey, // 🔄 FORCE REFRESH: Skip cache key when forceRefresh is true
         120000 // 2-minute cache
       );
       
@@ -159,7 +176,8 @@ const TheaterUserManagement = () => {
   }, [searchTerm]);
 
   useEffect(() => {
-    fetchTheaters();
+    // 🔄 FORCE REFRESH: Always force refresh on component mount to ensure fresh data
+    fetchTheaters(true);
   }, [fetchTheaters, debouncedSearchTerm]);
 
   // Handle edit theater password
@@ -238,30 +256,22 @@ const TheaterUserManagement = () => {
         throw new Error(errorData.message || 'Failed to update password');
       }
 
-      setConfirmModal({
-        show: true,
-        type: 'success',
-        message: 'Password updated successfully!',
-        onConfirm: () => {
-          setConfirmModal({ show: false, type: '', message: '', onConfirm: null });
-          setEditModal({ show: false, theater: null });
-          setEditFormData({ password: '', confirmPassword: '' });
-          setShowPassword(false);
-          setShowConfirmPassword(false);
-        }
-      });
+      // Close modal and reset form
+      setEditModal({ show: false, theater: null });
+      setEditFormData({ password: '', confirmPassword: '' });
+      setShowPassword(false);
+      setShowConfirmPassword(false);
       
-      // Refresh theaters data
-      await fetchTheaters();
+      // Show success toast
+      showSuccess('Password updated successfully!');
+      
+      // 🔄 FORCE REFRESH: Refresh data with cache bypass after update
+      await fetchTheaters(true);
       
     } catch (error) {
 
-      setConfirmModal({
-        show: true,
-        type: 'error',
-        message: error.message || 'Failed to update password',
-        onConfirm: () => setConfirmModal({ show: false, type: '', message: '', onConfirm: null })
-      });
+      // Show error toast
+      showError(error.message || 'Failed to update password');
     } finally {
       setLoading(false);
     }

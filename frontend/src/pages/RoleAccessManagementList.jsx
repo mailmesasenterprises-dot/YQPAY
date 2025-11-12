@@ -101,7 +101,8 @@ const RoleAccessManagementList = () => {
   }, [searchTerm]);
 
   // Fetch theaters data with pagination and search - OPTIMIZED: optimizedFetch handles cache automatically
-  const fetchTheaters = useCallback(async () => {
+  // 🔄 FORCE REFRESH: Added forceRefresh parameter to bypass all caches
+  const fetchTheaters = useCallback(async (forceRefresh = false) => {
     // Cancel previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -128,6 +129,24 @@ const RoleAccessManagementList = () => {
         params.append('search', debouncedSearchTerm.trim());
       }
       
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when forceRefresh is true
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 RoleAccessManagementList FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+      
+      // 🔄 FORCE REFRESH: Add no-cache headers when forceRefresh is true
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Accept': 'application/json'
+      };
+      
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+      
       // 🚀 PERFORMANCE: Use optimizedFetch - it handles cache automatically
       // If cache exists, this returns instantly (< 50ms), otherwise fetches from API
       const cacheKey = getCacheKey(currentPage, itemsPerPage, debouncedSearchTerm);
@@ -135,12 +154,9 @@ const RoleAccessManagementList = () => {
         `${config.api.baseUrl}/theaters?${params.toString()}`,
         {
           signal: abortController.signal,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'Accept': 'application/json'
-          }
+          headers
         },
-        cacheKey,
+        forceRefresh ? null : cacheKey, // 🔄 FORCE REFRESH: Skip cache key when forceRefresh is true
         120000 // 2-minute cache
       );
       
@@ -175,8 +191,9 @@ const RoleAccessManagementList = () => {
   }, [currentPage, itemsPerPage, debouncedSearchTerm]);
 
   // Effect to trigger data fetching when dependencies change
+  // 🔄 FORCE REFRESH: Always force refresh on component mount to ensure fresh data
   useEffect(() => {
-    fetchTheaters();
+    fetchTheaters(true);
   }, [fetchTheaters, debouncedSearchTerm]);
 
   // Handle view theater role access management - navigate to role access management page for specific theater
