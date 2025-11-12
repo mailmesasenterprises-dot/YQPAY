@@ -5,7 +5,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import ActionButton from '../components/ActionButton';
 import Pagination from '../components/Pagination';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
-import { useModal } from '../contexts/ModalContext';
+import { useToast } from '../contexts/ToastContext';
 import { optimizedFetch } from '../utils/apiOptimizer';
 import { getCachedData } from '../utils/cacheUtils';
 import config from '../config';
@@ -31,7 +31,7 @@ TableRowSkeleton.displayName = 'TableRowSkeleton';
 
 const RoleAccessManagementList = () => {
   const navigate = useNavigate();
-  const { showError } = useModal();
+  const toast = useToast();
   
   // PERFORMANCE MONITORING: Track component performance
   usePerformanceMonitoring('RoleAccessManagementList');

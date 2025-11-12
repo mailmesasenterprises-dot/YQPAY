@@ -6,7 +6,7 @@ import VerticalPageHeader from '../components/VerticalPageHeader';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { ActionButton, ActionButtons } from '../components/ActionButton';
 import Pagination from '../components/Pagination';
-import { useModal } from '../contexts/ModalContext';
+import { useToast } from '../contexts/ToastContext';
 import { optimizedFetch } from '../utils/apiOptimizer';
 import config from '../config';
 import '../styles/TheaterGlobalModals.css'; // Global theater modal styles
@@ -20,7 +20,7 @@ import { ultraFetch } from '../utils/ultraFetch';
 const RoleAccessManagement = () => {
   const navigate = useNavigate();
   const { theaterId } = useParams(); // Get theaterId from URL
-  const { showError, showSuccess } = useModal();
+  const toast = useToast();
 
   // Theater state
   const [theater, setTheater] = useState(null);
@@ -159,12 +159,12 @@ const RoleAccessManagement = () => {
       }
     } catch (error) {
 
-      showError(`Failed to load theater details: ${error.message}`);
+      toast.error(`Failed to load theater details: ${error.message}`);
       setTheater(null);
     } finally {
       setTheaterLoading(false);
     }
-  }, [theaterId, showError]);
+  }, [theaterId, toast]);
 
   // Refs
   const isMountedRef = useRef(true);
@@ -240,7 +240,7 @@ const RoleAccessManagement = () => {
     } catch (error) {
       if (error.name !== 'AbortError') {
         if (isMountedRef.current) {
-          showError('Failed to load role permissions. Please try again.');
+          toast.error('Failed to load role permissions. Please try again.');
           setRolePermissions([]);
           setSummary({ activeRolePermissions: 0, inactiveRolePermissions: 0, totalRolePermissions: 0 });
         }
@@ -250,7 +250,7 @@ const RoleAccessManagement = () => {
         setLoading(false);
       }
     }
-  }, [theaterId, showError]);
+  }, [theaterId, toast]);
 
   // Load active roles
   const loadActiveRoles = useCallback(async () => {
@@ -285,16 +285,16 @@ const RoleAccessManagement = () => {
           const activeRoles = data.data.roles.filter(role => role.isActive !== false);
           setActiveRoles(activeRoles);
         } else {
-          showError('Failed to load roles: Invalid response format');
+          toast.error('Failed to load roles: Invalid response format');
         }
       } else {
         const errorText = await response.text();
-        showError(`Failed to load roles: ${response.status} ${response.statusText}`);
+        toast.error(`Failed to load roles: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      showError(`Error loading roles: ${error.message}`);
+      toast.error(`Error loading roles: ${error.message}`);
     }
-  }, [theaterId, showError]);  // Debounced search
+  }, [theaterId, toast]);  // Debounced search
   const debouncedSearch = useCallback((query) => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -369,7 +369,7 @@ const RoleAccessManagement = () => {
   const handleCreateNewRolePermission = () => {
     // Check if there are active pages available from database
     if (activePages.length === 0) {
-      showError('No active pages available for role access management. Please activate pages in Page Access Management first.');
+      toast.error('No active pages available for role access management. Please activate pages in Page Access Management first.');
       return;
     }
     
@@ -447,9 +447,9 @@ const RoleAccessManagement = () => {
           
           // ✅ Better success message for default roles
           if (selectedRolePermission.isDefault) {
-            showSuccess('Theater Admin permissions updated successfully! Page access has been modified.');
+            toast.success('Theater Admin permissions updated successfully! Page access has been modified.');
           } else {
-            showSuccess('Role permissions updated successfully');
+            toast.success('Role permissions updated successfully');
           }
           
           // Reset form
@@ -468,38 +468,38 @@ const RoleAccessManagement = () => {
 
           // ✅ Enhanced error messages based on status code
           if (response.status === 401) {
-            showError('Authentication required. Please login again.');
+            toast.error('Authentication required. Please login again.');
           } else if (response.status === 403) {
             if (errorData.code === 'TOKEN_INVALID') {
-              showError('Your session has expired. Please login again.');
+              toast.error('Your session has expired. Please login again.');
             } else if (errorData.code === 'DEFAULT_ROLE_PROTECTED') {
-              showError(
+              toast.error(
                 'Theater Admin role is protected. ' +
                 'You can update page access permissions, but role properties like name and description cannot be changed.'
               );
             } else {
-              showError(errorData.error || 'Insufficient permissions to update this role.');
+              toast.error(errorData.error || 'Insufficient permissions to update this role.');
             }
           } else if (errorData.code === 'DEFAULT_ROLE_PROTECTED') {
-            showError(
+            toast.error(
               'Theater Admin role is protected. ' +
               'You can update page access permissions, but role properties like name and description cannot be changed.'
             );
           } else if (errorData.error) {
-            showError(errorData.error);
+            toast.error(errorData.error);
           } else {
-            showError(errorData.message || 'Failed to update role permissions');
+            toast.error(errorData.message || 'Failed to update role permissions');
           }
         }
       } else {
         // For creating, we don't create new roles here - role creation is in RoleCreate page
-        showError('Please use the Role Create page to create new roles. This page is for managing existing role permissions.');
+        toast.error('Please use the Role Create page to create new roles. This page is for managing existing role permissions.');
         setShowCreateModal(false);
           toast.success('Record created successfully!');
       }
     } catch (error) {
 
-      showError(`Failed to save role permissions: ${error.message}. Please check your internet connection and try again.`);
+      toast.error(`Failed to save role permissions: ${error.message}. Please check your internet connection and try again.`);
     }
   };
 
@@ -522,14 +522,14 @@ const RoleAccessManagement = () => {
       if (response.ok) {
         setShowDeleteModal(false);
           toast.success('Role deleted successfully!');
-        showSuccess('Role deleted successfully');
+        toast.success('Role deleted successfully');
         loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
       } else {
         const errorData = await response.json();
-        showError(errorData.message || 'Failed to delete role');
+        toast.error(errorData.message || 'Failed to delete role');
       }
     } catch (error) {
-      showError('Failed to delete role. Please try again.');
+      toast.error('Failed to delete role. Please try again.');
     }
   };
 

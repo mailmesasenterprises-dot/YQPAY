@@ -120,9 +120,6 @@ const TheaterUserManagement = () => {
   // Password visibility
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  // Available roles
-  const [availableRoles, setAvailableRoles] = useState([]);
 
   // Get auth headers
   const getAuthHeaders = () => {

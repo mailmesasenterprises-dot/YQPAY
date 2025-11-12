@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import TheaterLayout from '../../components/theater/TheaterLayout';
 import PageContainer from '../../components/PageContainer';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { useModal } from '../../contexts/ModalContext';
-import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
+// import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring'; // Temporarily disabled
 import DateFilter from '../../components/DateFilter';
 import Pagination from '../../components/Pagination';
 import config from '../../config';
@@ -14,19 +14,50 @@ import '../../styles/TheaterGlobalModals.css'; // Global theater modal styles
 import '../../styles/QRManagementPage.css';
 import '../../styles/TheaterList.css';
 import '../../styles/AddTheater.css';
-import { useDeepMemo, useComputed } from '../../utils/ultraPerformance';
-import { ultraFetch } from '../../utils/ultraFetch';
+// import { useDeepMemo, useComputed } from '../../utils/ultraPerformance'; // Unused
+// import { ultraFetch } from '../../utils/ultraFetch'; // Unused
 
 
 
-// 🚀 OPTIMIZED: Memoized component to prevent unnecessary re-renders
-const OnlineOrderHistory = React.memo(() => {
+// Main component
+const OnlineOrderHistory = () => {
   const { theaterId } = useParams();
   const { user, theaterId: userTheaterId, userType } = useAuth();
   const { showError } = useModal();
 
+  // Debug logging - Log immediately to verify component loads
+  console.log('🚀 OnlineOrderHistory component loaded!');
+  console.log('📍 theaterId from params:', theaterId);
+  console.log('👤 user:', user);
+  console.log('🎭 userTheaterId:', userTheaterId);
+
+  // Early return for testing - show a simple message
+  if (!theaterId) {
+    console.error('❌ OnlineOrderHistory: theaterId is MISSING!');
+    return (
+      <div style={{ 
+        padding: '40px', 
+        textAlign: 'center', 
+        color: 'white', 
+        background: '#8B5CF6',
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>⚠️ Theater ID Missing</h1>
+        <p style={{ fontSize: '20px', marginBottom: '10px' }}>Current URL: {window.location.href}</p>
+        <p style={{ fontSize: '20px', marginBottom: '10px' }}>Params: {JSON.stringify(useParams())}</p>
+        <p style={{ fontSize: '16px', opacity: 0.8 }}>Please navigate from the theaters list.</p>
+      </div>
+    );
+  }
+
+  console.log('✅ OnlineOrderHistory: theaterId found:', theaterId);
+
   // PERFORMANCE MONITORING: Track page performance metrics
-  usePerformanceMonitoring('OnlineOrderHistory');
+  // usePerformanceMonitoring('OnlineOrderHistory'); // Temporarily disabled for debugging
   
   // Data state
   const [orders, setOrders] = useState([]);
@@ -95,30 +126,43 @@ const OnlineOrderHistory = React.memo(() => {
   // Load theater info on mount
   useEffect(() => {
     fetchTheaterInfo();
-  }, [fetchTheaterInfo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theaterId]); // Only re-fetch when theaterId changes
 
   // Fetch orders from backend
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (forceRefresh = false) => {
     if (!theaterId) return;
 
     try {
-      // 🚀 CLEAR CACHE: Force fresh fetch to get updated filtered data
-      clearCachePattern(`/orders/theater/${theaterId}`);
-      console.log('🧹 Cache cleared for theater orders');
+      // 🚀 CLEAR CACHE: Force fresh fetch to get updated filtered data when force refreshing
+      if (forceRefresh) {
+        clearCachePattern(`/orders/theater/${theaterId}`);
+        console.log('🔄 [OnlineOrderHistory] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
       
-        setLoading(true);
+      setLoading(true);
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
+      // Build URL with optional cache-busting parameter
+      const params = new URLSearchParams();
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+      }
+      const queryString = params.toString();
+      const url = `${config.api.baseUrl}/orders/theater/${theaterId}${queryString ? `?${queryString}` : ''}`;
+      
       // Fetch ALL orders first, then filter on frontend for online QR code orders only
-      const response = await fetch(
-        `${config.api.baseUrl}/orders/theater/${theaterId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...(forceRefresh && {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          })
         }
-      );
+      });
 
       if (response.status === 404) {
 
@@ -234,10 +278,11 @@ const OnlineOrderHistory = React.memo(() => {
     }
   }, [theaterId, showError]);
 
-  // Load orders on mount
+  // Load orders on mount with force refresh
   useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    fetchOrders(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theaterId]); // Only re-fetch when theaterId changes
 
   // Filter orders based on search, status, and date
   const filteredOrders = useMemo(() => {
@@ -735,508 +780,55 @@ const OnlineOrderHistory = React.memo(() => {
     </tr>
   );
 
+  // Guard: Show error if theaterId is missing
+  if (!theaterId) {
+    console.error('OnlineOrderHistory: theaterId is missing!');
+    return (
+      <ErrorBoundary>
+        <TheaterLayout pageTitle="Online Orders" currentPage="online-orders">
+          <PageContainer title="Online Order History">
+            <div style={{ padding: '40px', textAlign: 'center', color: '#e74c3c', background: 'white' }}>
+              <h3>Error: Theater ID is missing</h3>
+              <p>Unable to load online order history. Please navigate from the theaters list.</p>
+              <p>URL: {window.location.href}</p>
+            </div>
+          </PageContainer>
+        </TheaterLayout>
+      </ErrorBoundary>
+    );
+  }
+
+  console.log('OnlineOrderHistory: Rendering main content with theaterId:', theaterId);
+
+  // TEMPORARY: Simple test render to verify component works
   return (
-    <ErrorBoundary>
-      <style>
-        {`
-          .calendar-container { margin: 20px 0; }
-          .calendar-header { text-align: center; margin-bottom: 15px; color: #8B5CF6; }
-          .calendar-grid { max-width: 300px; margin: 0 auto; }
-          .calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 10px; font-weight: bold; color: #666; text-align: center; }
-          .calendar-weekdays > div { padding: 5px; }
-          .calendar-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
-          .calendar-day { padding: 8px; text-align: center; border-radius: 4px; cursor: pointer; border: 1px solid #e0e0e0; background: #fff; }
-          .calendar-day.empty { cursor: default; border: none; background: transparent; }
-          .calendar-day.clickable:hover { background: #f3f0ff; border-color: #8B5CF6; }
-          .calendar-day.selected { background: #8B5CF6; color: white; border-color: #8B5CF6; }
-          
-          /* Status Action Buttons */
-          .status-action-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          }
-          .status-action-btn:active {
-            transform: translateY(0);
-          }
-          .status-action-btn:not(.active):hover {
-            border-color: #d1d5db !important;
-            background: #f9fafb !important;
-          }
-        `}
-      </style>
-      <TheaterLayout pageTitle="Online Orders" currentPage="online-orders">
-        <PageContainer
-          title="📱 Online Order History (QR Code Orders Only)"
-        >
-        
-        {/* Stats Section */}
-        <div className="qr-stats">
-          <div className="stat-card">
-            <div className="stat-number">{summary.totalOrders || 0}</div>
-            <div className="stat-label">Total Orders</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-number">{summary.confirmedOrders || 0}</div>
-            <div className="stat-label">Confirmed Orders</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-number">{summary.completedOrders || 0}</div>
-            <div className="stat-label">Completed Orders</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-number">{formatCurrency(summary.totalRevenue || 0)}</div>
-            <div className="stat-label">Total Revenue</div>
-          </div>
-        </div>
-
-        {/* Enhanced Filters Section matching TheaterList */}
-        <div className="theater-filters">
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="Search orders by order number or customer name..."
-              value={searchTerm}
-              onChange={handleSearch}
-              className="search-input"
-            />
-          </div>
-          <div className="filter-controls">
-            <select
-              value={statusFilter}
-              onChange={handleStatusFilter}
-              className="status-filter"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="confirmed">Confirmed</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            <button 
-              type="button"
-              className="submit-btn excel-download-btn"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                handleDownloadExcel();
-              }}
-              disabled={downloadingExcel || loading}
-              style={{
-                backgroundColor: downloadingExcel ? '#9ca3af' : '#10b981',
-                cursor: downloadingExcel || loading ? 'not-allowed' : 'pointer',
-                opacity: downloadingExcel || loading ? 0.6 : 1,
-                pointerEvents: downloadingExcel || loading ? 'none' : 'auto',
-                minWidth: '100px',
-                padding: '8px 16px',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <span className="btn-icon">{downloadingExcel ? '⏳' : '📊'}</span>
-              {downloadingExcel ? 'Downloading...' : 'Excel'}
-            </button>
-            <button 
-              className="submit-btn date-filter-btn"
-              onClick={() => setShowDateFilterModal(true)}
-            >
-              <span className="btn-icon">📅</span>
-              {dateFilter.type === 'all' ? 'Date Filter' : 
-               dateFilter.type === 'date' ? `TODAY (${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')})` :
-               dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
-               'Date Filter'}
-            </button>
-            <div className="items-per-page">
-              <label>Items per page:</label>
-              <select value={itemsPerPage} onChange={handleItemsPerPageChange} className="items-select">
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Management Table */}
-        <div className="theater-table-container">
-          <table className="theater-table">
-            <thead>
-              <tr>
-                <th className="sno-cell">S.No</th>
-                <th className="name-cell">Order Number</th>
-                <th className="name-cell">Customer</th>
-                <th className="name-cell">QR Name / Seat</th>
-                <th className="status-cell">Items</th>
-                <th className="status-cell">Amount</th>
-                <th className="status-cell">Status</th>
-                <th className="status-cell">Date</th>
-                <th className="status-cell">Action Status</th>
-                <th className="actions-cell">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="10" className="loading-cell">
-                    <div className="loading-spinner"></div>
-                    <span>Loading orders...</span>
-                  </td>
-                </tr>
-              ) : paginatedOrders.length > 0 ? (
-                paginatedOrders.map((order, index) => {
-                  const serialNumber = (currentPage - 1) * itemsPerPage + index + 1;
-                  return (
-                    <tr key={order._id} className="theater-row">
-                      <td className="sno-cell">{serialNumber}</td>
-                      <td className="order-number-cell">
-                        <div className="order-info">
-                          <div className="order-number">{order.orderNumber}</div>
-                        </div>
-                      </td>
-                      <td className="customer-cell">
-                        <div className="customer-info">
-                          <div className="customer-name">{order.customerName || order.customerInfo?.name || 'N/A'}</div>
-                          <div className="customer-phone">{order.customerPhone || order.customerInfo?.phoneNumber || order.customerInfo?.phone || order.customerInfo?.name || 'N/A'}</div>
-                        </div>
-                      </td>
-                      <td className="qr-info-cell">
-                        <div className="qr-info">
-                          <div className="qr-name">{order.qrName || 'N/A'}</div>
-                          <div className="seat-number">{order.seat || 'N/A'}</div>
-                        </div>
-                      </td>
-                      <td className="items-count">
-                        {(order.products?.length || order.items?.length || 0)} items
-                      </td>
-                      <td className="amount-cell">
-                        <div className="amount">{formatCurrency(order.pricing?.total ?? order.totalAmount ?? 0)}</div>
-                      </td>
-                      <td className="status-cell">
-                        <span className={getStatusBadgeClass(order.status)}>
-                          {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="date-cell">
-                        <div className="date-info">{formatDate(order.createdAt)}</div>
-                      </td>
-                      <td className="action-status-cell">
-                        <div className="status-action-buttons" style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center' }}>
-                          <button 
-                            className={`status-action-btn ${order.status === 'preparing' ? 'active' : ''}`}
-                            onClick={() => updateOrderStatus(order._id, 'preparing')}
-                            title="Mark as Preparing"
-                            style={{ 
-                              padding: '6px 8px', 
-                              border: order.status === 'preparing' ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                              borderRadius: '6px',
-                              background: order.status === 'preparing' ? '#fef3c7' : '#fff',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" fill={order.status === 'preparing' ? '#f59e0b' : '#9ca3af'} style={{width: '18px', height: '18px', display: 'block'}}>
-                              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z"/>
-                            </svg>
-                          </button>
-                          <button 
-                            className={`status-action-btn ${order.status === 'completed' ? 'active' : ''}`}
-                            onClick={() => updateOrderStatus(order._id, 'completed')}
-                            title="Mark as Delivered"
-                            style={{ 
-                              padding: '6px 8px', 
-                              border: order.status === 'completed' ? '2px solid #10b981' : '1px solid #e5e7eb',
-                              borderRadius: '6px',
-                              background: order.status === 'completed' ? '#d1fae5' : '#fff',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" fill={order.status === 'completed' ? '#10b981' : '#9ca3af'} style={{width: '18px', height: '18px', display: 'block'}}>
-                              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,16.5L6.5,12L7.91,10.59L11,13.67L16.59,8.09L18,9.5L11,16.5Z"/>
-                            </svg>
-                          </button>
-                          <button 
-                            className={`status-action-btn ${order.status === 'cancelled' ? 'active' : ''}`}
-                            onClick={() => updateOrderStatus(order._id, 'cancelled')}
-                            title="Mark as Cancelled"
-                            style={{ 
-                              padding: '6px 8px', 
-                              border: order.status === 'cancelled' ? '2px solid #ef4444' : '1px solid #e5e7eb',
-                              borderRadius: '6px',
-                              background: order.status === 'cancelled' ? '#fee2e2' : '#fff',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" fill={order.status === 'cancelled' ? '#ef4444' : '#9ca3af'} style={{width: '18px', height: '18px', display: 'block'}}>
-                              <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M14.59,8L12,10.59L9.41,8L8,9.41L10.59,12L8,14.59L9.41,16L12,13.41L14.59,16L16,14.59L13.41,12L16,9.41L14.59,8Z"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                      <td className="action-cell">
-                        <div className="action-buttons" style={{ gap: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <button 
-                            className="action-btn view-btn"
-                            onClick={() => viewOrder(order)}
-                            title="View Details"
-                            style={{ margin: '0' }}
-                          >
-                            <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '16px', height: '16px'}}>
-                              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                            </svg>
-                          </button>
-                          <button 
-                            className="action-btn download-btn"
-                            onClick={() => downloadOrderPDF(order)}
-                            title="Download PDF"
-                            style={{ margin: '0' }}
-                          >
-                            <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '16px', height: '16px'}}>
-                              <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan="10" className="empty-cell">
-                    <i className="fas fa-mobile-alt fa-3x"></i>
-                    <h3>No Online Orders Found</h3>
-                    <p>There are no online orders available for viewing at the moment.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination - Always Show (Global Component) */}
-        {!loading && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPageChange={handlePageChange}
-            itemType="orders"
-          />
-        )}
-
-        {/* View Modal - Thermal Receipt Style */}
-        {showViewModal && selectedOrder && (
-          <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
-              maxWidth: '400px',
-              fontFamily: "'Courier New', monospace",
-              backgroundColor: '#fff',
-              padding: '0'
-            }}>
-              <div className="modal-header" style={{
-                background: '#8B5CF6',
-                color: 'white',
-                padding: '15px 20px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderRadius: '8px 8px 0 0'
-              }}>
-                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Bill - {selectedOrder.orderNumber}</h2>
-                <button 
-                  className="close-btn"
-                  onClick={() => setShowViewModal(false)}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'white',
-                    cursor: 'pointer',
-                    padding: '5px'
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="modal-body" style={{
-                padding: '20px',
-                fontSize: '13px',
-                lineHeight: '1.5'
-              }}>
-                {/* Business Header */}
-                <div style={{
-                  textAlign: 'center',
-                  borderBottom: '2px dashed #000',
-                  paddingBottom: '15px',
-                  marginBottom: '15px'
-                }}>
-                  <div style={{
-                    fontSize: '20px',
-                    fontWeight: 'bold',
-                    marginBottom: '8px',
-                    color: '#8B5CF6'
-                  }}>{theaterInfo?.name || 'Theater Name'}</div>
-                  <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.6' }}>
-                    {theaterInfo?.address ? (() => {
-                      const addr = theaterInfo.address;
-                      const parts = [addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean);
-                      return parts.join(', ') || 'Address';
-                    })() : 'Address'}<br/>
-                    {theaterInfo?.phone ? `Phone: ${theaterInfo.phone}` : ''}<br/>
-                    {theaterInfo?.email ? `Email: ${theaterInfo.email}` : ''}<br/>
-                    {theaterInfo?.gstNumber ? `GST: ${theaterInfo.gstNumber}` : ''}
-                  </div>
-                </div>
-
-                {/* Bill Details */}
-                <div style={{
-                  borderBottom: '2px dashed #000',
-                  paddingBottom: '12px',
-                  marginBottom: '12px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 'bold' }}>Invoice ID:</span>
-                    <span>{selectedOrder.orderNumber || 'N/A'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 'bold' }}>Date:</span>
-                    <span>{formatDate(selectedOrder.createdAt)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 'bold' }}>Bill To:</span>
-                    <span>{selectedOrder.customerName || selectedOrder.customerInfo?.name || 'Customer'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 'bold' }}>Phone:</span>
-                    <span>{selectedOrder.customerPhone || selectedOrder.customerInfo?.phoneNumber || selectedOrder.customerInfo?.phone || selectedOrder.customerInfo?.name || 'N/A'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 'bold' }}>Screen:</span>
-                    <span>{selectedOrder.qrName || selectedOrder.screenName || selectedOrder.tableNumber || 'N/A'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                    <span style={{ fontWeight: 'bold' }}>Seat:</span>
-                    <span>{selectedOrder.seat || selectedOrder.seatNumber || selectedOrder.customerInfo?.seat || 'N/A'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 'bold' }}>Payment:</span>
-                    <span>{selectedOrder.payment?.method ? selectedOrder.payment.method.toUpperCase() : 'N/A'}</span>
-                  </div>
-                </div>
-
-                {/* Items Header */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 0.7fr 1fr 1fr',
-                  fontWeight: 'bold',
-                  borderBottom: '2px solid #000',
-                  paddingBottom: '8px',
-                  marginBottom: '8px',
-                  fontSize: '12px'
-                }}>
-                  <div>Item Name</div>
-                  <div style={{ textAlign: 'center' }}>Qty</div>
-                  <div style={{ textAlign: 'right' }}>Rate</div>
-                  <div style={{ textAlign: 'right' }}>Total</div>
-                </div>
-
-                {/* Items List */}
-                {(selectedOrder.products || selectedOrder.items || []).map((item, index) => {
-                  const qty = item.quantity || 1;
-                  const rate = item.unitPrice || item.price || 0;
-                  const total = item.totalPrice || (qty * rate);
-                  return (
-                    <div key={index} style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 0.7fr 1fr 1fr',
-                      marginBottom: '6px',
-                      fontSize: '12px'
-                    }}>
-                      <div style={{ wordBreak: 'break-word' }}>{item.productName || item.menuItem?.name || item.name || 'Item'}</div>
-                      <div style={{ textAlign: 'center' }}>{qty}</div>
-                      <div style={{ textAlign: 'right' }}>₹{rate.toFixed(2)}</div>
-                      <div style={{ textAlign: 'right', fontWeight: 'bold' }}>₹{total.toFixed(2)}</div>
-                    </div>
-                  );
-                })}
-
-                {/* Totals Section */}
-                <div style={{
-                  borderTop: '2px dashed #000',
-                  paddingTop: '12px',
-                  marginTop: '12px'
-                }}>
-                  {(selectedOrder.pricing?.subtotal || selectedOrder.subtotal) && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                      <span>Subtotal:</span>
-                      <span>₹{(selectedOrder.pricing?.subtotal || selectedOrder.subtotal).toFixed(2)}</span>
-                    </div>
-                  )}
-                  
-                  {(selectedOrder.pricing?.tax || selectedOrder.tax || selectedOrder.pricing?.gst || selectedOrder.gst) && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                      <span>GST/Tax:</span>
-                      <span>₹{(selectedOrder.pricing?.tax || selectedOrder.tax || selectedOrder.pricing?.gst || selectedOrder.gst).toFixed(2)}</span>
-                    </div>
-                  )}
-                  
-                  {(selectedOrder.pricing?.discount || selectedOrder.discount) && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                      <span>Discount:</span>
-                      <span>-₹{(selectedOrder.pricing?.discount || selectedOrder.discount).toFixed(2)}</span>
-                    </div>
-                  )}
-                  
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontWeight: 'bold',
-                    fontSize: '16px',
-                    borderTop: '2px solid #000',
-                    paddingTop: '8px',
-                    marginTop: '8px',
-                    color: '#8B5CF6'
-                  }}>
-                    <span>Grand Total:</span>
-                    <span>₹{(selectedOrder.pricing?.total || selectedOrder.totalAmount || selectedOrder.total || 0).toFixed(2)}</span>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div style={{
-                  textAlign: 'center',
-                  marginTop: '15px',
-                  paddingTop: '15px',
-                  borderTop: '2px dashed #000',
-                  fontSize: '11px',
-                  color: '#666'
-                }}>
-                  <p style={{ margin: '5px 0', fontWeight: 'bold' }}>Thank you for your order!</p>
-                  <p style={{ margin: '5px 0' }}>Generated on {new Date().toLocaleString('en-IN')}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Date Filter Modal */}
-        <DateFilter 
-          isOpen={showDateFilterModal}
-          onClose={() => setShowDateFilterModal(false)}
-          initialFilter={dateFilter}
-          onApply={(newDateFilter) => setDateFilter(newDateFilter)}
-        />
-
-        </PageContainer>
-      </TheaterLayout>
-    </ErrorBoundary>
+    <div style={{ 
+      padding: '40px', 
+      background: 'white', 
+      minHeight: '100vh',
+      color: '#333'
+    }}>
+      <h1 style={{ color: '#8B5CF6', marginBottom: '20px' }}>🎉 Component Works!</h1>
+      <h2>Theater ID: {theaterId}</h2>
+      <p>Loading: {loading ? 'Yes' : 'No'}</p>
+      <p>Orders Count: {orders.length}</p>
+      <p>User: {user?.email || 'Not logged in'}</p>
+      <button 
+        onClick={() => fetchOrders(true)}
+        style={{
+          padding: '10px 20px',
+          background: '#8B5CF6',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+          cursor: 'pointer',
+          marginTop: '20px'
+        }}
+      >
+        Fetch Orders
+      </button>
+    </div>
   );
-});
-
-OnlineOrderHistory.displayName = 'OnlineOrderHistory';
+};
 
 export default OnlineOrderHistory;

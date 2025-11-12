@@ -16,18 +16,16 @@ let redisCache, connectWithOptimizedPooling, cacheMiddleware;
 let generalLimiter, authenticatedLimiter, adminLimiter, strictLimiter;
 
 // Try to load optimization modules (graceful fallback if not available)
+// NOTE: Redis cache is DISABLED - removed to prevent caching issues
 try {
   // Check if optimization directory exists
   const fs = require('fs');
   const optPath = path.join(__dirname, 'optimization');
   
   if (fs.existsSync(optPath)) {
-    // Try to load each module individually with error handling
-    try {
-      redisCache = require('./optimization/redis-cache');
-    } catch (e) {
-      console.log('⚠️  Redis cache module not available:', e.message);
-    }
+    // Redis cache is DISABLED - set to null
+    redisCache = null;
+    console.log('ℹ️  Redis cache is disabled');
     
     try {
       const dbPooling = require('./optimization/database-pooling');
@@ -36,11 +34,9 @@ try {
       console.log('⚠️  Database pooling module not available:', e.message);
     }
     
-    try {
-      cacheMiddleware = require('./optimization/api-cache-middleware').cacheMiddleware;
-    } catch (e) {
-      console.log('⚠️  API cache middleware not available:', e.message);
-    }
+    // Cache middleware is DISABLED - set to null
+    cacheMiddleware = null;
+    console.log('ℹ️  API cache middleware is disabled');
     
     try {
       const rateLimiters = require('./optimization/advanced-rate-limit');
@@ -52,8 +48,8 @@ try {
       console.log('⚠️  Advanced rate limiting not available:', e.message);
     }
     
-    if (redisCache || connectWithOptimizedPooling || cacheMiddleware || generalLimiter) {
-      console.log('✅ Ultra optimization modules loaded (some may be unavailable)');
+    if (connectWithOptimizedPooling || generalLimiter) {
+      console.log('✅ Optimization modules loaded (Redis cache disabled)');
     }
   } else {
     console.log('⚠️  Optimization directory not found, using basic setup');
@@ -61,7 +57,6 @@ try {
 } catch (error) {
   console.log('⚠️  Optimization modules not available, using basic setup');
   console.log('   Error:', error.message);
-  console.log('   To enable: npm install redis ioredis pm2');
   // Set all to null/undefined to ensure graceful fallback
   redisCache = null;
   connectWithOptimizedPooling = null;
@@ -180,20 +175,11 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // DATABASE CONNECTION (Ultra Optimized)
 // ==============================================
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URI = process.env.MONGODB_URI ;
 
-// Connect to Redis first (for caching and rate limiting)
-if (redisCache) {
-  redisCache.connect().then(connected => {
-    if (connected) {
-      console.log('✅ Redis cache enabled - Distributed caching active');
-    } else {
-      console.log('⚠️  Redis not available - Using in-memory fallback');
-    }
-  }).catch(err => {
-    console.log('⚠️  Redis connection failed - Continuing without cache');
-  });
-}
+// Redis cache is DISABLED - removed to prevent caching issues
+// All routes will now return fresh data from database
+console.log('ℹ️  Redis cache is disabled - all API responses are fresh from database');
 
 // Connect to MongoDB with optimized pooling
 if (connectWithOptimizedPooling) {
@@ -277,10 +263,10 @@ app.get('/api/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     version: require('./package.json').version,
     optimizations: {
-      redis: redisCache ? redisCache.isConnected : false,
+      redis: false, // Redis cache is disabled
       databasePooling: !!connectWithOptimizedPooling,
       advancedRateLimit: !!generalLimiter,
-      apiCaching: !!cacheMiddleware
+      apiCaching: false // API caching is disabled
     }
   };
   
@@ -429,14 +415,14 @@ if (cacheMiddleware) {
 }
 
 app.use('/api/sync', syncRoutes);
+app.use('/api/roles', rolesRoutes);
 
 // Roles (cache for 10 minutes)
 if (cacheMiddleware) {
-  app.use('/api/roles', cacheMiddleware({ ttl: 600 }), rolesRoutes);
   app.use('/api/email-notification', cacheMiddleware({ ttl: 600 }), require('./routes/emailNotificationsArray'));
   app.use('/api/email-notifications-array', cacheMiddleware({ ttl: 600 }), require('./routes/emailNotificationsArray'));
 } else {
-  app.use('/api/roles', rolesRoutes);
+  // app.use('/api/roles', rolesRoutes);
   app.use('/api/email-notification', require('./routes/emailNotificationsArray'));
   app.use('/api/email-notifications-array', require('./routes/emailNotificationsArray'));
 }

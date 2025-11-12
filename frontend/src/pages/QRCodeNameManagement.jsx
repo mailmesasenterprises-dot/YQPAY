@@ -6,7 +6,7 @@ import PageContainer from '../components/PageContainer';
 import VerticalPageHeader from '../components/VerticalPageHeader';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Pagination from '../components/Pagination';
-import { useModal } from '../contexts/ModalContext';
+import { useToast } from '../contexts/ToastContext';
 import { clearTheaterCache, addCacheBuster } from '../utils/cacheManager';
 import { usePerformanceMonitoring, preventLayoutShift } from '../hooks/usePerformanceMonitoring';
 import { optimizedFetch } from '../utils/apiOptimizer';
@@ -87,7 +87,7 @@ const TableRowSkeleton = React.memo(() => (
 const QRCodeNameManagement = () => {
   const navigate = useNavigate();
   const { theaterId } = useParams(); // Get theaterId from URL
-  const { showSuccess, showError, confirm } = useModal();
+  const toast = useToast();
   
   // PERFORMANCE MONITORING: Track page performance metrics
   usePerformanceMonitoring('QRCodeNameManagement');
@@ -345,7 +345,7 @@ const QRCodeNameManagement = () => {
     try {
       const token = config.helpers.getAuthToken();
       if (!token) {
-        showError('Authentication required. Please login again.');
+        toast.error('Authentication required. Please login again.');
         return;
       }
 
@@ -353,7 +353,7 @@ const QRCodeNameManagement = () => {
       setDeleteModal({ show: true, qrCodeName });
     } catch (error) {
 
-      showError('Failed to prepare delete action. Please try again.');
+      toast.error('Failed to prepare delete action. Please try again.');
     }
   };
 
@@ -376,24 +376,24 @@ const QRCodeNameManagement = () => {
         const data = await response.json();
 
         setDeleteModal({ show: false, qrCodeName: null });
-        showSuccess('QR Code Name deleted successfully!');
+        toast.success('QR Code Name deleted successfully!');
         loadQRCodeNameData(); // Refresh the list
       } else {
         const errorData = await response.json();
 
         // Enhanced error handling for array-based operations
         if (errorData.message && errorData.message.includes('Theater QR names not found')) {
-          showError('Theater not found. Please refresh the page and try again.');
+          toast.error('Theater not found. Please refresh the page and try again.');
         } else if (errorData.message && errorData.message.includes('QR name not found')) {
-          showError('QR code name not found. It may have been already deleted.');
+          toast.error('QR code name not found. It may have been already deleted.');
           loadQRCodeNameData(); // Refresh to show current state
         } else {
-          showError(errorData.message || 'Failed to delete QR code name');
+          toast.error(errorData.message || 'Failed to delete QR code name');
         }
       }
     } catch (error) {
 
-      showError('Failed to delete QR code name. Please try again.');
+      toast.error('Failed to delete QR code name. Please try again.');
     }
   };
 
@@ -401,13 +401,13 @@ const QRCodeNameManagement = () => {
     try {
       const token = config.helpers.getAuthToken();
       if (!token) {
-        showError('Authentication required. Please login again.');
+        toast.error('Authentication required. Please login again.');
         return;
       }
 
 
         if (!theaterId && !isEdit) {
-          showError('Theater ID is required for creating QR code names. Please navigate from the theater list.');
+          toast.error('Theater ID is required for creating QR code names. Please navigate from the theater list.');
           return;
         }
       
@@ -439,7 +439,7 @@ const QRCodeNameManagement = () => {
       if (response.ok) {
         const result = await response.json();
 
-        showSuccess(isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!');
+        toast.success(isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!');
         if (isEditMode) {
           setShowEditModal(false);
           toast.success('QR Code Name updated successfully!');
@@ -459,18 +459,18 @@ const QRCodeNameManagement = () => {
 
         // Enhanced error handling for array-based operations
         if (errorData.message && errorData.message.includes('Theater QR names not found')) {
-          showError('Theater not found. Please refresh the page and try again.');
+          toast.error('Theater not found. Please refresh the page and try again.');
         } else if (errorData.message && errorData.message.includes('QR name not found')) {
-          showError('QR code name not found. Please refresh and try again.');
+          toast.error('QR code name not found. Please refresh and try again.');
         } else if (errorData.message && errorData.message.includes('already exists')) {
-          showError('A QR code name with this name already exists in this theater.');
+          toast.error('A QR code name with this name already exists in this theater.');
         } else {
-          showError(errorData.message || 'Failed to save QR Code Name');
+          toast.error(errorData.message || 'Failed to save QR Code Name');
         }
       }
     } catch (error) {
 
-      showError('An error occurred while saving the QR Code Name. Check console for details.');
+      toast.error('An error occurred while saving the QR Code Name. Check console for details.');
     }
   };
 

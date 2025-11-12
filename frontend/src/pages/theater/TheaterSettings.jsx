@@ -216,8 +216,6 @@ function TheaterSettings() {
         },
       }, {}, { cacheTTL: 60000 }).catch(error => { throw new Error('Request failed'); });
 
-      const data = await response.json();
-
       // ✅ FIX: Backend returns data.data, not data.theater
       if (data.success && data.data) {
         console.log('📸 Full theater data from backend:', data.data);

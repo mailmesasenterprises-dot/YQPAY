@@ -6,7 +6,7 @@ import Pagination from '../components/Pagination';
 import DateFilter from '../components/DateFilter/DateFilter';
 import PageContainer from '../components/PageContainer';
 import VerticalPageHeader from '../components/VerticalPageHeader';
-import { useModal } from '../contexts/ModalContext';
+import { useToast } from '../contexts/ToastContext';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { optimizedFetch } from '../utils/apiOptimizer';
 import config from '../config';
@@ -22,7 +22,7 @@ import { ultraFetch } from '../utils/ultraFetch';
 const TransactionDetail = () => {
   const { theaterId } = useParams();
   const navigate = useNavigate();
-  const { showError, showSuccess } = useModal();
+  const toast = useToast();
   
   // PERFORMANCE MONITORING
   usePerformanceMonitoring('TransactionDetail');
@@ -353,13 +353,13 @@ const TransactionDetail = () => {
   // Excel Download Handler
   const handleDownloadExcel = useCallback(async () => {
     if (!theaterId) {
-      showError('Theater ID is missing');
+      toast.error('Theater ID is missing');
       return;
     }
     
     const token = localStorage.getItem('authToken') || localStorage.getItem('token');
     if (!token) {
-      showError('Please login again to download reports');
+      toast.error('Please login again to download reports');
       return;
     }
     
@@ -400,7 +400,7 @@ const TransactionDetail = () => {
       });
 
       if (response.status === 401 || response.status === 403) {
-        showError('Session expired. Please login again.');
+        toast.error('Session expired. Please login again.');
         setTimeout(() => {
           window.location.href = '/login';
         }, 2000);
@@ -410,7 +410,7 @@ const TransactionDetail = () => {
       if (response.ok) {
         const blob = await response.blob();
         if (blob.size === 0) {
-          showError('No data available to export');
+          toast.error('No data available to export');
           return;
         }
         
@@ -428,23 +428,23 @@ const TransactionDetail = () => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
-        showSuccess('Excel file downloaded successfully');
+        toast.success('Excel file downloaded successfully');
       } else {
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
-          showError(errorData.error || `Failed to download Excel report (${response.status})`);
+          toast.error(errorData.error || `Failed to download Excel report (${response.status})`);
         } else {
-          showError(`Failed to download Excel report (${response.status})`);
+          toast.error(`Failed to download Excel report (${response.status})`);
         }
       }
     } catch (error) {
       console.error('Excel download error:', error);
-      showError('Network error. Please check your connection and try again.');
+      toast.error('Network error. Please check your connection and try again.');
     } finally {
       setDownloadingExcel(false);
     }
-  }, [theaterId, dateFilter, sourceFilter, showError, showSuccess]);
+  }, [theaterId, dateFilter, sourceFilter, showError, toast]);
 
   // Header button for date filter
   const headerButton = (
