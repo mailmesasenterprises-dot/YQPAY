@@ -23,8 +23,8 @@ const stockEntrySchema = new mongoose.Schema({
   
   // Display data for UI (calculated values)
   displayData: {
-    stockAdded: { type: Number, default: 0 },
-    usedStock: { type: Number, default: 0 },
+    invordStock: { type: Number, default: 0 },
+    sales: { type: Number, default: 0 },
     expiredStock: { type: Number, default: 0 },
     damageStock: { type: Number, default: 0 },
     balance: { type: Number, default: 0 }
@@ -80,8 +80,8 @@ stockEntrySchema.pre('save', function(next) {
   // Auto-populate displayData based on type
   const qty = Math.abs(this.quantity);
   this.displayData = {
-    stockAdded: this.type === 'ADDED' ? qty : 0,
-    usedStock: this.type === 'SOLD' ? qty : 0,
+    invordStock: this.type === 'ADDED' ? qty : 0,
+    sales: this.type === 'SOLD' ? qty : 0,
     expiredStock: this.type === 'EXPIRED' ? qty : 0,
     damageStock: this.type === 'DAMAGED' ? qty : 0,
     balance: this.displayData?.balance || this.stockAfter || 0

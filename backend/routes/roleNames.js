@@ -6,8 +6,8 @@ const mongoose = require('mongoose');
 const router = express.Router();
 
 /**
- * GET /api/role-names
- * Get all role names with optional filtering by theater
+ * GET /api/email-notification
+ * Get all email notifications with optional filtering by theater
  */
 router.get('/', [optionalAuth], async (req, res) => {
   try {
@@ -86,8 +86,8 @@ router.get('/', [optionalAuth], async (req, res) => {
 });
 
 /**
- * GET /api/role-names/:id
- * Get a specific role name by ID
+ * GET /api/email-notification/:id
+ * Get a specific email notification by ID
  */
 router.get('/:id', [optionalAuth], async (req, res) => {
   try {
@@ -126,24 +126,42 @@ router.get('/:id', [optionalAuth], async (req, res) => {
 });
 
 /**
- * POST /api/role-names
- * Create a new role name
+ * POST /api/email-notification
+ * Create a new email notification
  */
 router.post('/', [authenticateToken], async (req, res) => {
   try {
     const { emailNotification, description, theaterId, permissions, isGlobal, priority } = req.body;
     const theater = theaterId || req.body.theater;
 
-    // Validate required fields
-    if (!emailNotification || !theater) {
+    // Validate required fields with detailed error messages
+    if (!emailNotification || !emailNotification.trim()) {
       return res.status(400).json({
         success: false,
-        error: 'Email notification and theater are required fields'
+        error: 'Email notification is required and cannot be empty'
       });
     }
 
+    if (!theater) {
+      return res.status(400).json({
+        success: false,
+        error: 'Theater ID is required to create an email notification'
+      });
+    }
+
+    // Validate theater ID format
+    if (!mongoose.Types.ObjectId.isValid(theater)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid theater ID format'
+      });
+    }
+
+    // Convert theater to ObjectId
+    const theaterObjectId = new mongoose.Types.ObjectId(theater);
+
     // Check if email notification already exists for this theater
-    const nameExists = await RoleName.emailNotificationExistsForTheater(emailNotification, theater);
+    const nameExists = await RoleName.emailNotificationExistsForTheater(emailNotification, theaterObjectId);
     if (nameExists) {
       return res.status(400).json({
         success: false,
@@ -153,9 +171,9 @@ router.post('/', [authenticateToken], async (req, res) => {
 
     // Create new email notification
     const newRoleName = new RoleName({
-      emailNotification,
-      description: description || '',
-      theater,
+      emailNotification: emailNotification.trim(),
+      description: description ? description.trim() : '',
+      theater: theaterObjectId,
       permissions: permissions || [],
       isGlobal: isGlobal || false,
       priority: priority || 1,
@@ -183,8 +201,8 @@ router.post('/', [authenticateToken], async (req, res) => {
 });
 
 /**
- * PUT /api/role-names/:id
- * Update a role name
+ * PUT /api/email-notification/:id
+ * Update an email notification
  */
 router.put('/:id', [authenticateToken], async (req, res) => {
   const startTime = Date.now();
@@ -247,19 +265,29 @@ router.put('/:id', [authenticateToken], async (req, res) => {
 
     // Regular email notifications can be fully edited
     // Check if new email notification conflicts with existing email notification
-    if (emailNotification && emailNotification !== roleNameDoc.emailNotification) {
-      const nameExists = await RoleName.emailNotificationExistsForTheater(emailNotification, roleNameDoc.theater, id);
-      if (nameExists) {
+    if (emailNotification !== undefined) {
+      const trimmedEmailNotification = emailNotification.trim();
+      if (!trimmedEmailNotification) {
         return res.status(400).json({
           success: false,
-          error: 'An email notification with this name already exists for this theater'
+          error: 'Email notification cannot be empty'
         });
       }
-      roleNameDoc.emailNotification = emailNotification;
+      
+      if (trimmedEmailNotification !== roleNameDoc.emailNotification) {
+        const nameExists = await RoleName.emailNotificationExistsForTheater(trimmedEmailNotification, roleNameDoc.theater, id);
+        if (nameExists) {
+          return res.status(400).json({
+            success: false,
+            error: 'An email notification with this name already exists for this theater'
+          });
+        }
+        roleNameDoc.emailNotification = trimmedEmailNotification;
+      }
     }
 
     // Update fields for non-default roles
-    if (description !== undefined) roleNameDoc.description = description;
+    if (description !== undefined) roleNameDoc.description = description ? description.trim() : '';
     if (permissions !== undefined) roleNameDoc.permissions = permissions;
     if (isGlobal !== undefined) roleNameDoc.isGlobal = isGlobal;
     if (priority !== undefined) roleNameDoc.priority = priority;
@@ -287,8 +315,8 @@ router.put('/:id', [authenticateToken], async (req, res) => {
 });
 
 /**
- * DELETE /api/role-names/:id
- * Delete a role name (hard delete - permanently removes from database)
+ * DELETE /api/email-notification/:id
+ * Delete an email notification (hard delete - permanently removes from database)
  */
 router.delete('/:id', [authenticateToken], async (req, res) => {
   try {
@@ -338,8 +366,8 @@ router.delete('/:id', [authenticateToken], async (req, res) => {
 });
 
 /**
- * GET /api/role-names/theater/:theaterId/summary
- * Get role name summary statistics for a theater
+ * GET /api/email-notification/theater/:theaterId/summary
+ * Get email notification summary statistics for a theater
  */
 router.get('/theater/:theaterId/summary', [optionalAuth], async (req, res) => {
   try {

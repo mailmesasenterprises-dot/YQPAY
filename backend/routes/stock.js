@@ -17,9 +17,9 @@ async function autoExpireStock(theaterId, productId) {
   
   let hasAnyExpiredItems = false;
   
-  // Track stock that needs to be moved to next day's expiredOldStock
+  // Track stock that needs to be moved to next day's expiredStock
   // key: "YYYY-MM-DD" (date when it should appear as expired old), value: quantity
-  const expiredStockToCarryForward = {};
+  const expiredStockToOldStock = {};
   
   for (const monthlyDoc of allMonthlyDocs) {
     for (let i = 0; i < monthlyDoc.stockDetails.length; i++) {
@@ -39,7 +39,7 @@ async function autoExpireStock(theaterId, productId) {
           // Calculate remaining stock that should expire
           // This is the balance on the expiry date that needs to be carried forward
           const remainingStock = Math.max(0, 
-            entry.stockAdded - entry.usedStock - entry.damageStock - (entry.expiredOldStock || 0)
+            entry.invordStock - entry.sales - entry.damageStock - (entry.expiredStock || 0)
           );
           
           if (remainingStock > 0) {
@@ -50,11 +50,11 @@ async function autoExpireStock(theaterId, productId) {
             nextDay.setDate(expiry.getDate() + 1);
             const nextDayStr = nextDay.toISOString().split('T')[0]; // YYYY-MM-DD
             
-            // Track this expired stock to be added to next day's expiredOldStock
-            if (!expiredStockToCarryForward[nextDayStr]) {
-              expiredStockToCarryForward[nextDayStr] = 0;
+            // Track this expired stock to be added to next day's expiredStock
+            if (!expiredStockToOldStock[nextDayStr]) {
+              expiredStockToOldStock[nextDayStr] = 0;
             }
-            expiredStockToCarryForward[nextDayStr] += remainingStock;
+            expiredStockToOldStock[nextDayStr] += remainingStock;
             
             hasAnyExpiredItems = true;
           }
@@ -63,7 +63,7 @@ async function autoExpireStock(theaterId, productId) {
     }
   }
   
-  // Now go through all months again and add expiredOldStock to the appropriate dates
+  // Now go through all months again and add expiredStock to the appropriate dates
   // Also recalculate ALL balances to ensure consistency
   for (const monthlyDoc of allMonthlyDocs) {
     let docModified = false;
@@ -73,28 +73,28 @@ async function autoExpireStock(theaterId, productId) {
       const entryDateStr = new Date(entry.date).toISOString().split('T')[0];
       
       // If this date should receive expired old stock
-      if (expiredStockToCarryForward[entryDateStr]) {
-        if (!entry.expiredOldStock) {
-          entry.expiredOldStock = 0;
+      if (expiredStockToOldStock[entryDateStr]) {
+        if (!entry.expiredStock) {
+          entry.expiredStock = 0;
         }
-        entry.expiredOldStock += expiredStockToCarryForward[entryDateStr];
+        entry.expiredStock += expiredStockToOldStock[entryDateStr];
         docModified = true;
         
         // Mark as handled
-        delete expiredStockToCarryForward[entryDateStr];
+        delete expiredStockToOldStock[entryDateStr];
       }
     }
     
     // Always recalculate balances for consistency
-    let runningBalance = monthlyDoc.carryForward;
+    let runningBalance = monthlyDoc.oldStock;
     
     for (let i = 0; i < monthlyDoc.stockDetails.length; i++) {
       const entry = monthlyDoc.stockDetails[i];
-      // Update carry forward for this entry (from previous day's balance)
-      entry.carryForward = runningBalance;
-      // Balance = CarryForward + StockAdded - UsedStock - ExpiredOldStock - DamageStock
-      // NOTE: ExpiredStock is NOT subtracted because stock carries forward first, then becomes expiredOldStock on next day
-      entry.balance = Math.max(0, runningBalance + entry.stockAdded - entry.usedStock - (entry.expiredOldStock || 0) - entry.damageStock);
+      // Update old stock for this entry (from previous day's balance)
+      entry.oldStock = runningBalance;
+      // Balance = OldStock + InvordStock - UsedStock - ExpiredOldStock - DamageStock
+      // NOTE: ExpiredStock is NOT subtracted because stock carries forward first, then becomes expiredStock on next day
+      entry.balance = Math.max(0, runningBalance + entry.invordStock - entry.sales - (entry.expiredStock || 0) - entry.damageStock);
       runningBalance = entry.balance;
     }
     
@@ -106,8 +106,8 @@ async function autoExpireStock(theaterId, productId) {
   return hasAnyExpiredItems;
 }
 
-// Helper function to update carry forward chain for all months
-async function updateCarryForwardChain(theaterId, productId) {
+// Helper function to update old stock chain for all months
+async function updateOldStockChain(theaterId, productId) {
   // Get all monthly documents sorted by date
   const allDocs = await MonthlyStock.find({
     theaterId,
@@ -119,26 +119,26 @@ async function updateCarryForwardChain(theaterId, productId) {
   for (let i = 0; i < allDocs.length; i++) {
     const doc = allDocs[i];
     
-    // Get correct carry forward from previous month
-    const correctCarryForward = await MonthlyStock.getPreviousMonthBalance(
+    // Get correct old stock from previous month
+    const correctOldStock = await MonthlyStock.getPreviousMonthBalance(
       theaterId, 
       productId, 
       doc.year, 
       doc.monthNumber
     );
 
-    // If carry forward doesn't match, update it
-    if (doc.carryForward !== correctCarryForward) {
-      doc.carryForward = correctCarryForward;
+    // If old stock doesn't match, update it
+    if (doc.oldStock !== correctOldStock) {
+      doc.oldStock = correctOldStock;
 
       // Recalculate all balances
-      let runningBalance = correctCarryForward;
+      let runningBalance = correctOldStock;
       for (let j = 0; j < doc.stockDetails.length; j++) {
         const entry = doc.stockDetails[j];
-        // Update carry forward for this entry
-        entry.carryForward = runningBalance;
-        // Balance = CarryForward + StockAdded - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
-        runningBalance = runningBalance + entry.stockAdded - entry.usedStock - (entry.expiredOldStock || 0) - (entry.expiredStock || 0) - entry.damageStock;
+        // Update old stock for this entry
+        entry.oldStock = runningBalance;
+        // Balance = OldStock + InvordStock - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
+        runningBalance = runningBalance + entry.invordStock - entry.sales - (entry.expiredStock || 0) - (entry.expiredStock || 0) - entry.damageStock;
         entry.balance = Math.max(0, runningBalance);
         runningBalance = entry.balance;
       }
@@ -273,10 +273,10 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
       'S.No',
       'Product Name',
       'Category',
-      'Carry Forward',
-      'Stock Added',
-      'Expired Old Stock',
-      'Used Stock',
+      'Old Stock',
+      'Invord Stock',
+      'Expired Stock',
+      'Sales',
       'Expired Stock',
       'Damage Stock',
       'Balance',
@@ -293,10 +293,10 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
       { width: 8 },   // S.No
       { width: 30 },  // Product Name
       { width: 20 },  // Category
-      { width: 15 },  // Carry Forward
-      { width: 15 },  // Stock Added
-      { width: 18 },  // Expired Old Stock
-      { width: 15 },  // Used Stock
+      { width: 15 },  // Old Stock
+      { width: 15 },  // Invord Stock
+      { width: 18 },  // Expired Stock
+      { width: 15 },  // Sales
       { width: 15 },  // Expired Stock
       { width: 15 },  // Damage Stock
       { width: 15 },  // Balance
@@ -305,11 +305,10 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
 
     // Fetch stock data for each product
     let rowNumber = 7;
-    let totalCarryForward = 0;
-    let totalStockAdded = 0;
-    let totalExpiredOld = 0;
-    let totalUsed = 0;
+    let totalOldStock = 0;
+    let totalInvordStock = 0;
     let totalExpired = 0;
+    let totalSales = 0;
     let totalDamage = 0;
     let totalBalance = 0;
 
@@ -325,11 +324,10 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
       });
 
       let stockData = {
-        carryForward: 0,
-        stockAdded: 0,
-        expiredOldStock: 0,
-        usedStock: 0,
+        oldStock: 0,
+        invordStock: 0,
         expiredStock: 0,
+        sales: 0,
         damageStock: 0,
         balance: 0
       };
@@ -344,11 +342,10 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
 
         if (dayEntry) {
           stockData = {
-            carryForward: dayEntry.carryForward || 0,
-            stockAdded: dayEntry.stockAdded || 0,
-            expiredOldStock: dayEntry.expiredOldStock || 0,
-            usedStock: dayEntry.usedStock || 0,
+            oldStock: dayEntry.oldStock || 0,
+            invordStock: dayEntry.invordStock || 0,
             expiredStock: dayEntry.expiredStock || 0,
+            sales: dayEntry.sales || 0,
             damageStock: dayEntry.damageStock || 0,
             balance: dayEntry.balance || 0
           };
@@ -356,11 +353,10 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
       }
 
       // Update totals
-      totalCarryForward += stockData.carryForward;
-      totalStockAdded += stockData.stockAdded;
-      totalExpiredOld += stockData.expiredOldStock;
-      totalUsed += stockData.usedStock;
+      totalOldStock += stockData.oldStock;
+      totalInvordStock += stockData.invordStock;
       totalExpired += stockData.expiredStock;
+      totalSales += stockData.sales;
       totalDamage += stockData.damageStock;
       totalBalance += stockData.balance;
 
@@ -371,11 +367,10 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
         i + 1,
         product.name || 'N/A',
         product.categoryName || 'N/A',
-        stockData.carryForward,
-        stockData.stockAdded,
-        stockData.expiredOldStock,
-        stockData.usedStock,
+        stockData.oldStock,
+        stockData.invordStock,
         stockData.expiredStock,
+        stockData.sales,
         stockData.damageStock,
         stockData.balance,
         productStatus
@@ -413,7 +408,7 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
     // Add summary row
     rowNumber += 1;
     const summaryRow = worksheet.getRow(rowNumber);
-    summaryRow.values = ['', 'TOTALS', '', totalCarryForward, totalStockAdded, totalExpiredOld, totalUsed, totalExpired, totalDamage, totalBalance, ''];
+    summaryRow.values = ['', 'TOTALS', '', totalOldStock, totalInvordStock, totalExpired, totalSales, totalDamage, totalBalance, ''];
     summaryRow.eachCell((cell) => {
       cell.font = { bold: true, size: 12 };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
@@ -437,7 +432,7 @@ async function downloadStockByDate(req, res, theaterId, dateStr, category, statu
   }
 }
 
-// POST /:theaterId/:productId/regenerate - Regenerate auto carry forward entries
+// POST /:theaterId/:productId/regenerate - Regenerate auto old stock entries
 router.post('/:theaterId/:productId/regenerate', authenticateToken, requireTheaterAccess, async (req, res) => {
   try {
     const { theaterId, productId } = req.params;
@@ -477,7 +472,7 @@ router.post('/:theaterId/:productId/regenerate', authenticateToken, requireTheat
         // If entry date is before expiry date, it shouldn't have expiredStock
         if (entryDate < expiryDate && entry.expiredStock > 0) {
           console.log(`Fixing entry on ${entryDate.toLocaleDateString()} - removing incorrect expiredStock: ${entry.expiredStock}`);
-          entry.stockAdded += entry.expiredStock; // Move back to stockAdded
+          entry.invordStock += entry.expiredStock; // Move back to invordStock
           entry.expiredStock = 0;
         }
       }
@@ -565,14 +560,14 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
     // ? AUTO-EXPIRE STOCK ACROSS ALL MONTHS
     const hasExpiredItems = await autoExpireStock(theaterId, productId);
 
-    // ? UPDATE CARRY FORWARD CHAIN FOR ALL MONTHS
-    await updateCarryForwardChain(theaterId, productId);
+    // ? UPDATE OLD STOCK CHAIN FOR ALL MONTHS
+    await updateOldStockChain(theaterId, productId);
 
     const previousBalance = await MonthlyStock.getPreviousMonthBalance(theaterId, productId, targetYear, targetMonth);
     const monthlyDoc = await MonthlyStock.getOrCreateMonthlyDoc(theaterId, productId, targetYear, targetMonth, previousBalance);
 
-    // AUTO-CREATE DAILY CARRY FORWARD ENTRIES
-    // If this is the current month and we have a carry forward, check if we need first day entry
+    // AUTO-CREATE DAILY OLD STOCK ENTRIES
+    // If this is the current month and we have a old stock, check if we need first day entry
     const today = new Date();
     const isCurrentMonth = targetYear === today.getFullYear() && targetMonth === (today.getMonth() + 1);
     const firstDayOfMonth = new Date(targetYear, targetMonth - 1, 1, 12, 0, 0, 0); // Noon local time
@@ -580,7 +575,7 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
     console.log('Checking for first day entry:', {
       targetYear,
       targetMonth,
-      carryForward: monthlyDoc.carryForward,
+      oldStock: monthlyDoc.oldStock,
       existingEntriesCount: monthlyDoc.stockDetails.length
     });
     
@@ -601,25 +596,25 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
     
     console.log('Has first day entry?', hasFirstDayEntry);
     
-    if (monthlyDoc.carryForward > 0 && !hasFirstDayEntry) {
-      // Create an entry for the 1st of the month with carry forward
-      console.log('✅ Creating carry forward entry for Nov 1:', {
+    if (monthlyDoc.oldStock > 0 && !hasFirstDayEntry) {
+      // Create an entry for the 1st of the month with old stock
+      console.log('✅ Creating old stock entry for Nov 1:', {
         firstDayOfMonth: firstDayOfMonth.toISOString(),
-        carryForward: monthlyDoc.carryForward
+        oldStock: monthlyDoc.oldStock
       });
       
       monthlyDoc.stockDetails.push({
         date: firstDayOfMonth,
         type: 'ADDED',
         quantity: 0,
-        carryForward: monthlyDoc.carryForward,
-        stockAdded: 0,
-        expiredOldStock: 0,
-        usedStock: 0,
+        oldStock: monthlyDoc.oldStock,
+        invordStock: 0,
+        expiredStock: 0,
+        sales: 0,
         expiredStock: 0,
         damageStock: 0,
-        balance: monthlyDoc.carryForward,
-        notes: 'Auto-generated carry forward from previous month'
+        balance: monthlyDoc.oldStock,
+        notes: 'Auto-generated old stock from previous month'
       });
       
       await monthlyDoc.save();
@@ -627,7 +622,7 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
     }
     
     if (isCurrentMonth && monthlyDoc.stockDetails.length > 0) {
-      // Check if today needs a carry forward entry
+      // Check if today needs a old stock entry
       const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0, 0); // Noon local time
       const hasEntryToday = monthlyDoc.stockDetails.some(entry => {
         const entryDate = new Date(entry.date);
@@ -642,21 +637,21 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
           .map(e => ({ ...e.toObject(), date: new Date(e.date) }))
           .sort((a, b) => b.date - a.date);
         
-        const previousBalance = sortedEntries.length > 0 ? sortedEntries[0].balance : monthlyDoc.carryForward;
+        const previousBalance = sortedEntries.length > 0 ? sortedEntries[0].balance : monthlyDoc.oldStock;
         
-        // Create today's carry forward entry
+        // Create today's old stock entry
         monthlyDoc.stockDetails.push({
           date: todayDate,
           type: 'ADDED',
           quantity: 0,
-          carryForward: previousBalance,
-          stockAdded: 0,
-          expiredOldStock: 0,
-          usedStock: 0,
+          oldStock: previousBalance,
+          invordStock: 0,
+          expiredStock: 0,
+          sales: 0,
           expiredStock: 0,
           damageStock: 0,
           balance: previousBalance,
-          notes: 'Auto-generated daily carry forward'
+          notes: 'Auto-generated daily old stock'
         });
         
         await monthlyDoc.save();
@@ -674,22 +669,22 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
       }
     }
 
-    // NEW: Auto-generate missing daily carry forward entries for stocks with expiry dates
-    console.log('🔄 Checking for missing daily carry forward entries...');
+    // NEW: Auto-generate missing daily old stock entries for stocks with expiry dates
+    console.log('🔄 Checking for missing daily old stock entries...');
     
     // Get all ADDED entries with expiry dates
     const addedEntriesWithExpiry = monthlyDoc.stockDetails.filter(entry => 
       (entry.type === 'ADDED' || entry.type === 'RETURNED') && 
       entry.expireDate &&
-      entry.stockAdded > 0
+      entry.invordStock > 0
     );
     
     for (const sourceEntry of addedEntriesWithExpiry) {
-      const stockAddedDate = new Date(sourceEntry.date);
+      const invordStockDate = new Date(sourceEntry.date);
       const expiryDate = new Date(sourceEntry.expireDate);
       
       // Normalize dates to midnight for comparison
-      stockAddedDate.setHours(0, 0, 0, 0);
+      invordStockDate.setHours(0, 0, 0, 0);
       expiryDate.setHours(0, 0, 0, 0);
       
       // ✅ FIX: Stock expires the DAY AFTER the expiry label date at 00:01 AM
@@ -707,18 +702,18 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
       // It should be the earlier of: today OR actual expiry date
       const lastDayToCreate = actualExpiryDate < today ? actualExpiryDate : today;
       
-      console.log(`📦 Processing stock added on ${stockAddedDate.toLocaleDateString()}`);
+      console.log(`📦 Processing stock added on ${invordStockDate.toLocaleDateString()}`);
       console.log(`   Expiry label: ${expiryDate.toLocaleDateString()}`);
       console.log(`   Actual expiry: ${actualExpiryDate.toLocaleDateString()} at 00:01 AM`);
       console.log(`   Today: ${today.toLocaleDateString()}`);
       console.log(`   Will create entries up to: ${lastDayToCreate.toLocaleDateString()}`);
       
       // Start from the day after stock was added
-      let currentDay = new Date(stockAddedDate);
+      let currentDay = new Date(invordStockDate);
       currentDay.setDate(currentDay.getDate() + 1);
       currentDay.setHours(0, 0, 0, 0);
       
-      let carryingQuantity = sourceEntry.stockAdded;
+      let carryingQuantity = sourceEntry.invordStock;
       
       // ✅ FIX: Loop only up to the last day we should create (today or expiry, whichever is earlier)
       while (currentDay <= lastDayToCreate) {
@@ -755,23 +750,23 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
         });
         
         if (existingEntryIndex === -1) {
-          // No entry exists - create new carry forward entry
+          // No entry exists - create new old stock entry
           const entriesBeforeThisDay = dayMonthDoc.stockDetails
             .filter(entry => new Date(entry.date) < currentDay)
             .sort((a, b) => new Date(b.date) - new Date(a.date));
           
           const previousDayTotalBalance = entriesBeforeThisDay.length > 0 
             ? entriesBeforeThisDay[0].balance 
-            : dayMonthDoc.carryForward;
+            : dayMonthDoc.oldStock;
           
           const autoEntry = {
             date: new Date(currentDay),
             type: 'ADDED',
             quantity: 0,
-            carryForward: previousDayTotalBalance,
-            stockAdded: 0,
-            expiredOldStock: isExpiryDate ? carryingQuantity : 0,
-            usedStock: 0,
+            oldStock: previousDayTotalBalance,
+            invordStock: 0,
+            expiredStock: isExpiryDate ? carryingQuantity : 0,
+            sales: 0,
             expiredStock: 0,
             damageStock: 0,
             balance: isExpiryDate 
@@ -780,8 +775,8 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
             // Don't store expireDate in auto-generated entries - they show their own date
             batchNumber: sourceEntry.batchNumber,
             notes: isExpiryDate 
-              ? `Auto: Expired from ${stockAddedDate.toLocaleDateString()} (Label: ${expiryDate.toLocaleDateString()})`
-              : `Auto: CF from ${stockAddedDate.toLocaleDateString()}`
+              ? `Auto: Expired from ${invordStockDate.toLocaleDateString()} (Label: ${expiryDate.toLocaleDateString()})`
+              : `Auto: CF from ${invordStockDate.toLocaleDateString()}`
           };
           
           dayMonthDoc.stockDetails.push(autoEntry);
@@ -789,18 +784,18 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
           
           console.log(`  ✅ Created ${isExpiryDate ? 'EXPIRY' : 'CF'} entry for ${currentDay.toLocaleDateString()}`);
         } else if (isExpiryDate) {
-          // Entry exists and it's the actual expiry date (day after label) - update expiredOldStock
+          // Entry exists and it's the actual expiry date (day after label) - update expiredStock
           const existingEntry = dayMonthDoc.stockDetails[existingEntryIndex];
-          if (!existingEntry.expiredOldStock || existingEntry.expiredOldStock === 0) {
-            const previousBalance = existingEntry.carryForward || 0;
-            existingEntry.expiredOldStock = carryingQuantity;
+          if (!existingEntry.expiredStock || existingEntry.expiredStock === 0) {
+            const previousBalance = existingEntry.oldStock || 0;
+            existingEntry.expiredStock = carryingQuantity;
             existingEntry.balance = Math.max(0, 
-              previousBalance + (existingEntry.stockAdded || 0) - 
-              carryingQuantity - (existingEntry.usedStock || 0) - (existingEntry.expiredStock || 0) - (existingEntry.damageStock || 0)
+              previousBalance + (existingEntry.invordStock || 0) - 
+              carryingQuantity - (existingEntry.sales || 0) - (existingEntry.expiredStock || 0) - (existingEntry.damageStock || 0)
             );
             dayMonthDoc.markModified('stockDetails');
             await dayMonthDoc.save();
-            console.log(`  ✅ Updated existing entry for ${currentDay.toLocaleDateString()} with expiredOldStock (expires day after label ${expiryDate.toLocaleDateString()})`);
+            console.log(`  ✅ Updated existing entry for ${currentDay.toLocaleDateString()} with expiredStock (expires day after label ${expiryDate.toLocaleDateString()})`);
           }
         }
         
@@ -831,14 +826,14 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
     monthlyDocForRecalc.stockDetails.sort((a, b) => new Date(a.date) - new Date(b.date));
     
     // Recalculate running balance
-    let runningBalance = monthlyDocForRecalc.carryForward;
+    let runningBalance = monthlyDocForRecalc.oldStock;
     
     for (let i = 0; i < monthlyDocForRecalc.stockDetails.length; i++) {
       const entry = monthlyDocForRecalc.stockDetails[i];
-      // Update carry forward for this entry (from previous day's balance)
-      entry.carryForward = runningBalance;
-      // Balance = CarryForward + StockAdded - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
-      entry.balance = Math.max(0, runningBalance + entry.stockAdded - entry.usedStock - (entry.expiredOldStock || 0) - entry.expiredStock - entry.damageStock);
+      // Update old stock for this entry (from previous day's balance)
+      entry.oldStock = runningBalance;
+      // Balance = CarryForward + InvordStock - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
+      entry.balance = Math.max(0, runningBalance + entry.invordStock - entry.sales - (entry.expiredStock || 0) - entry.expiredStock - entry.damageStock);
       runningBalance = entry.balance;
     }
     
@@ -888,14 +883,14 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
             _id: detail._id,
             type: detail.type,
             quantity: detail.quantity,
-            usedStock: detail.usedStock || 0, // Total all-time used stock
+            sales: detail.sales || 0, // Total all-time used stock
             damageStock: detail.damageStock || 0,
             balance: detail.balance || 0,
             displayData: {
-              carryForward: detail.carryForward || 0,
-              stockAdded: detail.stockAdded || 0,
-              expiredOldStock: detail.expiredOldStock || 0,
-              usedStock: detail.usedStock || 0, // Show total used stock from all orders
+              oldStock: detail.oldStock || 0,
+              invordStock: detail.invordStock || 0,
+              expiredStock: detail.expiredStock || 0,
+              sales: detail.sales || 0, // Show total used stock from all orders
               expiredStock: detail.expiredStock || 0,
               damageStock: detail.damageStock || 0,
               balance: detail.balance || 0
@@ -909,13 +904,13 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
         }),
         currentStock: Math.max(0, updatedMonthlyDoc.closingBalance),
         statistics: {
-          totalAdded: updatedMonthlyDoc.totalStockAdded,
-           expiredOldStock: updatedMonthlyDoc.expiredCarryForwardStock || 0,
-          usedOldStock: updatedMonthlyDoc.usedCarryForwardStock || 0, 
-          totalSold: updatedMonthlyDoc.totalUsedStock,
+          totalAdded: updatedMonthlyDoc.totalInvordStock,
+           expiredStock: updatedMonthlyDoc.expiredStock || 0,
+          usedOldStock: updatedMonthlyDoc.usedOldStock || 0, 
+          totalSold: updatedMonthlyDoc.totalSales,
           totalExpired: updatedMonthlyDoc.totalExpiredStock,
            totalDamaged: updatedMonthlyDoc.totalDamageStock,
-          openingBalance: Math.max(0, updatedMonthlyDoc.carryForward),
+          openingBalance: Math.max(0, updatedMonthlyDoc.oldStock),
           closingBalance: Math.max(0, updatedMonthlyDoc.closingBalance)
         },
         period: {
@@ -952,7 +947,7 @@ router.get('/:theaterId/:productId', authenticateToken, requireTheaterAccess, as
 router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, async (req, res) => {
   try {
     const { theaterId, productId } = req.params;
-    const { date, type, quantity, usedStock, damageStock, expiredOldStock, balance, expireDate, notes, batchNumber } = req.body;
+    const { date, type, quantity, sales, damageStock, expiredStock, balance, expireDate, notes, batchNumber } = req.body;
     // Validation
     if (!type || !quantity || !date) {
       return res.status(400).json({
@@ -979,7 +974,7 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
     // Get or create monthly document
     let monthlyDoc = await MonthlyStock.getOrCreateMonthlyDoc(theaterId, productId, year, monthNumber, previousBalance);
 
-    // NEW: Calculate day-by-day carry forward
+    // NEW: Calculate day-by-day old stock
     // Find the last entry BEFORE this date (could be from previous day)
     const entriesBeforeToday = monthlyDoc.stockDetails
       .filter(entry => new Date(entry.date) < entryDate)
@@ -987,17 +982,17 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
     
     const previousDayBalance = entriesBeforeToday.length > 0 
       ? entriesBeforeToday[0].balance 
-      : monthlyDoc.carryForward; // If no previous day, use month's carry forward
+      : monthlyDoc.oldStock; // If no previous day, use month's old stock
 
     // Create new stock detail entry with day-by-day tracking
     const newEntry = {
       date: entryDate,
       type,
       quantity,
-      carryForward: previousDayBalance, // Opening balance from previous day
-      stockAdded: 0,
-      expiredOldStock: expiredOldStock || 0, // Stock from previous days that expired today
-      usedStock: usedStock || 0,
+      oldStock: previousDayBalance, // Opening balance from previous day
+      invordStock: 0,
+      expiredStock: expiredStock || 0, // Stock from previous days that expired today
+      sales: sales || 0,
       expiredStock: 0, // Today's stock that expired
       damageStock: damageStock || 0,
       balance: balance || previousDayBalance,
@@ -1011,14 +1006,14 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
     switch (type) {
       case 'ADDED':
       case 'RETURNED':
-        newEntry.stockAdded = qty;
-        // Balance = CarryForward + StockAdded - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
+        newEntry.invordStock = qty;
+        // Balance = OldStock + InvordStock - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
         newEntry.balance = Math.max(0, 
-          previousDayBalance + qty - (usedStock || 0) - (expiredOldStock || 0) - (newEntry.expiredStock || 0) - (damageStock || 0)
+          previousDayBalance + qty - (sales || 0) - (expiredStock || 0) - (newEntry.expiredStock || 0) - (damageStock || 0)
         );
         break;
       case 'SOLD':
-        newEntry.usedStock = qty;
+        newEntry.sales = qty;
         newEntry.balance = Math.max(0, previousDayBalance - qty);
         break;
       case 'EXPIRED':
@@ -1031,10 +1026,10 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
         break;
       case 'ADJUSTMENT':
         if (quantity > 0) {
-          newEntry.stockAdded = qty;
+          newEntry.invordStock = qty;
           newEntry.balance = Math.max(0, previousDayBalance + qty);
         } else {
-          newEntry.usedStock = qty;
+          newEntry.sales = qty;
           newEntry.balance = Math.max(0, previousDayBalance - qty);
         }
         break;
@@ -1043,9 +1038,9 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
     // Add entry to stockDetails array
     monthlyDoc.stockDetails.push(newEntry);
 
-    // NEW: Auto-generate daily carry forward entries until expiry date
+    // NEW: Auto-generate daily old stock entries until expiry date
     if (expireDate && (type === 'ADDED' || type === 'RETURNED')) {
-      console.log('🔄 Auto-generating daily carry forward entries...');
+      console.log('🔄 Auto-generating daily old stock entries...');
       const expiryDate = new Date(expireDate);
       const currentEntryDate = new Date(entryDate);
       
@@ -1084,14 +1079,14 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
         });
         
         if (!existingEntry) {
-          // Calculate carry forward from previous day's total balance
+          // Calculate old stock from previous day's total balance
           const entriesBeforeThisDay = dayMonthDoc.stockDetails
             .filter(entry => new Date(entry.date) < nextDay)
             .sort((a, b) => new Date(b.date) - new Date(a.date));
           
           const previousDayTotalBalance = entriesBeforeThisDay.length > 0 
             ? entriesBeforeThisDay[0].balance 
-            : dayMonthDoc.carryForward;
+            : dayMonthDoc.oldStock;
           
           // Check if this is the ACTUAL expiry date (day after expiry date on label)
           const isExpiryDate = nextDay.getDate() === actualExpiryDate.getDate() &&
@@ -1102,15 +1097,15 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
             date: new Date(nextDay),
             type: 'ADDED',
             quantity: 0,
-            carryForward: previousDayTotalBalance,
-            stockAdded: 0,
-            expiredOldStock: isExpiryDate ? carryingQuantity : 0, // Expire on expiry date
-            usedStock: 0,
+            oldStock: previousDayTotalBalance,
+            invordStock: 0,
+            expiredStock: isExpiryDate ? carryingQuantity : 0, // Expire on expiry date
+            sales: 0,
             expiredStock: 0,
             damageStock: 0,
             balance: isExpiryDate 
               ? Math.max(0, previousDayTotalBalance - carryingQuantity) // Deduct expired stock
-              : previousDayTotalBalance, // Just carry forward
+              : previousDayTotalBalance, // Just old stock
             // Don't store expireDate in auto-generated entries
             batchNumber: batchNumber,
             notes: `Auto-generated: ${isExpiryDate ? 'Expired stock from ' : 'Carry forward from '}${currentEntryDate.toLocaleDateString()}`
@@ -1119,14 +1114,14 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
           dayMonthDoc.stockDetails.push(autoEntry);
           await dayMonthDoc.save();
           
-          console.log(`✅ Created ${isExpiryDate ? 'EXPIRY' : 'carry forward'} entry for ${nextDay.toLocaleDateString()}`);
+          console.log(`✅ Created ${isExpiryDate ? 'EXPIRY' : 'old stock'} entry for ${nextDay.toLocaleDateString()}`);
           
           // Update carrying balance
           carryingBalance = autoEntry.balance;
           
           // If stock expired, stop creating more entries
           if (isExpiryDate) {
-            console.log(`🛑 Stock expired on ${nextDay.toLocaleDateString()}, stopping carry forward`);
+            console.log(`🛑 Stock expired on ${nextDay.toLocaleDateString()}, stopping old stock`);
             break;
           }
         } else {
@@ -1146,8 +1141,55 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
       await updateProductStock(productId, theaterId, {
         currentStock: monthlyDoc.closingBalance
       });
+      
+      // ✅ Check for low stock after update (real-time check)
+      // Note: This checks even after stock is added, in case stock is still low
+      try {
+        const { checkAndNotifyLowStock } = require('../utils/lowStockChecker');
+        checkAndNotifyLowStock(theaterId, productId, monthlyDoc.closingBalance).catch(err => {
+          console.error('Failed to check low stock:', err);
+        });
+      } catch (error) {
+        console.error('Error in low stock check:', error);
+      }
     } catch (prodError) {
       console.error('Failed to update product stock:', prodError.message);
+    }
+    
+    // Send email notification for stock added (only for ADDED/RETURNED types)
+    if ((type === 'ADDED' || type === 'RETURNED') && quantity > 0) {
+      try {
+        const Theater = require('../models/Theater');
+        const Product = require('../models/Product');
+        const { sendStockAddedNotification } = require('../utils/emailService');
+        
+        const [theater, product] = await Promise.all([
+          Theater.findById(theaterId).select('name email'),
+          Product.findById(productId).select('name')
+        ]);
+        
+        if (theater && theater.email && product) {
+          const stockEntry = {
+            productName: product.name,
+            date: entryDate,
+            oldStock: newEntry.oldStock || 0,
+            invordStock: newEntry.invordStock || 0,
+            sales: newEntry.sales || 0,
+            damageStock: newEntry.damageStock || 0,
+            expiredStock: newEntry.expiredStock || 0,
+            balance: newEntry.balance || 0,
+            expireDate: expireDate || null
+          };
+          
+          // Send email asynchronously (don't block the response)
+          sendStockAddedNotification(theater, stockEntry).catch(err => {
+            console.error('Failed to send stock added notification:', err);
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending stock added email notification:', emailError);
+        // Don't fail the request if email fails
+      }
     }
 
     // Return response
@@ -1161,10 +1203,10 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
           type: newEntry.type,
           quantity: newEntry.quantity,
           displayData: {
-            carryForward: newEntry.carryForward,
-            stockAdded: newEntry.stockAdded,
-            expiredOldStock: newEntry.expiredOldStock,
-            usedStock: newEntry.usedStock,
+            oldStock: newEntry.oldStock,
+            invordStock: newEntry.invordStock,
+            expiredStock: newEntry.expiredStock,
+            sales: newEntry.sales,
             expiredStock: newEntry.expiredStock,
             damageStock: newEntry.damageStock,
             balance: newEntry.balance
@@ -1172,8 +1214,8 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
         },
         currentStock: monthlyDoc.closingBalance,
         monthlyTotals: {
-          totalStockAdded: monthlyDoc.totalStockAdded,
-          totalUsedStock: monthlyDoc.totalUsedStock,
+          totalInvordStock: monthlyDoc.totalInvordStock,
+          totalSales: monthlyDoc.totalSales,
           totalExpiredStock: monthlyDoc.totalExpiredStock,
           totalDamageStock: monthlyDoc.totalDamageStock
         }
@@ -1194,7 +1236,7 @@ router.post('/:theaterId/:productId', authenticateToken, requireTheaterAccess, a
 router.put('/:theaterId/:productId/:entryId', authenticateToken, requireTheaterAccess, async (req, res) => {
   try {
     const { theaterId, productId, entryId } = req.params;
-    const { date, type, quantity, usedStock, damageStock, expiredOldStock, balance, expireDate, notes, batchNumber } = req.body;
+    const { date, type, quantity, sales, damageStock, expiredStock, balance, expireDate, notes, batchNumber } = req.body;
     // Parse the entry date
     const entryDate = new Date(date);
     const year = entryDate.getFullYear();
@@ -1234,52 +1276,52 @@ router.put('/:theaterId/:productId/:entryId', authenticateToken, requireTheaterA
     monthlyDoc.stockDetails[entryIndex].batchNumber = batchNumber;
 
     // Store user-entered values from request
-    const userEnteredUsedStock = usedStock || 0;
+    const userEnteredUsedStock = sales || 0;
     const userEnteredDamageStock = damageStock || 0;
-    const userEnteredExpiredOldStock = expiredOldStock || 0;
+    const userEnteredExpiredOldStock = expiredStock || 0;
 
     // Sort entries by date to ensure proper day-by-day calculation
     monthlyDoc.stockDetails.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // Recalculate all balances from the beginning with day-by-day carry forward
-    let runningBalance = monthlyDoc.carryForward;
+    // Recalculate all balances from the beginning with day-by-day old stock
+    let runningBalance = monthlyDoc.oldStock;
     
     for (let i = 0; i < monthlyDoc.stockDetails.length; i++) {
       const entry = monthlyDoc.stockDetails[i];
       const qty = Math.abs(entry.quantity);
       
-      // Set carry forward from previous day
-      entry.carryForward = runningBalance;
+      // Set old stock from previous day
+      entry.oldStock = runningBalance;
       
       // Find the updated entry by ID (since we sorted, index may have changed)
       const isUpdatedEntry = entry._id.toString() === entryId;
       
       // Reset display fields
-      entry.stockAdded = 0;
+      entry.invordStock = 0;
       entry.expiredStock = 0;
       
       // For the updated entry, preserve user-entered values
       if (isUpdatedEntry) {
-        entry.usedStock = userEnteredUsedStock;
+        entry.sales = userEnteredUsedStock;
         entry.damageStock = userEnteredDamageStock;
-        entry.expiredOldStock = userEnteredExpiredOldStock;
+        entry.expiredStock = userEnteredExpiredOldStock;
       } else {
-        entry.usedStock = entry.usedStock || 0;
+        entry.sales = entry.sales || 0;
         entry.damageStock = entry.damageStock || 0;
-        entry.expiredOldStock = entry.expiredOldStock || 0;
+        entry.expiredStock = entry.expiredStock || 0;
       }
       
       // Calculate based on type
       switch (entry.type) {
         case 'ADDED':
         case 'RETURNED':
-          entry.stockAdded = qty;
-          // Balance = CarryForward + StockAdded - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
-          entry.balance = Math.max(0, runningBalance + qty - entry.usedStock - entry.expiredOldStock - entry.expiredStock - entry.damageStock);
+          entry.invordStock = qty;
+          // Balance = OldStock + InvordStock - UsedStock - ExpiredOldStock - ExpiredStock - DamageStock
+          entry.balance = Math.max(0, runningBalance + qty - entry.sales - entry.expiredStock - entry.expiredStock - entry.damageStock);
           runningBalance = entry.balance;
           break;
         case 'SOLD':
-          entry.usedStock = qty;
+          entry.sales = qty;
           entry.balance = Math.max(0, runningBalance - qty);
           runningBalance = entry.balance;
           break;
@@ -1295,11 +1337,11 @@ router.put('/:theaterId/:productId/:entryId', authenticateToken, requireTheaterA
           break;
         case 'ADJUSTMENT':
           if (entry.quantity > 0) {
-            entry.stockAdded = qty;
+            entry.invordStock = qty;
             entry.balance = Math.max(0, runningBalance + qty);
             runningBalance = entry.balance;
           } else {
-            entry.usedStock = qty;
+            entry.sales = qty;
             entry.balance = Math.max(0, runningBalance - qty);
             runningBalance = entry.balance;
           }
@@ -1314,6 +1356,18 @@ router.put('/:theaterId/:productId/:entryId', authenticateToken, requireTheaterA
       await updateProductStock(productId, theaterId, {
         currentStock: monthlyDoc.closingBalance
       });
+      
+      // ✅ Check for low stock and send notification if needed (real-time)
+      try {
+        const { checkAndNotifyLowStock } = require('../utils/lowStockChecker');
+        // Check low stock asynchronously (don't block the response)
+        checkAndNotifyLowStock(theaterId, productId, monthlyDoc.closingBalance).catch(err => {
+          console.error('Failed to check low stock:', err);
+        });
+      } catch (error) {
+        console.error('Error in low stock check:', error);
+        // Don't fail the request if low stock check fails
+      }
     } catch (prodError) {
       console.error('Failed to update product stock:', prodError.message);
     }
@@ -1374,7 +1428,7 @@ router.delete('/:theaterId/:productId/:entryId', authenticateToken, requireTheat
     monthlyDoc.stockDetails.splice(entryIndex, 1);
 
     // Recalculate all balances
-    let runningBalance = monthlyDoc.carryForward;
+    let runningBalance = monthlyDoc.oldStock;
     
     for (let i = 0; i < monthlyDoc.stockDetails.length; i++) {
       const entry = monthlyDoc.stockDetails[i];
@@ -1503,9 +1557,9 @@ router.get('/excel/:theaterId/:productId', authenticateToken, requireTheaterAcce
     worksheet.getCell('A4').value = `Generated At: ${new Date().toLocaleString('en-IN')}`;
 
     // Add summary statistics
-    worksheet.getCell('A5').value = `Opening Balance: ${monthlyDoc.carryForward || 0}`;
-    worksheet.getCell('D5').value = `Total Added: ${monthlyDoc.totalStockAdded || 0}`;
-    worksheet.getCell('G5').value = `Total Used: ${monthlyDoc.totalUsedStock || 0}`;
+    worksheet.getCell('A5').value = `Opening Balance: ${monthlyDoc.oldStock || 0}`;
+    worksheet.getCell('D5').value = `Total Added: ${monthlyDoc.totalInvordStock || 0}`;
+    worksheet.getCell('G5').value = `Total Used: ${monthlyDoc.totalSales || 0}`;
     worksheet.getCell('J5').value = `Closing Balance: ${monthlyDoc.closingBalance || 0}`;
 
     // Add headers (row 7)
@@ -1513,10 +1567,10 @@ router.get('/excel/:theaterId/:productId', authenticateToken, requireTheaterAcce
       'S.No',
       'Date',
       'Type',
-      'Stock Added',
-      'Expired Old Stock',
-      'Carry Forward',
-      'Used Stock',
+      'Invord Stock',
+      'Expired Stock',
+      'Old Stock',
+      'Sales',
       'Expired Stock',
       'Damage Stock',
       'Balance',
@@ -1534,10 +1588,10 @@ router.get('/excel/:theaterId/:productId', authenticateToken, requireTheaterAcce
       { width: 8 },   // S.No
       { width: 15 },  // Date
       { width: 12 },  // Type
-      { width: 15 },  // Stock Added
-      { width: 18 },  // Expired Old Stock
-      { width: 15 },  // Carry Forward
-      { width: 12 },  // Used Stock
+      { width: 15 },  // Invord Stock
+      { width: 18 },  // Expired Stock
+      { width: 15 },  // Old Stock
+      { width: 12 },  // Sales
       { width: 15 },  // Expired Stock
       { width: 15 },  // Damage Stock
       { width: 12 },  // Balance
@@ -1556,10 +1610,10 @@ router.get('/excel/:theaterId/:productId', authenticateToken, requireTheaterAcce
         index + 1,
         new Date(detail.date).toLocaleDateString('en-IN'),
         detail.type || 'ADDED',
-        detail.stockAdded || 0,
-        detail.expiredOldStock || 0,
-        detail.carryForward || 0,
-        detail.usedStock || 0,
+        detail.invordStock || 0,
+        detail.expiredStock || 0,
+        detail.oldStock || 0,
+        detail.sales || 0,
         detail.expiredStock || 0,
         detail.damageStock || 0,
         detail.balance || 0,
@@ -1606,8 +1660,8 @@ router.get('/excel/:theaterId/:productId', authenticateToken, requireTheaterAcce
 
     rowNumber++;
     worksheet.getCell(`B${rowNumber}`).value = `Total Entries: ${sortedDetails.length}`;
-    worksheet.getCell(`D${rowNumber}`).value = `Total Added: ${monthlyDoc.totalStockAdded || 0}`;
-    worksheet.getCell(`F${rowNumber}`).value = `Total Used: ${monthlyDoc.totalUsedStock || 0}`;
+    worksheet.getCell(`D${rowNumber}`).value = `Total Added: ${monthlyDoc.totalInvordStock || 0}`;
+    worksheet.getCell(`F${rowNumber}`).value = `Total Used: ${monthlyDoc.totalSales || 0}`;
     worksheet.getCell(`H${rowNumber}`).value = `Total Expired: ${monthlyDoc.totalExpiredStock || 0}`;
     worksheet.getCell(`J${rowNumber}`).value = `Total Damaged: ${monthlyDoc.totalDamageStock || 0}`;
 
@@ -2006,10 +2060,10 @@ router.get('/excel-all-history/:theaterId', authenticateToken, requireTheaterAcc
       'Current Stock',
       'Date',
       'Type',
-      'Stock Added',
-      'Expired Old Stock',
-      'Carry Forward',
-      'Used Stock',
+      'Invord Stock',
+      'Expired Stock',
+      'Old Stock',
+      'Sales',
       'Expired Stock',
       'Damage Stock',
       'Balance',
@@ -2037,10 +2091,10 @@ router.get('/excel-all-history/:theaterId', authenticateToken, requireTheaterAcc
       { width: 15 },  // Current Stock
       { width: 12 },  // Date
       { width: 12 },  // Type
-      { width: 15 },  // Stock Added
-      { width: 18 },  // Expired Old Stock
-      { width: 15 },  // Carry Forward
-      { width: 12 },  // Used Stock
+      { width: 15 },  // Invord Stock
+      { width: 18 },  // Expired Stock
+      { width: 15 },  // Old Stock
+      { width: 12 },  // Sales
       { width: 15 },  // Expired Stock
       { width: 15 },  // Damage Stock
       { width: 12 },  // Balance
@@ -2093,10 +2147,10 @@ router.get('/excel-all-history/:theaterId', authenticateToken, requireTheaterAcc
           currentStock,
           new Date(detail.date).toLocaleDateString('en-IN'),
           detail.type || 'ADDED',
-          detail.stockAdded || 0,
-          detail.expiredOldStock || 0,
-          detail.carryForward || 0,
-          detail.usedStock || 0,
+          detail.invordStock || 0,
+          detail.expiredStock || 0,
+          detail.oldStock || 0,
+          detail.sales || 0,
           detail.expiredStock || 0,
           detail.damageStock || 0,
           detail.balance || 0,

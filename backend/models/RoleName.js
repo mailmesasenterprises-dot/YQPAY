@@ -70,7 +70,7 @@ const roleNameSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
-  collection: 'rolenames'
+  collection: 'emailnotifications'
 });
 
 // Compound indexes for efficient querying

@@ -770,36 +770,66 @@ categoriesRouter.post('/:theaterId', [
       updatedAt: new Date()
     };
 
-    // Handle image upload if provided
-    if (req.file) {
-      try {
-        const folder = `categories/${theaterId}/${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-        const imageUrl = await uploadFile(
-          req.file.buffer,
-          req.file.originalname,
-          folder,
-          req.file.mimetype
-        );
-        
-        newCategory.imageUrl = imageUrl;
-      } catch (uploadError) {
-        console.error('❌ Image upload error:', uploadError);
-        return res.status(500).json({
-          error: 'Failed to upload image',
-          message: uploadError.message
-        });
+    // 🚀 PERFORMANCE: Use atomic operation instead of loading entire document
+    // Add category to categoryList array using $push (atomic operation)
+    const updateResult = await Category.findOneAndUpdate(
+      { theater: theaterId },
+      { 
+        $push: { categoryList: newCategory },
+        $set: { 
+          updatedAt: new Date(),
+          'metadata.lastUpdatedAt': new Date()
+        },
+        $inc: { 'metadata.totalCategories': 1 }
+      },
+      { 
+        new: true,
+        upsert: true, // Create document if it doesn't exist
+        runValidators: false // Skip validation for performance
       }
-    }
+    );
 
-    // Add category to categoryList array
-    categoryDoc.categoryList.push(newCategory);
-    await categoryDoc.save();
+    // 🚀 INSTANT: Send response immediately (don't wait for image upload)
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
-      data: newCategory
+      data: {
+        ...newCategory,
+        imageUrl: null // Will be updated in background
+      }
     });
+
+    // 🚀 PERFORMANCE: Handle image upload in background (non-blocking)
+    if (req.file) {
+      (async () => {
+        try {
+          const folder = `categories/${theaterId}/${categoryName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          const imageUrl = await uploadFile(
+            req.file.buffer,
+            req.file.originalname,
+            folder,
+            req.file.mimetype
+          );
+          
+          // Update image URL in background (non-blocking)
+          if (imageUrl) {
+            await Category.findOneAndUpdate(
+              { 
+                theater: theaterId,
+                'categoryList._id': newCategory._id
+              },
+              { 
+                $set: { 'categoryList.$.imageUrl': imageUrl }
+              },
+              { new: false }
+            );
+          }
+        } catch (uploadError) {
+          console.error('❌ Image upload error (background):', uploadError);
+          // Don't fail the request - image can be added later
+        }
+      })();
+    }
 
   } catch (error) {
     console.error('❌ Create category error:', error);
@@ -877,54 +907,102 @@ categoriesRouter.put('/:theaterId/:categoryId', [
     }
     category.updatedAt = new Date();
 
-    // Handle image update
+    // 🚀 PERFORMANCE: Handle image operations
+    let imageUrl = category.imageUrl;
+    const oldImageUrl = category.imageUrl;
+    
     if (removeImage === 'true' || removeImage === true) {
-      // Remove existing image
-      if (category.imageUrl) {
-        try {
-          await deleteFile(category.imageUrl);
-        } catch (deleteError) {
-          console.warn('⚠️  Could not delete old image:', deleteError.message);
-        }
-      }
-      category.imageUrl = null;
-    } else if (req.file) {
-      // Upload new image
-      try {
-        // Delete old image if exists
-        if (category.imageUrl) {
-          try {
-            await deleteFile(category.imageUrl);
-          } catch (deleteError) {
-            console.warn('⚠️  Could not delete old image:', deleteError.message);
-          }
-        }
-        
-        const folder = `categories/${theaterId}/${(categoryName || category.categoryName).replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-        const imageUrl = await uploadFile(
-          req.file.buffer,
-          req.file.originalname,
-          folder,
-          req.file.mimetype
+      imageUrl = null;
+      // Delete old image in background (non-blocking)
+      if (oldImageUrl) {
+        deleteFile(oldImageUrl).catch(err => 
+          console.warn('⚠️  Could not delete old image:', err.message)
         );
-        
-        category.imageUrl = imageUrl;
-      } catch (uploadError) {
-        console.error('❌ Image upload error:', uploadError);
-        return res.status(500).json({
-          error: 'Failed to upload image',
-          message: uploadError.message
-        });
       }
+    } else if (req.file) {
+      // For UPDATE: Upload image in parallel but send response quickly
+      // Start upload immediately (non-blocking)
+      const uploadPromise = (async () => {
+        try {
+          // Delete old image if exists (non-blocking)
+          if (oldImageUrl) {
+            deleteFile(oldImageUrl).catch(err => 
+              console.warn('⚠️  Could not delete old image:', err.message)
+            );
+          }
+          
+          const folder = `categories/${theaterId}/${(categoryName || category.categoryName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+          return await uploadFile(
+            req.file.buffer,
+            req.file.originalname,
+            folder,
+            req.file.mimetype
+          );
+        } catch (uploadError) {
+          console.error('❌ Image upload error:', uploadError);
+          return oldImageUrl; // Keep old image if upload fails
+        }
+      })();
+      
+      // Don't wait - update image URL in background
+      uploadPromise.then(newImageUrl => {
+        if (newImageUrl && newImageUrl !== oldImageUrl) {
+          Category.findOneAndUpdate(
+            { 
+              theater: theaterId,
+              'categoryList._id': categoryId
+            },
+            { 
+              $set: { 'categoryList.$.imageUrl': newImageUrl }
+            },
+            { new: false }
+          ).catch(err => console.error('Failed to update image URL:', err));
+        }
+      }).catch(err => console.error('Image upload promise error:', err));
+      
+      // Keep old image URL for now, will be updated in background
+      imageUrl = oldImageUrl;
     }
 
-    // Save category document with updated category
-    await categoryDoc.save();
+    // 🚀 PERFORMANCE: Use atomic operation with $set for specific fields
+    const updateFields = {};
+    if (categoryName) updateFields['categoryList.$.categoryName'] = categoryName.trim();
+    if (description !== undefined) updateFields['categoryList.$.description'] = description;
+    if (isActive !== undefined) updateFields['categoryList.$.isActive'] = isActive;
+    if (categoryType !== undefined) updateFields['categoryList.$.categoryType'] = categoryType;
+    if (sortOrder !== undefined) updateFields['categoryList.$.sortOrder'] = sortOrder;
+    if (kioskTypeId !== undefined) {
+      updateFields['categoryList.$.kioskTypeId'] = kioskTypeId ? new mongoose.Types.ObjectId(kioskTypeId) : null;
+    }
+    updateFields['categoryList.$.updatedAt'] = new Date();
+    updateFields['categoryList.$.imageUrl'] = imageUrl;
+    updateFields['updatedAt'] = new Date();
+    updateFields['metadata.lastUpdatedAt'] = new Date();
+
+    // Use findOneAndUpdate for atomic operation (much faster than save)
+    const updatedDoc = await Category.findOneAndUpdate(
+      { 
+        theater: theaterId,
+        'categoryList._id': categoryId
+      },
+      { $set: updateFields },
+      { new: true, runValidators: false }
+    );
+
+    if (!updatedDoc) {
+      return res.status(404).json({
+        error: 'Category not found',
+        code: 'CATEGORY_NOT_FOUND'
+      });
+    }
+
+    const updatedCategory = updatedDoc.categoryList.id(categoryId);
+
+    // 🚀 INSTANT: Send response immediately
     res.json({
       success: true,
       message: 'Category updated successfully',
-      data: category
+      data: updatedCategory
     });
 
   } catch (error) {
@@ -955,7 +1033,7 @@ categoriesRouter.delete('/:theaterId/:categoryId', [
       });
     }
 
-    // Find category in categoryList
+    // Find category in categoryList to get image URL
     const category = categoryDoc.categoryList.id(categoryId);
     if (!category) {
       return res.status(404).json({
@@ -964,22 +1042,41 @@ categoriesRouter.delete('/:theaterId/:categoryId', [
       });
     }
 
-    // Delete image from GCS if exists
-    if (category.imageUrl) {
-      try {
-        await deleteFile(category.imageUrl);
-      } catch (deleteError) {
-        console.warn('⚠️  Could not delete category image:', deleteError.message);
-      }
+    const imageUrlToDelete = category.imageUrl;
+
+    // 🚀 PERFORMANCE: Use atomic $pull operation (much faster than save)
+    const deleteResult = await Category.findOneAndUpdate(
+      { theater: theaterId },
+      { 
+        $pull: { categoryList: { _id: categoryId } },
+        $set: { 
+          updatedAt: new Date(),
+          'metadata.lastUpdatedAt': new Date()
+        },
+        $inc: { 'metadata.totalCategories': -1 }
+      },
+      { new: true, runValidators: false }
+    );
+
+    if (!deleteResult) {
+      return res.status(404).json({
+        error: 'Category document not found',
+        code: 'CATEGORY_DOC_NOT_FOUND'
+      });
     }
 
-    // Remove category from categoryList using pull
-    categoryDoc.categoryList.pull(categoryId);
-    await categoryDoc.save();
+    // 🚀 INSTANT: Send response immediately
     res.json({
       success: true,
       message: 'Category deleted successfully'
     });
+
+    // 🚀 PERFORMANCE: Delete image in background (non-blocking)
+    if (imageUrlToDelete) {
+      deleteFile(imageUrlToDelete).catch(err => 
+        console.warn('⚠️  Could not delete category image:', err.message)
+      );
+    }
 
   } catch (error) {
     console.error('❌ Delete category error:', error);
@@ -1615,11 +1712,10 @@ router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, re
 
     // Fetch stock data for each product on the selected date
     const stockData = [];
-    let totalStockAdded = 0;
-    let totalExpiredOldStock = 0;
-    let totalCarryForward = 0;
-    let totalUsedStock = 0;
+    let totalInvordStock = 0;
     let totalExpiredStock = 0;
+    let totalOldStock = 0;
+    let totalSales = 0;
     let totalDamageStock = 0;
     let totalBalance = 0;
 
@@ -1643,11 +1739,10 @@ router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, re
           const stockInfo = {
             productName: product.name,
             date: date,
-            stockAdded: stockEntry.stockAdded || 0,
-            expiredOldStock: stockEntry.expiredOldStock || 0,
-            carryForward: stockEntry.carryForward || 0,
-            usedStock: stockEntry.usedStock || 0,
+            invordStock: stockEntry.invordStock || 0,
             expiredStock: stockEntry.expiredStock || 0,
+            oldStock: stockEntry.oldStock || 0,
+            sales: stockEntry.sales || 0,
             damageStock: stockEntry.damageStock || 0,
             balance: stockEntry.balance || 0
           };
@@ -1655,11 +1750,10 @@ router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, re
           stockData.push(stockInfo);
 
           // Add to totals
-          totalStockAdded += stockInfo.stockAdded;
-          totalExpiredOldStock += stockInfo.expiredOldStock;
-          totalCarryForward += stockInfo.carryForward;
-          totalUsedStock += stockInfo.usedStock;
+          totalInvordStock += stockInfo.invordStock;
           totalExpiredStock += stockInfo.expiredStock;
+          totalOldStock += stockInfo.oldStock;
+          totalSales += stockInfo.sales;
           totalDamageStock += stockInfo.damageStock;
           totalBalance += stockInfo.balance;
         }
@@ -1713,10 +1807,10 @@ router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, re
       'S.NO',
       'PRODUCT NAME',
       'DATE',
-      'STOCK ADDED',
-      'EXPIRED OLD STOCK',
-      'CARRY FORWARD',
-      'USED STOCK',
+      'INVORD STOCK',
+      'EXPIRED STOCK',
+      'OLD STOCK',
+      'SALES',
       'EXPIRED STOCK',
       'DAMAGE STOCK',
       'BALANCE'
@@ -1742,10 +1836,10 @@ router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, re
       { width: 8 },   // S.NO
       { width: 30 },  // PRODUCT NAME
       { width: 15 },  // DATE
-      { width: 12 },  // STOCK ADDED
-      { width: 15 },  // EXPIRED OLD STOCK
-      { width: 15 },  // CARRY FORWARD
-      { width: 12 },  // USED STOCK
+      { width: 12 },  // INVORD STOCK
+      { width: 15 },  // EXPIRED STOCK
+      { width: 15 },  // OLD STOCK
+      { width: 12 },  // SALES
       { width: 15 },  // EXPIRED STOCK
       { width: 15 },  // DAMAGE STOCK
       { width: 12 }   // BALANCE
@@ -1757,10 +1851,10 @@ router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, re
         index + 1,
         stock.productName,
         stock.date,
-        stock.stockAdded,
-        stock.expiredOldStock,
-        stock.carryForward,
-        stock.usedStock,
+        stock.invordStock,
+        stock.expiredStock,
+        stock.oldStock,
+        stock.sales,
         stock.expiredStock,
         stock.damageStock,
         stock.balance
@@ -1800,11 +1894,10 @@ router.get('/:theaterId/export-stock-by-date', authenticateToken, async (req, re
       '',
       'TOTAL',
       '',
-      totalStockAdded,
-      totalExpiredOldStock,
-      totalCarryForward,
-      totalUsedStock,
+      totalInvordStock,
       totalExpiredStock,
+      totalOldStock,
+      totalSales,
       totalDamageStock,
       totalBalance
     ]);

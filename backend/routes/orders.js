@@ -34,7 +34,7 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
 
     let remainingToDeduct = quantity;
     const deductionDetails = []; // Track which stocks were deducted from
-    let usedFromCarryForward = 0; // Track how much came from previous months
+    let usedFromOldStock = 0; // Track how much came from previous months
 
     // Helper function to check if stock is expired
     const isStockExpired = (expireDate) => {
@@ -50,8 +50,8 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
     for (const monthlyDoc of allMonthlyDocs) {
       if (remainingToDeduct <= 0) break;
       
-      // Check if this is a previous month (carry forward stock)
-      const isCarryForwardMonth = (monthlyDoc.year < year) || 
+      // Check if this is a previous month (old stock stock)
+      const isOldStockMonth = (monthlyDoc.year < year) || 
                                    (monthlyDoc.year === year && monthlyDoc.monthNumber < monthNumber);
       for (let i = 0; i < monthlyDoc.stockDetails.length; i++) {
         if (remainingToDeduct <= 0) break;
@@ -62,17 +62,17 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
         if (entry.type === 'ADDED' && !isStockExpired(entry.expireDate)) {
           // Calculate available stock in this entry
           const availableStock = Math.max(0, 
-            entry.stockAdded - (entry.usedStock || 0) - (entry.expiredStock || 0) - (entry.damageStock || 0)
+            entry.invordStock - (entry.sales || 0) - (entry.expiredStock || 0) - (entry.damageStock || 0)
           );
 
           if (availableStock > 0) {
             // Deduct from this entry
             const deductAmount = Math.min(remainingToDeduct, availableStock);
-            entry.usedStock = (entry.usedStock || 0) + deductAmount;
+            entry.sales = (entry.sales || 0) + deductAmount;
             
-            // Track if this came from carry forward (previous month)
-            if (isCarryForwardMonth) {
-              usedFromCarryForward += deductAmount;
+            // Track if this came from old stock (previous month)
+            if (isOldStockMonth) {
+              usedFromOldStock += deductAmount;
             }
             
             // NEW: Record usage history with month information
@@ -92,7 +92,7 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
               batchNumber: entry.batchNumber,
               deducted: deductAmount,
               expireDate: entry.expireDate,
-              isCarryForward: isCarryForwardMonth
+              isOldStock: isOldStockMonth
             });
 
             remainingToDeduct -= deductAmount;
@@ -116,7 +116,7 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
     let currentMonthDoc = await MonthlyStock.getOrCreateMonthlyDoc(theaterId, productId, year, monthNumber, previousBalance);
 
     // Calculate current balance from existing entries
-    let currentBalance = currentMonthDoc.carryForward;
+    let currentBalance = currentMonthDoc.oldStock;
     if (currentMonthDoc.stockDetails.length > 0) {
       const lastEntry = currentMonthDoc.stockDetails[currentMonthDoc.stockDetails.length - 1];
       currentBalance = lastEntry.balance;
@@ -127,8 +127,8 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
       date: entryDate,
       type: 'SOLD',
       quantity: quantity,
-      stockAdded: 0,
-      usedStock: quantity,  // Keep this for display/tracking purposes
+      invordStock: 0,
+      sales: quantity,  // Keep this for display/tracking purposes
       expiredStock: 0,
       damageStock: 0,
       balance: Math.max(0, currentBalance - quantity),
@@ -144,9 +144,9 @@ async function recordStockUsage(theaterId, productId, quantity, orderDate) {
     // Add to stock details
     currentMonthDoc.stockDetails.push(newEntry);
     
-    // NEW: Update usedCarryForwardStock if we used stock from previous months
-    if (usedFromCarryForward > 0) {
-      currentMonthDoc.usedCarryForwardStock = (currentMonthDoc.usedCarryForwardStock || 0) + usedFromCarryForward;
+    // NEW: Update usedOldStock if we used stock from previous months
+    if (usedFromOldStock > 0) {
+      currentMonthDoc.usedOldStock = (currentMonthDoc.usedOldStock || 0) + usedFromOldStock;
     } else {
 
     }
@@ -386,6 +386,18 @@ router.post('/theater', [
         // ✅ Record stock usage in MonthlyStock collection
         // Use the same orderDate for consistency
         await recordStockUsage(theaterId, productObjectId, item.quantity, orderDate);
+        
+        // ✅ Check for low stock and send notification if needed
+        try {
+          const { checkAndNotifyLowStock } = require('../utils/lowStockChecker');
+          // Check low stock asynchronously (don't block order processing)
+          checkAndNotifyLowStock(theaterId, productObjectId.toString(), newStock).catch(err => {
+            console.error('Failed to check low stock:', err);
+          });
+        } catch (error) {
+          console.error('Error in low stock check:', error);
+          // Don't fail the order if low stock check fails
+        }
         
       } else {
       }

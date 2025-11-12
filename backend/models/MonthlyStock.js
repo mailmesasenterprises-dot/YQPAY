@@ -15,22 +15,22 @@ const stockDetailSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  stockAdded: {
+  invordStock: {
     type: Number,
     default: 0
   },
   // NEW: Day-by-day tracking
-  carryForward: {
+  oldStock: {
     type: Number,
     default: 0,
-    comment: 'Opening balance from previous day'
+    comment: 'Opening balance from previous day (old stock)'
   },
-  expiredOldStock: {
+  expiredStock: {
     type: Number,
     default: 0,
     comment: 'Stock from previous days that expired today'
   },
-  usedStock: {
+  sales: {
     type: Number,
     default: 0
   },
@@ -102,11 +102,11 @@ const monthlyStockSchema = new mongoose.Schema({
   stockDetails: [stockDetailSchema],
   
   // Monthly totals
-  totalStockAdded: {
+  totalInvordStock: {
     type: Number,
     default: 0
   },
-  totalUsedStock: {
+  totalSales: {
     type: Number,
     default: 0
   },
@@ -114,13 +114,13 @@ const monthlyStockSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  // Expired stock from carry forward (previous months' stock that expired this month)
-  expiredCarryForwardStock: {
+  // Expired stock from old stock (previous months' stock that expired this month)
+  expiredStock: {
     type: Number,
     default: 0
   },
-  // NEW: Used stock from carry forward (previous months' stock that was sold this month)
-  usedCarryForwardStock: {
+  // NEW: Used stock from old stock (previous months' stock that was sold this month)
+  usedOldStock: {
     type: Number,
     default: 0
   },
@@ -129,8 +129,8 @@ const monthlyStockSchema = new mongoose.Schema({
     default: 0
   },
   
-  // Carry forward from previous month
-  carryForward: {
+  // Old stock from previous month
+  oldStock: {
     type: Number,
     default: 0
   },
@@ -160,30 +160,30 @@ monthlyStockSchema.index({ theaterId: 1, year: 1, monthNumber: 1 });
 // Pre-save hook to calculate totals
 monthlyStockSchema.pre('save', function(next) {
   // Calculate monthly totals from stockDetails array
-  this.totalStockAdded = 0;
-  this.totalUsedStock = 0;
+  this.totalInvordStock = 0;
+  this.totalSales = 0;
   this.totalExpiredStock = 0;
   this.totalDamageStock = 0;
   
   this.stockDetails.forEach(detail => {
-    this.totalStockAdded += detail.stockAdded || 0;
-    // ✅ FIFO FIX: Only count usedStock from ADDED entries to avoid double counting
+    this.totalInvordStock += detail.invordStock || 0;
+    // ✅ FIFO FIX: Only count sales from ADDED entries to avoid double counting
     // SOLD entries are for display/tracking only; actual deductions are in ADDED entries
     if (detail.type === 'ADDED') {
-      this.totalUsedStock += detail.usedStock || 0;
+      this.totalSales += detail.sales || 0;
     }
     this.totalExpiredStock += detail.expiredStock || 0;
     this.totalDamageStock += detail.damageStock || 0;
   });
   
-  // ✅ CRITICAL FIX: Calculate closing balance from carry forward + totals
-  // Includes expired carry forward stock (old stock that expired this month)
+  // ✅ CRITICAL FIX: Calculate closing balance from old stock + totals
+  // Includes expired old stock (old stock that expired this month)
   this.closingBalance = Math.max(0, 
-    (this.carryForward || 0) + 
-    (this.totalStockAdded || 0) - 
-    (this.totalUsedStock || 0) - 
+    (this.oldStock || 0) + 
+    (this.totalInvordStock || 0) - 
+    (this.totalSales || 0) - 
     (this.totalExpiredStock || 0) - 
-    (this.expiredCarryForwardStock || 0) - 
+    (this.expiredStock || 0) - 
     (this.totalDamageStock || 0)
   );
   
@@ -192,7 +192,7 @@ monthlyStockSchema.pre('save', function(next) {
 });
 
 // Static method to get or create monthly document
-monthlyStockSchema.statics.getOrCreateMonthlyDoc = async function(theaterId, productId, year, monthNumber, carryForward = 0) {
+monthlyStockSchema.statics.getOrCreateMonthlyDoc = async function(theaterId, productId, year, monthNumber, oldStock = 0) {
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                       'July', 'August', 'September', 'October', 'November', 'December'];
   
@@ -206,7 +206,7 @@ monthlyStockSchema.statics.getOrCreateMonthlyDoc = async function(theaterId, pro
   });
   
   if (!doc) {
-    // Create new document with carry forward
+    // Create new document with old stock
     doc = await this.create({
       theaterId,
       productId,
@@ -214,30 +214,30 @@ monthlyStockSchema.statics.getOrCreateMonthlyDoc = async function(theaterId, pro
       month,
       monthNumber,
       stockDetails: [],
-      carryForward,
-      totalStockAdded: 0,
-      totalUsedStock: 0,
+      oldStock,
+      totalInvordStock: 0,
+      totalSales: 0,
       totalExpiredStock: 0,
       totalDamageStock: 0,
-      closingBalance: carryForward
+      closingBalance: oldStock
     });
   } else {
-    // ✅ FIX: Update carryForward if it has changed and document has no entries yet
+    // ✅ FIX: Update oldStock if it has changed and document has no entries yet
     // This handles the case where previous month's data was added after this month's document was created
-    if (doc.stockDetails.length === 0 && doc.carryForward !== carryForward) {
-      doc.carryForward = carryForward;
-      doc.closingBalance = carryForward;
+    if (doc.stockDetails.length === 0 && doc.oldStock !== oldStock) {
+      doc.oldStock = oldStock;
+      doc.closingBalance = oldStock;
       await doc.save();
     }
-    // ✅ FIX: If document has entries, recalculate all balances if carryForward changed
-    else if (doc.stockDetails.length > 0 && doc.carryForward !== carryForward) {
-      doc.carryForward = carryForward;
+    // ✅ FIX: If document has entries, recalculate all balances if oldStock changed
+    else if (doc.stockDetails.length > 0 && doc.oldStock !== oldStock) {
+      doc.oldStock = oldStock;
       
       // Recalculate all entry balances from the beginning
-      let runningBalance = carryForward;
+      let runningBalance = oldStock;
       for (let i = 0; i < doc.stockDetails.length; i++) {
         const entry = doc.stockDetails[i];
-        runningBalance = runningBalance + entry.stockAdded - entry.usedStock - entry.expiredStock - entry.damageStock;
+        runningBalance = runningBalance + entry.invordStock - entry.sales - entry.expiredStock - entry.damageStock;
         entry.balance = Math.max(0, runningBalance);
         runningBalance = entry.balance;
       }

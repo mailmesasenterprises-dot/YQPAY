@@ -1,0 +1,108 @@
+/**
+ * Database Migration Script: Rename "expiredOldStock" to "expiredStock"
+ * 
+ * This script migrates all existing database documents to use "expiredStock" instead of "expiredOldStock"
+ * 
+ * Usage: node backend/scripts/migrate-expired-old-stock-to-expired-stock.js
+ */
+
+const mongoose = require('mongoose');
+require('dotenv').config();
+
+// Connect to MongoDB
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/yqpay';
+
+async function migrateDatabase() {
+  try {
+    console.log('🔄 Starting migration: expiredOldStock → expiredStock');
+    console.log('📡 Connecting to MongoDB...');
+    
+    await mongoose.connect(MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    
+    console.log('✅ Connected to MongoDB');
+    
+    const db = mongoose.connection.db;
+    const monthlyStocksCollection = db.collection('monthlystocks');
+    
+    // Migrate monthlystocks collection
+    const monthlyDocs = await monthlyStocksCollection.find({}).toArray();
+    console.log(`📊 Found ${monthlyDocs.length} monthly stock documents to migrate`);
+    
+    let monthlyUpdatedCount = 0;
+    let monthlyErrorCount = 0;
+    
+    for (const doc of monthlyDocs) {
+      try {
+        const updateFields = {};
+        let hasChanges = false;
+        
+        // Update top-level expiredOldStock field
+        if (doc.expiredOldStock !== undefined) {
+          updateFields.expiredStock = doc.expiredOldStock;
+          hasChanges = true;
+        }
+        
+        // Update expiredOldStock in stockDetails array
+        if (doc.stockDetails && Array.isArray(doc.stockDetails)) {
+          const updatedStockDetails = doc.stockDetails.map(detail => {
+            const updatedDetail = { ...detail };
+            if (detail.expiredOldStock !== undefined) {
+              updatedDetail.expiredStock = detail.expiredOldStock;
+              delete updatedDetail.expiredOldStock;
+            }
+            return updatedDetail;
+          });
+          
+          if (updatedStockDetails.some((detail, index) => detail.expiredStock !== doc.stockDetails[index]?.expiredOldStock)) {
+            updateFields.stockDetails = updatedStockDetails;
+            hasChanges = true;
+          }
+        }
+        
+        if (hasChanges) {
+          // Remove old fields
+          const unsetFields = {};
+          if (doc.expiredOldStock !== undefined) {
+            unsetFields.expiredOldStock = '';
+          }
+          
+          await monthlyStocksCollection.updateOne(
+            { _id: doc._id },
+            {
+              $set: updateFields,
+              $unset: unsetFields
+            }
+          );
+          
+          monthlyUpdatedCount++;
+          console.log(`✅ Migrated monthly stock document: ${doc._id}`);
+        }
+      } catch (error) {
+        monthlyErrorCount++;
+        console.error(`❌ Error migrating monthly stock document ${doc._id}:`, error.message);
+      }
+    }
+    
+    console.log('\n📈 Migration Summary:');
+    console.log(`   ✅ Successfully migrated: ${monthlyUpdatedCount} documents`);
+    console.log(`   ❌ Errors: ${monthlyErrorCount} documents`);
+    console.log(`   📊 Total processed: ${monthlyDocs.length} documents`);
+    
+    console.log('\n✅ Migration completed successfully!');
+    
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    process.exit(1);
+  } finally {
+    await mongoose.connection.close();
+    console.log('🔌 Database connection closed');
+    process.exit(0);
+  }
+}
+
+// Run migration
+migrateDatabase();
+
