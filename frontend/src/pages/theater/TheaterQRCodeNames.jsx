@@ -325,6 +325,10 @@ const TheaterQRCodeNames = () => {
         theaterId: theaterId
       };
       
+      console.log('🔍 [QRCodeNames] Save request URL:', url);
+      console.log('🔍 [QRCodeNames] Save request method:', method);
+      console.log('🔍 [QRCodeNames] Save request payload:', payload);
+      
       const response = await fetch(url, {
         method: method,
         headers: {
@@ -334,7 +338,12 @@ const TheaterQRCodeNames = () => {
         body: JSON.stringify(payload)
       });
       
+      console.log('📥 [QRCodeNames] Response status:', response.status);
+      
       if (response.ok) {
+        const result = await response.json();
+        console.log('✅ [QRCodeNames] Success response:', result);
+        
         showSuccess(isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!');
         if (isEditMode) {
           setShowEditModal(false);
@@ -343,15 +352,25 @@ const TheaterQRCodeNames = () => {
           setShowCreateModal(false);
           toast.success('QR Code Name created successfully!');
         }
-        loadQRCodeNameData(true);
+        
+        // Reset form first
         setFormData({
           qrName: '',
           seatClass: 'GENERAL',
           description: '',
           isActive: true
         });
+        
+        // Reload data in background - don't let it throw errors to user
+        try {
+          await loadQRCodeNameData(true);
+        } catch (loadError) {
+          console.warn('⚠️ [QRCodeNames] Failed to reload data after save:', loadError);
+          // Don't show error to user - the save was successful
+        }
       } else {
         const errorData = await response.json().catch(() => ({ message: 'No error details available' }));
+        console.error('❌ [QRCodeNames] Error response:', errorData);
         
         if (errorData.message && errorData.message.includes('already exists')) {
           showError('A QR code name with this name already exists in this theater.');
@@ -360,8 +379,9 @@ const TheaterQRCodeNames = () => {
         }
       }
     } catch (error) {
-
-      showError('An error occurred while saving the QR Code Name.');
+      console.error('❌ [QRCodeNames] Exception during save:', error);
+      console.error('❌ [QRCodeNames] Error stack:', error.stack);
+      showError(`An error occurred while saving the QR Code Name: ${error.message}`);
     }
   };
 

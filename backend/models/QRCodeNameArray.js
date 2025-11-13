@@ -205,6 +205,7 @@ qrCodeNameSchema.virtual('inactiveQRNamesList').get(function() {
 qrCodeNameSchema.set('toJSON', { virtuals: true });
 qrCodeNameSchema.set('toObject', { virtuals: true });
 
-const QRCodeName = mongoose.model('QRCodeName', qrCodeNameSchema);
+// Use different model name to avoid conflict with QRCodeName model
+const QRCodeNameArray = mongoose.model('QRCodeNameArray', qrCodeNameSchema);
 
-module.exports = QRCodeName;
+module.exports = QRCodeNameArray;

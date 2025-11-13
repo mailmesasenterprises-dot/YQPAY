@@ -180,6 +180,15 @@ async function addTextToQR(qrBuffer, topText, bottomText, scanText = 'Scan | Ord
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
+    // Draw theater name at the very top (centered)
+    if (theaterName) {
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 40px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(theaterName.toUpperCase(), canvasWidth / 2, padding);
+    }
+
     // Draw "ORDER YOUR FOOD HERE" text
     if (topText) {
       ctx.fillStyle = '#000000';
@@ -190,60 +199,53 @@ async function addTextToQR(qrBuffer, topText, bottomText, scanText = 'Scan | Ord
       ctx.fillText(topText.toUpperCase(), orientation === 'landscape' ? contentX : canvasWidth / 2, topY);
     }
 
-    // Draw food icons (popcorn, burger, drink)
-    const iconSize = 40;
-    const iconSpacing = 16;
-    const iconY = contentY + (orientation === 'landscape' ? 80 : 100);
-    const totalIconsWidth = (iconSize * 3) + (iconSpacing * 2);
-    const iconStartX = orientation === 'landscape' 
-      ? contentX 
-      : (canvasWidth - totalIconsWidth) / 2;
-
-    // Popcorn icon (simplified box)
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(iconStartX, iconY, iconSize, iconSize);
-    ctx.fillStyle = '#000000';
-    ctx.font = '20px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('🍿', iconStartX + iconSize / 2, iconY + iconSize / 2 + 8);
-
-    // Burger icon
-    ctx.strokeRect(iconStartX + iconSize + iconSpacing, iconY, iconSize, iconSize);
-    ctx.fillText('🍔', iconStartX + iconSize + iconSpacing + iconSize / 2, iconY + iconSize / 2 + 8);
-
-    // Drink icon
-    ctx.strokeRect(iconStartX + (iconSize + iconSpacing) * 2, iconY, iconSize, iconSize);
-    ctx.fillText('🥤', iconStartX + (iconSize + iconSpacing) * 2 + iconSize / 2, iconY + iconSize / 2 + 8);
-
-    // Draw "Scan | Order | Pay" text
-    if (scanText) {
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 18px Arial';
-      ctx.textAlign = orientation === 'landscape' ? 'left' : 'center';
-      ctx.textBaseline = 'top';
-      const scanY = iconY + iconSize + 20;
-      ctx.fillText(scanText, orientation === 'landscape' ? contentX : canvasWidth / 2, scanY);
+    // Load and draw scan.png image instead of food icons
+    try {
+      const scanImagePath = path.join(__dirname, '../../frontend/public/images/scan.png');
+      const scanImage = await loadImage(scanImagePath);
+      
+      const imageHeight = 80;
+      const imageWidth = (scanImage.width / scanImage.height) * imageHeight;
+      const imageY = contentY + (orientation === 'landscape' ? 80 : 100);
+      const imageX = orientation === 'landscape' 
+        ? contentX 
+        : (canvasWidth - imageWidth) / 2;
+      
+      ctx.drawImage(scanImage, imageX, imageY, imageWidth, imageHeight);
+      
+      // Draw "Scan | Order | Pay" text below the image
+      if (scanText) {
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = orientation === 'landscape' ? 'left' : 'center';
+        ctx.textBaseline = 'top';
+        const scanY = imageY + imageHeight + 20;
+        ctx.fillText(scanText, orientation === 'landscape' ? contentX : canvasWidth / 2, scanY);
+      }
+    } catch (error) {
+      console.error('Failed to load scan.png, falling back to text only:', error.message);
+      // Fallback: just show the "Scan | Order | Pay" text
+      if (scanText) {
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = orientation === 'landscape' ? 'left' : 'center';
+        ctx.textBaseline = 'top';
+        const scanY = contentY + 80;
+        ctx.fillText(scanText, orientation === 'landscape' ? contentX : canvasWidth / 2, scanY);
+      }
     }
 
     // Draw QR code
     ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
 
-    // Draw theater info at bottom (below QR for portrait, to the right for landscape)
+    // Draw seat info at the very bottom (centered)
     if (theaterInfo) {
-      ctx.fillStyle = '#6B7280';
-      ctx.font = '14px Arial';
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 18px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      if (orientation === 'landscape') {
-        // Theater info below QR code on right side
-        const infoY = qrY + qrSize + 15;
-        ctx.fillText(theaterInfo, qrX + qrSize / 2, infoY);
-      } else {
-        // Theater info below QR code
-        const infoY = qrY + qrSize + 15;
-        ctx.fillText(theaterInfo, canvasWidth / 2, infoY);
-      }
+      const infoY = canvasHeight - bottomInfoHeight + 15;
+      ctx.fillText(theaterInfo, canvasWidth / 2, infoY);
     }
 
     // Return canvas as buffer
@@ -503,8 +505,8 @@ async function generateSingleQRCode({
     const theaterInfoText = seat 
       ? `${qrName} | ${seatClass} | ${seat}` 
       : `${qrName} | ${seatClass}`;
-    console.log(`📝 Adding full structure to QR: Top="ORDER YOUR FOOD HERE", Bottom="${bottomText}", Orientation="${orientation}"`);
-    qrCodeBuffer = await addTextToQR(qrCodeBuffer, 'ORDER YOUR FOOD HERE', bottomText, 'Scan | Order | Pay', theaterInfoText, orientation);
+    console.log(`📝 Adding full structure to QR: Top="ORDER YOUR FOOD HERE", Bottom="${bottomText}", TheaterName="${theaterName}", Orientation="${orientation}"`);
+    qrCodeBuffer = await addTextToQR(qrCodeBuffer, 'ORDER YOUR FOOD HERE', bottomText, 'Scan | Order | Pay', theaterInfoText, orientation, theaterName);
 
     // Upload to Google Cloud Storage
     const gcsPath = await uploadToGCS(qrCodeBuffer, {

@@ -38,9 +38,12 @@ export const SettingsProvider = React.memo(({ children }) => {
           setGeneralSettings(parsedSettings);
           document.title = parsedSettings.browserTabTitle || parsedSettings.applicationName || 'YQPayNow Theater Canteen';
           
-          // ✅ FIX: Update favicon immediately from localStorage if logo exists
-          if (parsedSettings.logoUrl) {
-            updateFavicon(getApiUrl('/settings/image/logo'));
+          // ✅ FIX: Update favicon immediately from localStorage if logo exists and is valid
+          if (parsedSettings.logoUrl && parsedSettings.logoUrl !== 'undefined' && parsedSettings.logoUrl !== 'null') {
+            const logoApiUrl = getApiUrl('/settings/image/logo');
+            if (logoApiUrl && !logoApiUrl.includes('undefined') && !logoApiUrl.includes('null')) {
+              updateFavicon(logoApiUrl);
+            }
           }
         }
 
@@ -57,10 +60,12 @@ export const SettingsProvider = React.memo(({ children }) => {
             document.title = config.browserTabTitle || config.applicationName || config.companyName || 'YQPayNow Theater Canteen';
             localStorage.setItem('generalSettings', JSON.stringify(config));
             
-            // Update favicon if logo is set
-            if (config.logoUrl) {
-
-              updateFavicon(getApiUrl('/settings/image/logo'));
+            // Update favicon if logo is set and valid
+            if (config.logoUrl && config.logoUrl !== 'undefined' && config.logoUrl !== 'null') {
+              const logoApiUrl = getApiUrl('/settings/image/logo');
+              if (logoApiUrl && !logoApiUrl.includes('undefined') && !logoApiUrl.includes('null')) {
+                updateFavicon(logoApiUrl);
+              }
             }
           }
         }
@@ -76,6 +81,12 @@ export const SettingsProvider = React.memo(({ children }) => {
   // 🚀 OPTIMIZED: Memoized update favicon function (defined first for use in updateSettings)
   const updateFavicon = useCallback((logoUrl) => {
     try {
+      // ✅ FIX: Check if logoUrl is valid before proceeding
+      if (!logoUrl || logoUrl === 'undefined' || logoUrl === 'null' || logoUrl.includes('undefined') || logoUrl.includes('null')) {
+        console.log('⚠️ [SettingsContext] Invalid logo URL, skipping favicon update:', logoUrl);
+        return;
+      }
+      
       const faviconSelectors = [
         'link[rel="icon"]',
         'link[rel="shortcut icon"]', 

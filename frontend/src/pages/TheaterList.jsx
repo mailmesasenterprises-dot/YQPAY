@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import config from '../config';
+import apiService from '../services/apiService';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -209,7 +210,7 @@ const TheaterList = React.memo(() => {
   usePerformanceMonitoring('TheaterList');
   
   const [theaters, setTheaters] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with true for initial load
   const [error, setError] = useState('');
   const [deleteModal, setDeleteModal] = useState({ show: false, theater: null });
   const [viewModal, setViewModal] = useState({ show: false, theater: null });
@@ -241,12 +242,14 @@ const TheaterList = React.memo(() => {
 
   // Sort theaters by ID in ascending order
   const sortedTheaters = useMemo(() => {
-    return [...theaters].sort((a, b) => {
+    const sorted = [...theaters].sort((a, b) => {
       // Sort by MongoDB ObjectId in ascending order (chronological creation order)
       const idA = a._id || '';
       const idB = b._id || '';
       return idA.localeCompare(idB);
     });
+    console.log('🔄 Sorted theaters:', sorted.length, 'theaters');
+    return sorted;
   }, [theaters]);
 
   // Helper function to close modal with cleanup
@@ -279,6 +282,7 @@ const TheaterList = React.memo(() => {
   // Performance refs (matching QRManagement)
   const searchTimeoutRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const isFetchingRef = useRef(false); // 🚀 DEDUPLICATION: Prevent duplicate requests
 
   // Debounced search effect (matching QRManagement)
   useEffect(() => {
@@ -300,6 +304,12 @@ const TheaterList = React.memo(() => {
 
   // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
   const fetchTheaters = useCallback(async () => {
+    // 🚀 DEDUPLICATION: Check if already fetching
+    if (isFetchingRef.current) {
+      console.log('⏸️ [TheaterList] Already fetching, skipping duplicate call');
+      return;
+    }
+    
     try {
       // Cancel previous request if still pending
       if (abortControllerRef.current) {
@@ -309,45 +319,51 @@ const TheaterList = React.memo(() => {
       // Create new abort controller for this request
       abortControllerRef.current = new AbortController();
       
+      isFetchingRef.current = true;
       setLoading(true);
       setError('');
       
-      // Build query parameters
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString()
-      });
+      // Build query parameters - Optimized: start with smaller limit for faster initial load
+      const params = {
+        page: currentPage,
+        limit: Math.min(itemsPerPage, 20) // Cap at 20 for faster response
+      };
       
       if (debouncedSearchTerm.trim()) {
-        params.append('q', debouncedSearchTerm.trim());
+        params.q = debouncedSearchTerm.trim();
       }
       
       if (filterStatus !== 'all') {
-        params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
+        params.isActive = filterStatus === 'active' ? 'true' : 'false';
       }
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
-      const cacheKey = `theaters_list_page_${currentPage}_limit_${itemsPerPage}_search_${debouncedSearchTerm || 'none'}_status_${filterStatus}`;
-      const result = await optimizedFetch(
-        `${config.api.baseUrl}/theaters?${params.toString()}`,
-        {
-          signal: abortControllerRef.current.signal,
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${config.helpers.getAuthToken() || localStorage.getItem('authToken') || ''}`
-          }
-        },
-        cacheKey,
-        120000 // 2-minute cache
-      );
+      const startTime = performance.now();
+      console.log('📡 [TheaterList] Starting API request with params:', params);
       
-      if (!result) {
-        throw new Error('Failed to fetch theaters');
+      // Show a warning if it takes too long (network issue indicator)
+      const slowLoadTimeout = setTimeout(() => {
+        console.warn('⚠️ [TheaterList] Request taking longer than expected. This may be due to MongoDB Atlas cold start or network latency.');
+      }, 3000);
+      
+      // Use the new API service with MVC response handling
+      const result = await apiService.getTheaters(params);
+      
+      clearTimeout(slowLoadTimeout);
+      const endTime = performance.now();
+      const duration = Math.round(endTime - startTime);
+      console.log(`📥 [TheaterList] API Response received in ${duration}ms:`, result ? 'Success' : 'Failed');
+      
+      if (duration > 5000) {
+        console.warn(`⚠️ [TheaterList] Slow query detected (${duration}ms). Consider checking MongoDB Atlas connection or upgrading to a paid tier.`);
       }
       
-      // Handle response data
-      const newTheaters = result.data || result.theaters || [];
+      console.log('📊 [TheaterList] Response data:', result);
+      
+      // result contains: { items: [], pagination: {}, message: '' }
+      const newTheaters = result.items || [];
       const paginationData = result.pagination || {};
+      
+      console.log('✅ Extracted theaters:', newTheaters.length, 'theaters');
       
       // Check agreement expiration status for each theater
       const now = new Date();
@@ -369,10 +385,11 @@ const TheaterList = React.memo(() => {
       });
       
       // Update state
+      console.log('📝 Setting theaters state:', theatersWithExpirationStatus.length, 'theaters');
       setTheaters(theatersWithExpirationStatus);
       setPagination(paginationData);
       setTotalPages(paginationData.totalPages || 0);
-      setTotalItems(paginationData.totalItems || 0);
+      setTotalItems(paginationData.totalItems || theatersWithExpirationStatus.length);
       
       // Calculate and update summary statistics
       const activeCount = theatersWithExpirationStatus.filter(theater => theater.isActive).length;
@@ -397,16 +414,54 @@ const TheaterList = React.memo(() => {
         return;
       }
 
-      setError('Failed to load theaters');
+      console.error('❌ [TheaterList] Error fetching theaters:', error);
+      console.error('❌ [TheaterList] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      setError(error.message || 'Failed to load theaters. Please check your connection and try again.');
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [currentPage, debouncedSearchTerm, filterStatus, itemsPerPage]);
 
-  // 🚀 PERFORMANCE: Fetch theaters when filters/page change
+  // 🚀 PERFORMANCE: Track previous values to prevent unnecessary re-renders
+  const prevParamsRef = useRef({});
+  const fetchTheatersRef = useRef(fetchTheaters);
+  
+  // Update ref when fetchTheaters changes
   useEffect(() => {
-    fetchTheaters();
+    fetchTheatersRef.current = fetchTheaters;
   }, [fetchTheaters]);
+  
+  // 🚀 PERFORMANCE: Fetch theaters when filters/page change - Only when values actually change
+  useEffect(() => {
+    const currentParams = {
+      page: currentPage,
+      search: debouncedSearchTerm,
+      status: filterStatus,
+      limit: itemsPerPage
+    };
+    
+    // Check if params actually changed
+    const prevParams = prevParamsRef.current;
+    const hasChanged = 
+      prevParams.page !== currentParams.page ||
+      prevParams.search !== currentParams.search ||
+      prevParams.status !== currentParams.status ||
+      prevParams.limit !== currentParams.limit;
+    
+    if (hasChanged || Object.keys(prevParams).length === 0) {
+      prevParamsRef.current = currentParams;
+      console.log('🔄 [TheaterList] Params changed, calling fetchTheaters');
+      fetchTheatersRef.current();
+    } else {
+      console.log('⏸️ [TheaterList] Params unchanged, skipping fetch');
+    }
+  }, [currentPage, debouncedSearchTerm, filterStatus, itemsPerPage]); // Removed fetchTheaters from deps
 
   const handleDelete = useCallback(async (theaterId) => {
     const apiCall = () => {
@@ -818,13 +873,16 @@ const TheaterList = React.memo(() => {
     };
   }, []);
 
-  if (loading) {
+  if (loading && theaters.length === 0) {
     return (
       <AdminLayout pageTitle="Theater Management" currentPage="theaters">
         <div className="theater-list-container">
           <div className="loading-state">
             <div className="spinner"></div>
             <p>Loading theaters...</p>
+            <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '0.5rem' }}>
+              This may take a moment on first load due to database connection...
+            </p>
           </div>
         </div>
       </AdminLayout>

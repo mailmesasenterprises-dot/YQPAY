@@ -11,6 +11,7 @@ import { FormGroup, FormInput, FormSection, Button } from '../components/GlobalD
 import { apiPost, apiUpload, getApiUrl } from '../utils/apiHelper';
 import { optimizedFetch } from '../utils/apiOptimizer';
 import config from '../config';
+import apiService from '../services/apiService';
 import '../styles/Settings.css';
 import { useDeepMemo, useComputed } from '../utils/ultraPerformance';
 

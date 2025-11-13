@@ -1,56 +1,191 @@
-const Role = require('../models/Role');
-const RoleArray = require('../models/RoleArray'); // Use array-based structure
-// const PageAccess = require('../models/PageAccess'); // DISABLED - OLD MODEL
-const PageAccessArray = require('../models/PageAccessArray'); // NEW MODEL
+const BaseService = require('./BaseService');
+const RoleArray = require('../models/RoleArray');
+// Import utility functions from the same file (they're exported at the bottom)
+// Note: roleService.js contains utility functions, RoleService.js is the MVC service class
 
 /**
- * Role Service - Handles role creation and management logic
- * Updated to use nested array structure (RoleArray model) like QRCodeNameArray
+ * Role Service
+ * Handles all role-related business logic
  */
+class RoleService extends BaseService {
+  constructor() {
+    super(RoleArray);
+  }
 
-/**
- * Get default permissions for Theater Admin role
- * Theater Admin has access to all pages except super_admin specific pages
- */
-async function getDefaultTheaterAdminPermissions() {
-  try {
-    // OLD: Fetch all active pages from global PageAccess collection
-    // const allPages = await PageAccess.find({ isActive: true }).lean();
-    
-    // NEW: With array-based structure, pages are theater-specific
-    // For default permissions, we'll use a basic set instead of querying
-    return getBasicTheaterAdminPermissions();
-    
-  } catch (error) {
-    console.error('❌ Error fetching default permissions:', error);
-    // Return basic permissions if PageAccess fetch fails
-    return getBasicTheaterAdminPermissions();
+  /**
+   * Get roles for theater
+   */
+  async getRoles(theaterId, queryParams) {
+    const { page = 1, limit = 10, search, isActive } = queryParams;
+
+    const result = await RoleArray.getByTheater(theaterId, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      search,
+      isActive: isActive !== undefined ? isActive === 'true' : undefined
+    });
+
+    return {
+      roles: result.roles,
+      theater: result.theater,
+      metadata: result.metadata,
+      pagination: result.pagination
+    };
+  }
+
+  /**
+   * Create role
+   */
+  async createRole(theaterId, roleData) {
+    const {
+      name,
+      description = '',
+      permissions = [],
+      priority = 1,
+      isGlobal = false,
+      isDefault = false
+    } = roleData;
+
+    let rolesDoc = await RoleArray.findOrCreateByTheater(theaterId);
+
+    const newRole = await rolesDoc.addRole({
+      name: name.trim(),
+      description: description.trim(),
+      permissions,
+      priority,
+      isGlobal,
+      isDefault,
+      canDelete: !isDefault,
+      canEdit: true
+    });
+
+    await rolesDoc.populate('theater', 'name location');
+
+    return {
+      role: newRole,
+      theater: rolesDoc.theater,
+      metadata: rolesDoc.metadata
+    };
+  }
+
+  /**
+   * Update role
+   */
+  async updateRole(roleId, updateData) {
+    // Validate update for default roles
+    const validation = await roleUtils.validateRoleUpdate(roleId, updateData);
+    if (!validation.canUpdate) {
+      throw new Error(validation.reason);
+    }
+
+    const rolesDoc = await RoleArray.findOne({ 'roleList._id': roleId }).maxTimeMS(20000);
+    if (!rolesDoc) {
+      throw new Error('Role not found');
+    }
+
+    const role = rolesDoc.roleList.id(roleId);
+    if (!role) {
+      throw new Error('Role not found');
+    }
+
+    // For default roles, only allow permission updates
+    if (role.isDefault && validation.updateType === 'permissions_only') {
+      if (updateData.permissions) role.permissions = updateData.permissions;
+      if (updateData.isActive !== undefined) role.isActive = updateData.isActive;
+    } else {
+      // For regular roles, allow all updates
+      if (updateData.name) role.name = updateData.name.trim();
+      if (updateData.description !== undefined) role.description = updateData.description.trim();
+      if (updateData.permissions) role.permissions = updateData.permissions;
+      if (updateData.priority) role.priority = updateData.priority;
+      if (updateData.isGlobal !== undefined) role.isGlobal = updateData.isGlobal;
+      if (updateData.isActive !== undefined) role.isActive = updateData.isActive;
+    }
+
+    role.updatedAt = new Date();
+    await rolesDoc.save();
+
+    return role;
+  }
+
+  /**
+   * Delete role
+   */
+  async deleteRole(roleId) {
+    const canDelete = await roleUtils.canDeleteRole(roleId);
+    if (!canDelete.canDelete) {
+      throw new Error(canDelete.reason);
+    }
+
+    const rolesDoc = await RoleArray.findOne({ 'roleList._id': roleId }).maxTimeMS(20000);
+    if (!rolesDoc) {
+      throw new Error('Role not found');
+    }
+
+    const role = rolesDoc.roleList.id(roleId);
+    if (!role) {
+      throw new Error('Role not found');
+    }
+
+    rolesDoc.roleList.pull(roleId);
+    await rolesDoc.save();
+
+    return true;
+  }
+
+  /**
+   * Get role by ID
+   */
+  async getRoleById(roleId) {
+    const rolesDoc = await RoleArray.findOne({ 'roleList._id': roleId })
+      .populate('theater', 'name location')
+      .lean()
+      .maxTimeMS(20000);
+
+    if (!rolesDoc) {
+      return null;
+    }
+
+    const role = rolesDoc.roleList.find(r => r._id.toString() === roleId);
+    return role || null;
   }
 }
 
 /**
- * Fallback: Get basic permissions if PageAccess is not available
+ * Get default permissions for Theater Admin role
+ * Theater Admin has full access to all theater management pages
  */
-function getBasicTheaterAdminPermissions() {
+function getDefaultTheaterAdminPermissions() {
   return [
-    { page: 'dashboard', pageName: 'dashboard', hasAccess: true, route: '/' },
-    { page: 'products', pageName: 'products', hasAccess: true, route: '/theater/:theaterId/products' },
-    { page: 'categories', pageName: 'categories', hasAccess: true, route: '/theater/:theaterId/categories' },
-    { page: 'product-types', pageName: 'product-types', hasAccess: true, route: '/theater/:theaterId/product-types' },
-    { page: 'stock', pageName: 'stock', hasAccess: true, route: '/theater/:theaterId/stock' },
-    { page: 'orders', pageName: 'orders', hasAccess: true, route: '/theater/:theaterId/orders' },
-    { page: 'pos', pageName: 'pos', hasAccess: true, route: '/theater/:theaterId/pos' },
-    { page: 'order-history', pageName: 'order-history', hasAccess: true, route: '/theater/:theaterId/order-history' },
-    { page: 'qr-management', pageName: 'qr-management', hasAccess: true, route: '/theater/:theaterId/qr-management' },
-    { page: 'settings', pageName: 'settings', hasAccess: true, route: '/theater/:theaterId/settings' },
-    { page: 'reports', pageName: 'reports', hasAccess: true, route: '/theater/:theaterId/reports' }
+    { page: 'Dashboard', pageName: 'Dashboard', hasAccess: true, route: '/dashboard' },
+    { page: 'Products', pageName: 'Products', hasAccess: true, route: '/theater/:theaterId/products' },
+    { page: 'Categories', pageName: 'Categories', hasAccess: true, route: '/theater/:theaterId/categories' },
+    { page: 'ProductTypes', pageName: 'Product Types', hasAccess: true, route: '/theater/:theaterId/product-types' },
+    { page: 'Orders', pageName: 'Orders', hasAccess: true, route: '/theater/:theaterId/orders' },
+    { page: 'POS', pageName: 'POS Interface', hasAccess: true, route: '/theater/:theaterId/pos' },
+    { page: 'Stock', pageName: 'Stock Management', hasAccess: true, route: '/theater/:theaterId/stock' },
+    { page: 'Settings', pageName: 'Settings', hasAccess: true, route: '/theater/:theaterId/settings' },
+    { page: 'Roles', pageName: 'Roles', hasAccess: true, route: '/theater/:theaterId/roles' },
+    { page: 'Users', pageName: 'Users', hasAccess: true, route: '/theater/:theaterId/users' },
+    { page: 'Reports', pageName: 'Reports', hasAccess: true, route: '/theater/:theaterId/reports' }
   ];
 }
 
 /**
- * Create default Theater Admin role for a theater (ARRAY-BASED STRUCTURE)
+ * Get basic permissions for Theater Admin role (subset of full permissions)
+ */
+function getBasicTheaterAdminPermissions() {
+  return [
+    { page: 'Dashboard', pageName: 'Dashboard', hasAccess: true, route: '/dashboard' },
+    { page: 'Products', pageName: 'Products', hasAccess: true, route: '/theater/:theaterId/products' },
+    { page: 'Orders', pageName: 'Orders', hasAccess: true, route: '/theater/:theaterId/orders' },
+    { page: 'Stock', pageName: 'Stock Management', hasAccess: true, route: '/theater/:theaterId/stock' }
+  ];
+}
+
+/**
+ * Create default Theater Admin role for a theater
  * This role is created automatically when a new theater is created
- * Uses the nested array structure like QRCodeNameArray
  * 
  * @param {ObjectId} theaterId - The theater's MongoDB ObjectId
  * @param {String} theaterName - The theater's name (for role description)
@@ -58,22 +193,25 @@ function getBasicTheaterAdminPermissions() {
  */
 async function createDefaultTheaterAdminRole(theaterId, theaterName) {
   try {
-
-    // Find or create roles document for theater (similar to QRCodeNameArray)
+    // Find or create roles document for theater
     let rolesDoc = await RoleArray.findOrCreateByTheater(theaterId);
-    // Check if default role already exists in the roleList array
-    const existingDefaultRole = rolesDoc.roleList.find(role => role.isDefault === true);
     
-    if (existingDefaultRole) {
-      return existingDefaultRole;
+    // Check if Theater Admin role already exists
+    const existingAdminRole = rolesDoc.roleList.find(role => 
+      role.name === 'Theater Admin' && role.isDefault === true
+    );
+    
+    if (existingAdminRole) {
+      return existingAdminRole;
     }
     
-    // Get default permissions
-    const permissions = await getDefaultTheaterAdminPermissions();
+    // Get admin permissions
+    const permissions = getDefaultTheaterAdminPermissions();
+    
     // Create the Theater Admin role data
     const roleData = {
       name: 'Theater Admin',
-      description: `Default administrator role for ${theaterName}. This role has full access to manage all theater operations including products, orders, stock, and reports. Cannot be deleted or edited.`,
+      description: `Default admin role for ${theaterName}. This role provides full access to all theater management features. Cannot be deleted or edited.`,
       permissions: permissions,
       isGlobal: false,
       priority: 1, // Highest priority
@@ -82,6 +220,7 @@ async function createDefaultTheaterAdminRole(theaterId, theaterName) {
       canDelete: false, // Cannot be deleted
       canEdit: false // Cannot be edited
     };
+    
     // Add role to the nested array using the addRole method
     const savedRole = await rolesDoc.addRole(roleData);
     return savedRole;
@@ -361,6 +500,7 @@ async function validateRoleUpdate(roleId, updateData) {
   }
 }
 
+// Export utility functions (the RoleService class is exported separately in RoleServiceMVC.js)
 module.exports = {
   createDefaultTheaterAdminRole,
   createDefaultKioskRole,

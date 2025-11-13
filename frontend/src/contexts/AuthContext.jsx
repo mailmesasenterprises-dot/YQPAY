@@ -96,14 +96,23 @@ export const AuthProvider = React.memo(({ children }) => {
             'Content-Type': 'application/json'
           },
           signal: controller.signal
+        }).catch(err => {
+          // Silently handle 404 or network errors - don't log to avoid noise
+          if (err.name === 'AbortError' || err.message?.includes('404')) {
+            return null;
+          }
+          throw err;
         });
-
+        
+        if (!response || !response.ok) {
+          clearTimeout(timeoutId);
+          return; // Silently fail - don't affect user experience
+        }
+        
         clearTimeout(timeoutId);
         
-        if (!response.ok) {
-          // Don't logout - just skip validation
-          // User will be logged out when they try to make an API call
-        }
+        // Token is valid - no action needed
+        // User will be logged out when they try to make an API call if token is invalid
       } catch (error) {
         // Background validation error - ignore silently
         // Don't logout on network errors - user stays authenticated

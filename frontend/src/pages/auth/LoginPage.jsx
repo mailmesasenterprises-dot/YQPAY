@@ -184,34 +184,40 @@ const LoginPage = () => {
         toast.success('Login Successfully.');
         
         // ✅ ROLE-BASED NAVIGATION: Navigate to first accessible page based on permissions
+        console.log('🔍 [PIN] rolePermissions:', rolePermissions);
+        
         if (rolePermissions && rolePermissions.length > 0 && rolePermissions[0].permissions) {
           const accessiblePages = rolePermissions[0].permissions.filter(p => p.hasAccess === true);
+          console.log('✅ [PIN] Accessible pages:', accessiblePages.length);
           
           if (accessiblePages.length > 0) {
             // Navigate to FIRST accessible page (not always theater-dashboard)
             const firstPage = accessiblePages[0];
+            console.log('🎯 [PIN] First accessible page:', firstPage);
+            
             // Get route from page ID using helper function
             const firstRoute = firstPage.route 
               ? firstPage.route.replace(':theaterId', theaterId)
               : getRouteFromPageId(firstPage.page, theaterId);
             
+            console.log('🚀 [PIN] Navigating to:', firstRoute);
+            
             if (firstRoute) {
-
               navigate(firstRoute);
             } else {
-
+              console.error('❌ [PIN] No valid route found for page:', firstPage);
               setErrors({ pin: 'Navigation error. Contact administrator.' });
               return;
             }
           } else {
             // ❌ NO accessible pages - show error, don't navigate
-
+            console.error('❌ [PIN] No accessible pages found');
             setErrors({ pin: 'Your account has no page access. Contact administrator.' });
             return;
           }
         } else {
           // ❌ NO permissions defined - show error, don't navigate
-
+          console.error('❌ [PIN] No role permissions found or invalid structure');
           setErrors({ pin: 'No role permissions found. Contact administrator.' });
           return;
         }
@@ -295,38 +301,45 @@ const LoginPage = () => {
         toast.success('Login Successfully.');
         
         // ✅ ROLE-BASED NAVIGATION: Navigate to first accessible page based on permissions
+        console.log('🔍 [Login] User type:', userType);
+        console.log('🔍 [Login] rolePermissions:', rolePermissions);
+        
         if (userType === 'theater_user' || userType === 'theater_admin') {
           // For theater users, navigate to their first accessible page
           if (rolePermissions && rolePermissions.length > 0 && rolePermissions[0].permissions) {
             const accessiblePages = rolePermissions[0].permissions.filter(p => p.hasAccess === true);
+            console.log('✅ [Login] Accessible pages:', accessiblePages.length);
             
             if (accessiblePages.length > 0) {
               // Navigate to FIRST accessible page (not always theater-dashboard)
               const firstPage = accessiblePages[0];
+              console.log('🎯 [Login] First accessible page:', firstPage);
+              
               // Get route from page ID using helper function
               const firstRoute = firstPage.route 
                 ? firstPage.route.replace(':theaterId', theaterId)
                 : getRouteFromPageId(firstPage.page, theaterId);
               
+              console.log('🚀 [Login] Navigating to:', firstRoute);
+              
               if (firstRoute) {
-
                 navigate(firstRoute);
               } else {
-
+                console.error('❌ [Login] No valid route found for page:', firstPage);
                 setErrors({ password: 'Navigation error. Contact administrator.' });
                 setIsLoading(false);
                 return;
               }
             } else {
               // ❌ NO accessible pages - show error, don't navigate
-
+              console.error('❌ [Login] No accessible pages found');
               setErrors({ password: 'Your account has no page access. Contact administrator.' });
               setIsLoading(false);
               return;
             }
           } else {
             // ❌ NO permissions defined - show error, don't navigate
-
+            console.error('❌ [Login] No role permissions found or invalid structure');
             setErrors({ password: 'No role permissions found. Contact administrator.' });
             setIsLoading(false);
             return;

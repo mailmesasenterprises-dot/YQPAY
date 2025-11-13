@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
-const TheaterUserModel = require('../models/TheaterUserModel');
+const TheaterUserModel = require('../models/Theater');
 const TheaterUserArray = require('../models/TheaterUserArray');
 const Theater = require('../models/Theater');
 const fs = require('fs').promises;
 const path = require('path');
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 class TheaterUserMigration {
   constructor() {
     this.backupDir = path.join(__dirname, '../backups');

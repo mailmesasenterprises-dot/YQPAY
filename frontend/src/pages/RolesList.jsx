@@ -7,6 +7,7 @@ import Pagination from '../components/Pagination';
 import { optimizedFetch } from '../utils/apiOptimizer';
 import { clearCachePattern } from '../utils/cacheUtils';
 import config from '../config';
+import apiService from '../services/apiService';
 import '../styles/TheaterGlobalModals.css'; // Global theater modal styles
 import '../styles/TheaterList.css';
 import '../styles/QRManagementPage.css';
@@ -89,7 +90,7 @@ const RolesList = () => {
   }
   }, [theaterId]);
 
-  // Fetch roles - ALWAYS bypass cache to ensure fresh data
+  // Fetch roles - Updated to use MVC API service
   const fetchRoles = useCallback(async () => {
     try {
       console.log('🔄 fetchRoles called - fetching fresh data from API');
@@ -101,64 +102,36 @@ const RolesList = () => {
       }
       abortControllerRef.current = new AbortController();
 
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        limit: itemsPerPage.toString()
-      });
+      const params = {
+        page: currentPage,
+        limit: itemsPerPage
+      };
 
       if (theaterId) {
-        params.append('theaterId', theaterId);
+        params.theaterId = theaterId;
       }
 
       if (debouncedSearchTerm.trim()) {
-        params.append('search', debouncedSearchTerm.trim());
+        params.search = debouncedSearchTerm.trim();
       }
       
-      // ALWAYS clear cache before fetching to ensure fresh data
-      clearCachePattern('roles_');
-      if (theaterId) {
-        clearCachePattern(`theater_${theaterId}`);
-      }
+      // Use the new API service with MVC response handling
+      const result = await apiService.getRoles(theaterId, params);
       
-      // ALWAYS use regular fetch (bypass all caching) to ensure fresh data
-      // Add timestamp to prevent any browser-level caching
-      const apiUrl = `${config.api.baseUrl}/roles?${params.toString()}&_t=${Date.now()}`;
-      console.log('📡 Fetching from:', apiUrl);
+      console.log('✅ Roles fetched:', result?.items?.length || 0, 'roles');
       
-      const response = await fetch(apiUrl, {
-        signal: abortControllerRef.current.signal,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      console.log('✅ Roles fetched:', result?.data?.roles?.length || 0, 'roles');
-      
-      if (!result) {
-        throw new Error('Failed to fetch roles');
-      }
-
-      if (result.success && result.data) {
-        setRoles(result.data.roles || []);
-        const paginationData = result.data.pagination || {};
-        setTotalPages(paginationData.totalPages || 0);
-        setTotalItems(paginationData.totalItems || 0);
+      // result contains: { items: [], pagination: {}, message: '' }
+      if (result && result.items) {
+        setRoles(result.items);
         
-        // Update theater info from response if available
-        if (result.data.theater) {
-          setTheater(result.data.theater);
+        if (result.pagination) {
+          setTotalPages(result.pagination.totalPages || 0);
+          setTotalItems(result.pagination.totalItems || 0);
+        } else {
+          setTotalPages(0);
+          setTotalItems(0);
         }
       } else {
-        console.warn('⚠️ Unexpected response format:', result);
         setRoles([]);
         setTotalPages(0);
         setTotalItems(0);
@@ -171,8 +144,10 @@ const RolesList = () => {
       }
 
       console.error('❌ Error fetching roles:', error);
-      setError(`Failed to load roles: ${error.message}`);
+      setError(`Failed to load roles: ${error.message || 'Unknown error'}`);
       setRoles([]);
+      setTotalPages(0);
+      setTotalItems(0);
     } finally {
       setLoading(false);
     }

@@ -1,294 +1,174 @@
-const Razorpay = require('razorpay');
-const crypto = require('crypto');
+const BaseService = require('./BaseService');
+const Theater = require('../models/Theater');
+const Order = require('../models/Order');
 const PaymentTransaction = require('../models/PaymentTransaction');
+const paymentServiceUtil = require('../services/PaymentService');
+const mongoose = require('mongoose');
+const TheaterOrders = require('../models/TheaterOrders');
 
-class PaymentService {
-  /**
-   * Determine which channel (kiosk or online) based on order type
-   */
-  determineChannel(orderType) {
-    // Map order types/sources to channels
-    const kioskTypes = ['kiosk', 'pos', 'counter', 'qr_code', 'staff'];
-    const onlineTypes = ['online', 'qr', 'app'];
-    
-    if (kioskTypes.includes(orderType)) {
-      return 'kiosk';
-    } else if (onlineTypes.includes(orderType)) {
-      return 'online';
-    }
-    return 'kiosk'; // default to kiosk for in-person orders
+/**
+ * Payment Service
+ * Handles all payment-related business logic
+ */
+class PaymentService extends BaseService {
+  constructor() {
+    super(PaymentTransaction);
   }
-  
+
   /**
-   * Get gateway configuration for specific channel
+   * Get payment gateway configuration
    */
-  getGatewayConfig(theater, channel) {
-    if (!theater.paymentGateway) {
-      throw new Error('Payment gateway not configured for this theater');
+  async getPaymentConfig(theaterId, channel) {
+    const theater = await Theater.findById(theaterId).maxTimeMS(20000);
+    if (!theater) {
+      throw new Error('Theater not found');
     }
-    
-    // Normalize channel name
-    if (channel === 'kiosk' || channel === 'pos' || channel === 'counter') {
-      return theater.paymentGateway.kiosk;
-    } else if (channel === 'online' || channel === 'qr' || channel === 'app') {
-      return theater.paymentGateway.online;
-    }
-    
-    // Default to kiosk
-    return theater.paymentGateway.kiosk;
-  }
-  
-  /**
-   * Create payment order based on channel (kiosk or online)
-   */
-  async createPaymentOrder(theater, order, channel = 'online') {
-    try {
-      console.log(`🔄 Creating payment order for channel: ${channel}, orderType: ${order.orderType}`);
-      
-      // Get channel-specific gateway configuration
-      const gatewayConfig = this.getGatewayConfig(theater, channel);
-      
-      if (!gatewayConfig || !gatewayConfig.enabled) {
-        throw new Error(`${channel} payment gateway not configured for this theater`);
-      }
-      
-      const provider = gatewayConfig.provider;
-      
-      console.log(`💳 Using provider: ${provider} for ${channel} channel`);
-      
-      // Create order based on provider
-      switch (provider) {
-        case 'razorpay':
-          return await this.createRazorpayOrder(theater, order, gatewayConfig, channel);
-        
-        case 'phonepe':
-          return await this.createPhonePeOrder(theater, order, gatewayConfig, channel);
-        
-        case 'paytm':
-          return await this.createPaytmOrder(theater, order, gatewayConfig, channel);
-        
-        default:
-          throw new Error(`Unsupported payment provider: ${provider}`);
-      }
-    } catch (error) {
-      console.error(`❌ Error creating ${channel} payment order:`, error);
-      throw error;
-    }
-  }
-  
-  /**
-   * Create Razorpay order for specific channel
-   */
-  async createRazorpayOrder(theater, order, gatewayConfig, channel) {
-    try {
-      const razorpayCredentials = gatewayConfig.razorpay;
-      
-      if (!razorpayCredentials || !razorpayCredentials.enabled) {
-        throw new Error('Razorpay is not enabled for this channel');
-      }
-      
-      if (!razorpayCredentials.keyId || !razorpayCredentials.keySecret) {
-        throw new Error('Razorpay credentials are incomplete');
-      }
-      
-      console.log(`🔑 Using Razorpay Key ID: ${razorpayCredentials.keyId} for ${channel}`);
-      console.log(`📦 Order structure:`, JSON.stringify({
-        _id: order._id,
-        orderNumber: order.orderNumber,
-        pricing: order.pricing,
-        totalAmount: order.totalAmount,
-        payment: order.payment
-      }, null, 2));
-      
-      // Get total amount - handle different order structures
-      let totalAmount;
-      if (order.pricing && order.pricing.total) {
-        totalAmount = order.pricing.total;
-      } else if (order.totalAmount) {
-        totalAmount = order.totalAmount;
-      } else {
-        throw new Error('Order total amount not found. Order structure: ' + JSON.stringify(order));
-      }
-      
-      console.log(`💰 Total amount: ${totalAmount}`);
-      
-      // Initialize Razorpay with channel-specific credentials
-      const razorpay = new Razorpay({
-        key_id: razorpayCredentials.keyId,
-        key_secret: razorpayCredentials.keySecret
-      });
-      
-      // Create Razorpay order
-      const razorpayOrder = await razorpay.orders.create({
-        amount: Math.round(totalAmount * 100), // Amount in paise
-        currency: order.pricing?.currency || 'INR',
-        receipt: order.orderNumber || `ORD-${order._id}`,
-        notes: {
-          theaterId: theater._id.toString(),
-          orderId: order._id.toString(),
-          theaterName: theater.name,
-          channel: channel,
-          orderType: order.orderType
-        }
-      });
-      
-      console.log(`✅ Razorpay order created: ${razorpayOrder.id} for ${channel} channel`);
-      
-      // Save transaction record
-      const transaction = new PaymentTransaction({
-        theaterId: theater._id,
-        orderId: order._id,
-        gateway: {
-          provider: 'razorpay',
-          channel: channel,
-          orderId: razorpayOrder.id
-        },
-        amount: {
-          value: totalAmount,
-          currency: order.pricing?.currency || 'INR'
-        },
-        status: 'initiated',
-        method: order.payment?.method || 'card',
-        customer: {
-          name: order.customerInfo?.name,
-          phone: order.customerInfo?.phone || order.customerInfo?.phoneNumber,
-          email: order.customerInfo?.email
-        },
-        metadata: {
-          orderType: order.orderType || order.source,
-          gatewayUsed: 'razorpay',
-          channel: channel,
-          notes: {
-            testMode: razorpayCredentials.testMode
-          }
-        }
-      });
-      
-      await transaction.save();
-      
+
+    const gatewayConfig = channel === 'kiosk'
+      ? theater.paymentGateway?.kiosk
+      : theater.paymentGateway?.online;
+
+    if (!gatewayConfig) {
       return {
-        success: true,
-        id: razorpayOrder.id, // Razorpay order ID (for frontend compatibility)
-        orderId: razorpayOrder.id, // Same as above
-        amount: razorpayOrder.amount,
-        currency: razorpayOrder.currency,
-        keyId: razorpayCredentials.keyId,
-        transaction: transaction,
-        transactionId: transaction._id.toString(), // Add explicit transactionId for frontend
-        channel: channel,
-        provider: 'razorpay'
+        provider: 'none',
+        isEnabled: false,
+        acceptedMethods: {
+          cash: true,
+          card: false,
+          upi: false
+        },
+        channel: channel
       };
-    } catch (error) {
-      console.error('❌ Razorpay order creation failed:', error);
-      throw error;
     }
-  }
-  
-  /**
-   * Verify Razorpay Payment Signature
-   */
-  verifyRazorpaySignature(orderId, paymentId, signature, keySecret) {
-    try {
-      const text = `${orderId}|${paymentId}`;
-      const generated_signature = crypto
-        .createHmac('sha256', keySecret)
-        .update(text)
-        .digest('hex');
-      
-      return generated_signature === signature;
-    } catch (error) {
-      console.error('❌ Signature verification error:', error);
-      return false;
+
+    // Return public config only
+    const publicConfig = {
+      provider: gatewayConfig.provider || 'none',
+      isEnabled: gatewayConfig.enabled || false,
+      acceptedMethods: gatewayConfig.acceptedMethods || {
+        cash: true,
+        card: false,
+        upi: false,
+        netbanking: false,
+        wallet: false
+      },
+      channel: channel
+    };
+
+    // Add public keys only
+    if (gatewayConfig.provider === 'razorpay' && gatewayConfig.razorpay?.enabled) {
+      publicConfig.razorpay = {
+        keyId: gatewayConfig.razorpay.keyId,
+        testMode: gatewayConfig.razorpay.testMode || false
+      };
+    } else if (gatewayConfig.provider === 'phonepe' && gatewayConfig.phonepe?.enabled) {
+      publicConfig.phonepe = {
+        merchantId: gatewayConfig.phonepe.merchantId,
+        testMode: gatewayConfig.phonepe.testMode || false
+      };
+    } else if (gatewayConfig.provider === 'paytm' && gatewayConfig.paytm?.enabled) {
+      publicConfig.paytm = {
+        merchantId: gatewayConfig.paytm.merchantId,
+        testMode: gatewayConfig.paytm.testMode || false
+      };
     }
+
+    return publicConfig;
   }
-  
+
   /**
-   * Update Payment Transaction Status
+   * Create payment order
    */
-  async updateTransactionStatus(transactionId, status, data = {}) {
-    try {
-      const transaction = await PaymentTransaction.findById(transactionId);
-      if (!transaction) {
-        throw new Error('Transaction not found');
-      }
-      
-      transaction.status = status;
-      
-      if (status === 'success') {
-        transaction.completedAt = new Date();
-        transaction.gateway.paymentId = data.paymentId;
-        transaction.gateway.signature = data.signature;
-      } else if (status === 'failed') {
-        transaction.failedAt = new Date();
-        transaction.error = data.error;
-      }
-      
-      if (data.metadata) {
-        transaction.metadata = { ...transaction.metadata, ...data.metadata };
-      }
-      
-      await transaction.save();
-      return transaction;
-    } catch (error) {
-      console.error('❌ Error updating transaction status:', error);
-      throw error;
+  async createPaymentOrder(orderId, paymentMethod) {
+    if (!orderId) {
+      throw new Error('Order ID is required');
     }
+
+    // Try to find order in regular Order collection first
+    let order = await Order.findById(orderId).maxTimeMS(20000);
+    let isTheaterOrdersArray = false;
+    let theaterOrdersDoc = null;
+    let theaterId = null;
+
+    // If not found, search in TheaterOrders collection
+    if (!order) {
+      theaterOrdersDoc = await TheaterOrders.findOne({
+        'orderList._id': new mongoose.Types.ObjectId(orderId)
+      }).maxTimeMS(20000);
+
+      if (theaterOrdersDoc) {
+        order = theaterOrdersDoc.orderList.find(o => o._id.toString() === orderId);
+        isTheaterOrdersArray = true;
+        theaterId = theaterOrdersDoc.theater;
+      }
+    } else {
+      theaterId = order.theaterId;
+    }
+
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    const theater = await Theater.findById(theaterId).maxTimeMS(20000);
+    if (!theater) {
+      throw new Error('Theater not found');
+    }
+
+    const orderTypeOrSource = order.source || order.orderType || 'counter';
+    const channel = paymentServiceUtil.determineChannel(orderTypeOrSource);
+
+    // Use payment service to create order
+    const result = await paymentServiceUtil.createPaymentOrder(
+      theater,
+      order,
+      paymentMethod,
+      channel
+    );
+
+    return result;
   }
-  
+
   /**
-   * PhonePe Payment Integration (Placeholder)
+   * Verify payment
    */
-  async createPhonePeOrder(theater, order, gatewayConfig, channel) {
-    // TODO: Implement PhonePe integration
-    console.log('⚠️ PhonePe integration not yet implemented');
-    throw new Error('PhonePe integration coming soon');
+  async verifyPayment(verificationData) {
+    return paymentServiceUtil.verifyPayment(verificationData);
   }
-  
+
   /**
-   * Paytm Payment Integration (Placeholder)
+   * Get payment transactions
    */
-  async createPaytmOrder(theater, order, gatewayConfig, channel) {
-    // TODO: Implement Paytm integration
-    console.log('⚠️ Paytm integration not yet implemented');
-    throw new Error('Paytm integration coming soon');
-  }
-  
-  /**
-   * Get payment statistics by channel
-   */
-  async getChannelStatistics(theaterId, channel, days = 30) {
-    try {
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      
-      const transactions = await PaymentTransaction.find({
-        theaterId: theaterId,
-        'gateway.channel': channel,
-        createdAt: { $gte: startDate }
-      });
-      
-      const total = transactions.length;
-      const successful = transactions.filter(t => t.status === 'success').length;
-      const failed = transactions.filter(t => t.status === 'failed').length;
-      const totalAmount = transactions
-        .filter(t => t.status === 'success')
-        .reduce((sum, t) => sum + t.amount.value, 0);
-      
-      return {
-        channel,
-        period: `${days} days`,
+  async getTransactions(theaterId, queryParams) {
+    const { page = 1, limit = 50, status, startDate, endDate } = queryParams;
+    const filter = { theaterId: new mongoose.Types.ObjectId(theaterId) };
+
+    if (status) filter.status = status;
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) filter.createdAt.$gte = new Date(startDate);
+      if (endDate) filter.createdAt.$lte = new Date(endDate);
+    }
+
+    const skip = (page - 1) * limit;
+    const [transactions, total] = await Promise.all([
+      PaymentTransaction.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .maxTimeMS(20000),
+      PaymentTransaction.countDocuments(filter).maxTimeMS(15000)
+    ]);
+
+    return {
+      data: transactions,
+      pagination: {
+        current: parseInt(page),
+        limit: parseInt(limit),
         total,
-        successful,
-        failed,
-        pending: total - successful - failed,
-        successRate: total > 0 ? ((successful / total) * 100).toFixed(2) : 0,
-        totalAmount,
-        averageAmount: successful > 0 ? (totalAmount / successful).toFixed(2) : 0
-      };
-    } catch (error) {
-      console.error('❌ Error getting channel statistics:', error);
-      throw error;
-    }
+        totalPages: Math.ceil(total / limit)
+      }
+    };
   }
 }
 

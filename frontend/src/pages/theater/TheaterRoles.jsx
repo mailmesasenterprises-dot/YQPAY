@@ -11,6 +11,7 @@ import { useModal } from '../../contexts/ModalContext'
 import { useToast } from '../../contexts/ToastContext';;
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import config from '../../config';
+import apiService from '../../services/apiService';
 import '../../styles/TheaterGlobalModals.css'; // Global theater modal styles
 import '../../styles/QRManagementPage.css';
 import '../../styles/TheaterList.css';
@@ -137,7 +138,7 @@ const TheaterRoles = () => {
   }
   }, [theaterId]);
 
-  // Load roles data
+  // Load roles data - Updated to use MVC API service
   const loadRolesData = useCallback(async (page = 1, limit = 10, search = '', forceRefresh = false) => {
 
     if (!isMountedRef.current || !theaterId) {
@@ -145,87 +146,30 @@ const TheaterRoles = () => {
       return;
     }
 
-    // Cancel previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    abortControllerRef.current = new AbortController();
-
     try {
       setLoading(true);
 
-      const params = new URLSearchParams({
+      // Build query parameters
+      const params = {
         page: page,
         limit: limit,
-        theaterId: theaterId,
-        search: search,
-        _cacheBuster: Date.now(),
-        _random: Math.random()
-      });
-
-      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
-      if (forceRefresh) {
-        params.append('_t', Date.now().toString());
-        console.log('🔄 [TheaterRoles] FORCE REFRESHING from server (bypassing ALL caches)');
-      }
+        search: search
+      };
 
       // Add status filter
       if (filterStatus && filterStatus !== 'all') {
-        params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
+        params.isActive = filterStatus === 'active' ? 'true' : 'false';
       }
 
-      const baseUrl = `${config.api.baseUrl}/roles?${params.toString()}`;
+      // Use the new API service with MVC response handling
+      const result = await apiService.getRoles(theaterId, params);
       
-
-      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
-      
-      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
-      const headers = {
-        'Accept': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      };
-
-      if (forceRefresh) {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        headers['Pragma'] = 'no-cache';
-        headers['Expires'] = '0';
-      } else {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        headers['Pragma'] = 'no-cache';
-        headers['Expires'] = '0';
-      }
-
-      const response = await fetch(baseUrl, {
-        signal: abortControllerRef.current.signal,
-        headers
-      });
-      
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-
       if (!isMountedRef.current) return;
 
-      if (data.success && data.data) {
-        // Handle multiple possible response structures
-        let roles = Array.isArray(data.data.roles)
-          ? data.data.roles
-          : (Array.isArray(data.data) ? data.data : (Array.isArray(data.roles) ? data.roles : []));
-
-        // Ensure roles is always an array
-        if (!Array.isArray(roles)) {
-          console.warn('Roles data is not an array:', roles);
-          roles = [];
-        }
-
+      // result contains: { items: [], pagination: {}, message: '' }
+      if (result && result.items) {
         // Sort roles by ID in ascending order
-        const sortedRoles = roles.sort((a, b) => {
-          // Convert IDs to strings for consistent comparison
+        const sortedRoles = result.items.sort((a, b) => {
           const idA = a._id ? a._id.toString() : '';
           const idB = b._id ? b._id.toString() : '';
           return idA.localeCompare(idB);
@@ -233,29 +177,39 @@ const TheaterRoles = () => {
         
         setRoles(sortedRoles);
         
-        // Batch pagination state updates
-        const paginationData = data.pagination || {};
-        setTotalItems(paginationData.totalItems || 0);
-        setTotalPages(paginationData.totalPages || 1);
+        // Set pagination data
+        if (result.pagination) {
+          setTotalItems(result.pagination.totalItems || 0);
+          setTotalPages(result.pagination.totalPages || 1);
+        }
         
         // Calculate summary
-        const activeCount = roles.filter(r => r.isActive).length;
-        const inactiveCount = roles.filter(r => !r.isActive).length;
+        const activeCount = sortedRoles.filter(r => r.isActive).length;
+        const inactiveCount = sortedRoles.filter(r => !r.isActive).length;
         
         setSummary({
           activeRoles: activeCount,
           inactiveRoles: inactiveCount,
-          totalRoles: roles.length
+          totalRoles: sortedRoles.length
         });
-        
-  }
+      } else {
+        // No data returned
+        setRoles([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        setSummary({ activeRoles: 0, inactiveRoles: 0, totalRoles: 0 });
+      }
       
     } catch (error) {
-      if (error.name === 'AbortError') {
-
-        return;
-      }
-  } finally {
+      if (!isMountedRef.current) return;
+      
+      console.error('Error loading roles:', error);
+      setError(error.message || 'Failed to load roles');
+      setRoles([]);
+      setTotalItems(0);
+      setTotalPages(1);
+      setSummary({ activeRoles: 0, inactiveRoles: 0, totalRoles: 0 });
+    } finally {
       if (isMountedRef.current) {
         setLoading(false);
       }

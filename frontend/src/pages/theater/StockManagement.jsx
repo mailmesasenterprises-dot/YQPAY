@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import config from '../../config';
+import apiService from '../../services/apiService';
 import '../../styles/TheaterGlobalModals.css'; // Global theater modal styles
 import '../../styles/TheaterList.css';
 import '../../styles/QRManagementPage.css'; // ADDED: Import proper styling for statistics cards
@@ -1193,69 +1194,56 @@ const StockManagement = React.memo(() => {
         return;
       }
 
-      // Use absolute URL with API_BASE_URL
-      const stockUrl = `${API_BASE_URL}/theater-stock/${theaterId}/${productId}`;
-      const queryParams = new URLSearchParams();
+      // Build query parameters
+      const params = {
+        page: filters.page || 1,
+        limit: filters.limit || 10
+      };
 
       // Apply date filter based on type (Global Design Pattern)
       if (dateFilter.type === 'date' && dateFilter.selectedDate) {
         const filterDate = new Date(dateFilter.selectedDate);
-        queryParams.append('year', filterDate.getFullYear());
-        queryParams.append('month', filterDate.getMonth() + 1);
+        params.year = filterDate.getFullYear();
+        params.month = filterDate.getMonth() + 1;
       } else if (dateFilter.type === 'month') {
-        queryParams.append('year', dateFilter.year);
-        queryParams.append('month', dateFilter.month);
+        params.year = dateFilter.year;
+        params.month = dateFilter.month;
       } else if (dateFilter.type === 'year') {
-        queryParams.append('year', dateFilter.year);
+        params.year = dateFilter.year;
       } else if (dateFilter.type === 'range' && dateFilter.startDate && dateFilter.endDate) {
-        queryParams.append('startDate', dateFilter.startDate);
-        queryParams.append('endDate', dateFilter.endDate);
+        params.startDate = dateFilter.startDate;
+        params.endDate = dateFilter.endDate;
       } else if (dateFilter.type === 'all') {
-        // For 'all' type, try to fetch all data by not adding date filters
-        // If API requires date filters, we'll use a wide range (last 12 months to current)
-        // Some APIs support fetching all data without date parameters
-        // If that doesn't work, we can fall back to current month
+        // For 'all' type, use current month as fallback
         const now = new Date();
-        queryParams.append('year', now.getFullYear());
-        queryParams.append('month', now.getMonth() + 1);
-        // Note: If backend supports fetching all data without date filters, remove the above lines
-      }
-      
-      queryParams.append('page', filters.page || 1);
-      queryParams.append('limit', filters.limit || 10);
-      
-      // Add cache-busting timestamp to prevent browser caching
-      queryParams.append('_t', Date.now());
-
-      const fullUrl = `${stockUrl}?${queryParams}`;
-      
-      console.log('🌐 Fetching stock data from:', fullUrl);
-
-      const response = await fetch(fullUrl, {
-        signal: abortControllerRef.current.signal,
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        // Handle authentication errors
-        if (response.status === 401) {
-          setError('Session expired. Please login again.');
-          setLoading(false);
-          return;
-        }
-
-        throw new Error(`Failed to fetch stock data: ${response.status} - ${errorText}`);
+        params.year = now.getFullYear();
+        params.month = now.getMonth() + 1;
       }
 
-      const responseData = await response.json();
+      console.log('🌐 Fetching stock data with params:', params);
+
+      // Use the new API service with MVC response handling
+      const result = await apiService.getStock(theaterId, { ...params, productId });
+      
+      // result contains: { items: [], pagination: {}, message: '' }
+      // Extract data from MVC response structure
+      const entries = result.items || [];
+      const product = result.product || null;
+      const summary = result.summary || null;
+      const monthlySummaries = result.monthlySummaries || [];
+      
+      const responseData = {
+        success: true,
+        data: {
+          entries: entries,
+          product: product,
+          summary: summary,
+          monthlySummaries: monthlySummaries,
+          currentStock: summary?.currentStock || 0,
+          statistics: summary || {}
+        },
+        pagination: result.pagination || {}
+      };
 
       // Debug logging to help identify issues
       console.log('📊 Stock API Response:', {

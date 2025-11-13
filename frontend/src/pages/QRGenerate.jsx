@@ -1192,7 +1192,7 @@ const QRGenerate = React.memo(() => {
             <div className="theater-list-header">
               <h1>Generate QR Codes</h1>
             </div>
-            <div className="qr-generate-container" style={{ display: 'flex', gap: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+            <div className="qr-generate-container" style={{ display: 'flex', gap: '24px', maxWidth: '1100px', margin: '0 auto' }}>
               {/* Left Column - Form */}
               <div className="qr-generate-form-wrapper" style={{ flex: '1', minWidth: '0' }}>
                 <form onSubmit={handleSubmit} className="qr-generate-form">

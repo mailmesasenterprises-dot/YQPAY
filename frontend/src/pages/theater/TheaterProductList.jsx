@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import config from '../../config';
+import apiService from '../../services/apiService';
 import TheaterLayout from '../../components/theater/TheaterLayout';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import Pagination from '../../components/Pagination';
@@ -854,70 +855,32 @@ const TheaterProductList = () => {
       
       abortControllerRef.current = new AbortController();
       
-      const params = new URLSearchParams({
+      // Build query parameters
+      const params = {
         page: page,
-        limit: itemsPerPage,
-        q: search,
-        ...(category && { category }),
-        ...(status !== 'all' && { status }),
-        ...(stock !== 'all' && { stock }),
-        _cacheBuster: Date.now(),
-        _random: Math.random()
-      });
-
-      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
-      if (forceRefresh) {
-        params.append('_t', Date.now().toString());
-        console.log('🔄 [TheaterProductList] FORCE REFRESHING products from server (bypassing ALL caches)');
-      }
-
-      const baseUrl = `${config.api.baseUrl}/theater-products/${theaterId}?${params.toString()}`;
-      
-
-      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
-      const headers = {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        limit: itemsPerPage
       };
 
-      if (forceRefresh) {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        headers['Pragma'] = 'no-cache';
-        headers['Expires'] = '0';
-      } else {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        headers['Pragma'] = 'no-cache';
-        headers['Expires'] = '0';
+      if (search) {
+        params.q = search;
+      }
+      if (category) {
+        params.category = category;
+      }
+      if (status !== 'all') {
+        params.status = status;
+      }
+      if (stock !== 'all') {
+        params.stock = stock;
       }
 
-      const response = await fetch(baseUrl, {
-        signal: abortControllerRef.current.signal,
-        headers
-      });
-
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          // Handle no products found gracefully
-
-          if (!isMountedRef.current) return;
-          setProducts([]);
-          setTotalItems(0);
-          setTotalPages(1);
-          setCurrentPage(page);
-          setLoading(false);
-          return; // Exit early without throwing error
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Use the new API service with MVC response handling
+      const result = await apiService.getPaginated(`/theater-products/${theaterId}`, params);
       
-
       if (!isMountedRef.current) return;
 
-      if (data.success) {
-        const products = data.data?.products || [];
+      // result contains: { items: [], pagination: {}, message: '' }
+      const products = result.items || [];
 
         // Log each product's ID and FULL DATA for debugging
         products.forEach((product, index) => {
@@ -946,14 +909,14 @@ const TheaterProductList = () => {
         setProductToggleStates(toggleStates);
 
         // Batch pagination state updates
-        const paginationData = data.data?.pagination || {};
-        setTotalItems(paginationData.total || products.length);
-        setTotalPages(paginationData.pages || Math.ceil(products.length / itemsPerPage));
+        if (result.pagination) {
+          setTotalItems(result.pagination.totalItems || products.length);
+          setTotalPages(result.pagination.totalPages || Math.ceil(products.length / itemsPerPage));
+        } else {
+          setTotalItems(products.length);
+          setTotalPages(Math.ceil(products.length / itemsPerPage));
+        }
         setCurrentPage(page);
-        
-  } else {
-        throw new Error(data.message || 'Failed to load products');
-      }
     } catch (error) {
       if (error.name !== 'AbortError' && isMountedRef.current) {
 

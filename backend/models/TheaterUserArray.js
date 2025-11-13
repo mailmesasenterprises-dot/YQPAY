@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 /**
  * Theater User Schema (Array-based structure)
  * Manages theater users for theaters in array format
@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 const theaterUserArraySchema = new mongoose.Schema({
   // Theater reference (required)
   theaterId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.ObjectId, 
     ref: 'Theater',
     required: [true, 'Theater reference is required'],
     index: true,

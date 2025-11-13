@@ -40,21 +40,48 @@ export const disableCaching = () => {
   isCachingEnabled = false;
 };
 
+// Request deduplication map to prevent duplicate requests
+const pendingAutoCacheRequests = new Map();
+
 /**
  * Enhanced fetch with automatic caching
  * Automatically caches GET requests
+ * 🚀 OPTIMIZED: Added request deduplication to prevent duplicate requests
+ * 
+ * NOTE: This wrapper intercepts ALL fetch calls, including those from apiService/optimizedFetch.
+ * To avoid double-caching, we skip requests that are already being handled by optimizedFetch.
  */
 window.fetch = async function(...args) {
   const [url, options = {}] = args;
   const method = (options.method || 'GET').toUpperCase();
   
-  // Only cache GET requests
-  if (!isCachingEnabled || method !== 'GET') {
+  // Skip caching for requests that are already being handled by optimizedFetch/apiService
+  // These requests have their own caching mechanism and don't need double-caching
+  const urlString = url.toString();
+  const isApiServiceRequest = 
+    options._skipAutoCache || // Property flag to skip auto-cache (not sent as header to avoid CORS)
+    // Skip if it's a known API endpoint that uses optimizedFetch
+    (urlString.includes('/api/') && urlString.match(/\/api\/(theaters|roles|products|orders|theater-products|theater-stock|settings)/));
+  
+  // Only cache GET requests that aren't already being handled by apiService
+  if (!isCachingEnabled || method !== 'GET' || isApiServiceRequest) {
     return originalFetch.apply(this, args);
   }
 
   // Generate cache key from URL
   const cacheKey = `auto_${url.toString().replace(/[^a-zA-Z0-9]/g, '_')}`;
+  
+  // 🚀 DEDUPLICATION: Check if same request is already pending
+  const requestId = `${url}_${JSON.stringify(options)}`;
+  if (pendingAutoCacheRequests.has(requestId)) {
+    console.log(`🔄 [AutoCache] Deduplicating request: ${url}`);
+    try {
+      return await pendingAutoCacheRequests.get(requestId);
+    } catch (err) {
+      // If pending request failed, continue with new request
+      pendingAutoCacheRequests.delete(requestId);
+    }
+  }
   
   // Check cache first
   const startTime = performance.now();
@@ -66,8 +93,6 @@ window.fetch = async function(...args) {
     performanceStats.avgCacheTime = 
       (performanceStats.avgCacheTime * (performanceStats.cacheHits - 1) + cacheTime) / performanceStats.cacheHits;
     
-    console.log(`⚡ [AutoCache] Cache HIT for ${url} (${cacheTime.toFixed(2)}ms) 🚀 ${performanceStats.cacheHits} hits, ${(performanceStats.avgCacheTime).toFixed(2)}ms avg`);
-    
     // Return cached data as a Response-like object
     return Promise.resolve({
       ok: true,
@@ -78,37 +103,53 @@ window.fetch = async function(...args) {
     });
   }
 
-  // Fetch fresh data
-  const fetchStart = performance.now();
-  console.log(`🌐 [AutoCache] Fetching ${url}`);
-  const response = await originalFetch.apply(this, args);
-  const networkTime = performance.now() - fetchStart;
-  
-  performanceStats.cacheMisses++;
-  performanceStats.avgNetworkTime = 
-    (performanceStats.avgNetworkTime * (performanceStats.cacheMisses - 1) + networkTime) / performanceStats.cacheMisses;
-  
-  // Calculate time savings
-  if (performanceStats.avgCacheTime > 0) {
-    const savedTime = networkTime - performanceStats.avgCacheTime;
-    performanceStats.totalSavedTime += savedTime;
-  }
-  
-  // Clone response to read it
-  const clonedResponse = response.clone();
-  
-  // Cache successful GET responses
-  if (response.ok) {
+  // Create fetch promise and store it for deduplication
+  const fetchPromise = (async () => {
     try {
-      const data = await clonedResponse.json();
-      setCachedData(cacheKey, data);
-      console.log(`💾 [AutoCache] Cache SET for ${url} (${networkTime.toFixed(2)}ms)`);
-    } catch (e) {
-      // Not JSON, skip caching
-    }
-  }
+      // Fetch fresh data
+      const fetchStart = performance.now();
+      const response = await originalFetch.apply(this, args);
+      const networkTime = performance.now() - fetchStart;
+      
+      performanceStats.cacheMisses++;
+      performanceStats.avgNetworkTime = 
+        (performanceStats.avgNetworkTime * (performanceStats.cacheMisses - 1) + networkTime) / performanceStats.cacheMisses;
+      
+      // Calculate time savings
+      if (performanceStats.avgCacheTime > 0) {
+        const savedTime = networkTime - performanceStats.avgCacheTime;
+        performanceStats.totalSavedTime += savedTime;
+      }
+      
+      // Clone response BEFORE reading to avoid "body stream already read" errors
+      // The clone allows us to read the body for caching while returning the original response
+      let clonedResponse = null;
+      
+      // Cache successful GET responses
+      if (response.ok) {
+        try {
+          // Clone the response before reading
+          clonedResponse = response.clone();
+          const data = await clonedResponse.json();
+          setCachedData(cacheKey, data);
+        } catch (e) {
+          // Not JSON or clone failed, skip caching but still return response
+          console.warn('⚠️ [AutoCache] Failed to cache response:', e.message);
+        }
+      }
 
-  return response;
+      // Return the original response (body not consumed if we cloned properly)
+      return response;
+    } finally {
+      // Remove from pending requests
+      pendingAutoCacheRequests.delete(requestId);
+    }
+  })();
+
+  // Store promise for deduplication
+  pendingAutoCacheRequests.set(requestId, fetchPromise);
+  
+  return fetchPromise;
 };
 
 // Restore original fetch if needed

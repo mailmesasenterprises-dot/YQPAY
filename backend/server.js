@@ -209,10 +209,16 @@ if (connectWithOptimizedPooling) {
       console.log('Continuing without MongoDB - some features may not work');
     });
 } else {
-  // Fallback to basic connection
+  // Fallback to basic connection - Optimized for Atlas
   mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
+    serverSelectionTimeoutMS: 30000, // Increased for Atlas (was 5000)
+    socketTimeoutMS: 120000, // Increased for Atlas (was 45000)
+    connectTimeoutMS: 30000, // Added for Atlas
+    maxPoolSize: 100, // Increased for Atlas
+    minPoolSize: 5,
+    retryWrites: true,
+    retryReads: true,
+    heartbeatFrequencyMS: 10000,
   })
   .then(() => {
     console.log('✅ Connected to MongoDB (basic mode)');
@@ -242,21 +248,33 @@ if (connectWithOptimizedPooling) {
 
 // Import route modules
 const authRoutes = require('./routes/auth');
-const theaterRoutes = require('./routes/theaters');
-const productRoutes = require('./routes/products');
-const orderRoutes = require('./routes/orders');
-const settingsRoutes = require('./routes/settings');
-const uploadRoutes = require('./routes/upload');
-const stockRoutes = require('./routes/stock');
+// Use MVC pattern for theaters (new optimized structure)
+const theaterRoutes = require('./routes/theaters.mvc');
+// const theaterRoutes = require('./routes/theaters'); // OLD - kept for reference
+// Use MVC pattern for products (new optimized structure)
+const productRoutesMVC = require('./routes/products.mvc');
+const productRoutes = require('./routes/products'); // Keep for categories and productTypes
+// Use MVC pattern for orders (new optimized structure)
+const orderRoutesMVC = require('./routes/orders.mvc');
+// const orderRoutes = require('./routes/orders'); // OLD - file removed
+// Use MVC pattern for settings (new optimized structure)
+const settingsRoutesMVC = require('./routes/settings.mvc');
+// const settingsRoutes = require('./routes/settings'); // OLD - file removed
+// Use MVC pattern for upload (new optimized structure)
+const uploadRoutesMVC = require('./routes/upload.mvc');
+// const uploadRoutes = require('./routes/upload'); // OLD - file removed
+// Use MVC pattern for stock (new optimized structure)
+const stockRoutesMVC = require('./routes/stock.mvc');
+// const stockRoutes = require('./routes/stock'); // OLD - file removed
 // const pageAccessRoutes = require('./routes/pageAccess'); // OLD - DISABLED
-const pageAccessArrayRoutes = require('./routes/pageAccessArray'); // NEW - Array-based structure
-const qrCodeRoutes = require('./routes/qrcodes');
-const qrCodeNameRoutes = require('./routes/qrcodenamesArray'); // Use array-based structure
+// const pageAccessArrayRoutes = require('./routes/pageAccessArray'); // OLD - file removed, using MVC version
+// const qrCodeRoutes = require('./routes/qrcodes'); // OLD - file removed, using MVC version
+// const qrCodeNameRoutes = require('./routes/qrcodenamesArray'); // OLD - file removed, using MVC version
 const singleQRCodeRoutes = require('./routes/singleqrcodes');
 const syncRoutes = require('./routes/sync');
-const rolesRoutes = require('./routes/rolesArray'); // Use array-based structure
+// const rolesRoutes = require('./routes/rolesArray'); // OLD - file removed, using MVC version
 const reportsRoutes = require('./routes/reports'); // Reports route
-const paymentRoutes = require('./routes/payments'); // Payment gateway routes
+// const paymentRoutes = require('./routes/payments'); // OLD - file removed, using MVC version
 
 // Health check endpoint (with optimization status)
 app.get('/api/health', (req, res) => {
@@ -393,27 +411,30 @@ app.post('/api/proxy-image', async (req, res) => {
 // Auth routes (strict rate limiting already applied above)
 app.use('/api/auth', authRoutes);
 
-// Dashboard (cache for 2 minutes)
+// Dashboard (MVC pattern - cache for 2 minutes)
+const dashboardRoutesMVC = require('./routes/dashboard.mvc');
+// const dashboardRoutes = require('./routes/dashboard'); // OLD - file removed
 if (cacheMiddleware) {
-  app.use('/api/dashboard', cacheMiddleware({ ttl: 120 }), require('./routes/dashboard'));
+  app.use('/api/dashboard', cacheMiddleware({ ttl: 120 }), dashboardRoutesMVC);
 } else {
-  app.use('/api/dashboard', require('./routes/dashboard'));
+  app.use('/api/dashboard', dashboardRoutesMVC);
 }
+// app.use('/api/dashboard', dashboardRoutes); // OLD - kept for reference
 
 // Theaters (cache for 5 minutes - frequently accessed)
-if (cacheMiddleware) {
-  app.use('/api/theaters', cacheMiddleware({ ttl: 300 }), authenticatedLimiter || generalLimiter, theaterRoutes);
-} else {
+// if (cacheMiddleware) {
+//   app.use('/api/theaters', cacheMiddleware({ ttl: 300 }), authenticatedLimiter || generalLimiter, theaterRoutes);
+// } else {
   app.use('/api/theaters', theaterRoutes);
-}
+// }
 
-// Products (cache for 3 minutes)
+// Products (MVC pattern - cache for 3 minutes)
 if (cacheMiddleware) {
-  app.use('/api/theater-products', cacheMiddleware({ ttl: 180 }), productRoutes.products);
+  app.use('/api/theater-products', cacheMiddleware({ ttl: 180 }), productRoutesMVC);
   app.use('/api/theater-categories', cacheMiddleware({ ttl: 300 }), productRoutes.categories);
   app.use('/api/theater-product-types', cacheMiddleware({ ttl: 300 }), productRoutes.productTypes);
 } else {
-  app.use('/api/theater-products', productRoutes.products);
+  app.use('/api/theater-products', productRoutesMVC);
   app.use('/api/theater-categories', productRoutes.categories);
   app.use('/api/theater-product-types', productRoutes.productTypes);
 }
@@ -421,46 +442,63 @@ if (cacheMiddleware) {
 app.use('/api/theater-kiosk-types', require('./routes/theater-kiosk-types'));
 app.use('/api/theater-banners', require('./routes/theater-banners')); // Theater Banners CRUD
 
-// Orders (no cache - real-time data)
-app.use('/api/orders', authenticatedLimiter || generalLimiter, orderRoutes);
+// Orders (MVC pattern - no cache - real-time data)
+app.use('/api/orders', authenticatedLimiter || generalLimiter, orderRoutesMVC);
+// app.use('/api/orders', authenticatedLimiter || generalLimiter, orderRoutes); // OLD - kept for reference
 
-// Settings (cache for 10 minutes - rarely changes)
+// Settings (MVC pattern - cache for 10 minutes - rarely changes)
 if (cacheMiddleware) {
-  app.use('/api/settings', cacheMiddleware({ ttl: 600 }), settingsRoutes);
+  app.use('/api/settings', cacheMiddleware({ ttl: 600 }), settingsRoutesMVC);
 } else {
-  app.use('/api/settings', settingsRoutes);
+  app.use('/api/settings', settingsRoutesMVC);
 }
+// app.use('/api/settings', settingsRoutes); // OLD - kept for reference
+
 app.use('/api/chat', require('./routes/chat')); // Chat messaging routes
 app.use('/api/notifications', require('./routes/notifications')); // Real-time notifications
-app.use('/api/upload', uploadRoutes);
 
-// Stock (cache for 1 minute - frequently updated)
+// Upload (MVC pattern)
+app.use('/api/upload', uploadRoutesMVC);
+// app.use('/api/upload', uploadRoutes); // OLD - kept for reference
+
+// Stock (MVC pattern - cache for 1 minute - frequently updated)
 if (cacheMiddleware) {
-  app.use('/api/theater-stock', cacheMiddleware({ ttl: 60 }), stockRoutes);
+  app.use('/api/theater-stock', cacheMiddleware({ ttl: 60 }), stockRoutesMVC);
 } else {
-  app.use('/api/theater-stock', stockRoutes);
+  app.use('/api/theater-stock', stockRoutesMVC);
 }
+// app.use('/api/theater-stock', stockRoutes); // OLD - kept for reference
 
-// Page access (cache for 5 minutes)
+// Page access (MVC pattern - cache for 5 minutes)
+const pageAccessRoutesMVC = require('./routes/pageAccess.mvc');
 if (cacheMiddleware) {
-  app.use('/api/page-access', cacheMiddleware({ ttl: 300 }), pageAccessArrayRoutes);
+  app.use('/api/page-access', cacheMiddleware({ ttl: 300 }), pageAccessRoutesMVC);
 } else {
-  app.use('/api/page-access', pageAccessArrayRoutes);
+  app.use('/api/page-access', pageAccessRoutesMVC);
 }
+// app.use('/api/page-access', pageAccessArrayRoutes); // OLD - kept for reference
 
-// QR Codes (cache for 5 minutes)
+// QR Codes (MVC pattern - cache for 5 minutes)
+const qrCodeRoutesMVC = require('./routes/qrcodes.mvc');
+const qrCodeNameRoutesMVC = require('./routes/qrcodenames.mvc');
 if (cacheMiddleware) {
-  app.use('/api/qrcodes', cacheMiddleware({ ttl: 300 }), qrCodeRoutes);
-  app.use('/api/qrcodenames', cacheMiddleware({ ttl: 300 }), qrCodeNameRoutes);
+  app.use('/api/qrcodes', cacheMiddleware({ ttl: 300 }), qrCodeRoutesMVC);
+  app.use('/api/qrcodenames', cacheMiddleware({ ttl: 300 }), qrCodeNameRoutesMVC);
   app.use('/api/single-qrcodes', cacheMiddleware({ ttl: 300 }), singleQRCodeRoutes);
 } else {
-  app.use('/api/qrcodes', qrCodeRoutes);
-  app.use('/api/qrcodenames', qrCodeNameRoutes);
+  app.use('/api/qrcodes', qrCodeRoutesMVC);
+  app.use('/api/qrcodenames', qrCodeNameRoutesMVC);
   app.use('/api/single-qrcodes', singleQRCodeRoutes);
 }
+// app.use('/api/qrcodes', qrCodeRoutes); // OLD - kept for reference
+// app.use('/api/qrcodenames', qrCodeNameRoutes); // OLD - kept for reference
 
 app.use('/api/sync', syncRoutes);
-app.use('/api/roles', rolesRoutes);
+
+// Roles (MVC pattern)
+const rolesRoutesMVC = require('./routes/roles.mvc');
+app.use('/api/roles', rolesRoutesMVC);
+// app.use('/api/roles', rolesRoutes); // OLD - kept for reference
 
 // Roles (cache for 10 minutes)
 if (cacheMiddleware) {
@@ -475,22 +513,30 @@ if (cacheMiddleware) {
 // Reports (no cache - dynamic data)
 app.use('/api/reports', reportsRoutes);
 
-// Payments (no cache - sensitive real-time data)
-app.use('/api/payments', paymentRoutes);
+// Payments (MVC pattern - no cache - sensitive real-time data)
+const paymentRoutesMVC = require('./routes/payments.mvc');
+app.use('/api/payments', paymentRoutesMVC);
+// app.use('/api/payments', paymentRoutes); // OLD - kept for reference
 
-// Theater users (cache for 2 minutes)
+// Theater users (MVC pattern - cache for 2 minutes)
+const theaterUserRoutesMVC = require('./routes/theaterUsers.mvc');
+// const theaterUserRoutes = require('./routes/theaterUsersArray'); // OLD - file removed
 if (cacheMiddleware) {
-  app.use('/api/theater-users', cacheMiddleware({ ttl: 120 }), require('./routes/theaterUsersArray'));
+  app.use('/api/theater-users', cacheMiddleware({ ttl: 120 }), theaterUserRoutesMVC);
 } else {
-  app.use('/api/theater-users', require('./routes/theaterUsersArray'));
+  app.use('/api/theater-users', theaterUserRoutesMVC);
 }
+// app.use('/api/theater-users', theaterUserRoutes); // OLD - kept for reference
 
-// Theater dashboard (cache for 1 minute)
+// Theater dashboard (MVC pattern - cache for 1 minute)
+const theaterDashboardRoutesMVC = require('./routes/theater-dashboard.mvc');
+// const theaterDashboardRoutes = require('./routes/theater-dashboard'); // OLD - file removed
 if (cacheMiddleware) {
-  app.use('/api/theater-dashboard', cacheMiddleware({ ttl: 60 }), require('./routes/theater-dashboard'));
+  app.use('/api/theater-dashboard', cacheMiddleware({ ttl: 60 }), theaterDashboardRoutesMVC);
 } else {
-  app.use('/api/theater-dashboard', require('./routes/theater-dashboard'));
+  app.use('/api/theater-dashboard', theaterDashboardRoutesMVC);
 }
+// app.use('/api/theater-dashboard', theaterDashboardRoutes); // OLD - kept for reference
 
 // Default API route
 app.get('/api', (req, res) => {
@@ -521,10 +567,28 @@ app.get('/api', (req, res) => {
 // ------------------------------
 
 const buildPath = path.join(__dirname, "build");
-app.use(express.static(buildPath, { maxAge: "1y" }));
-app.get("/*", (req, res) => {
-  res.sendFile(path.join(buildPath, "index.html"));
-});
+const fs = require('fs');
+
+// Only serve static files if build directory exists
+if (fs.existsSync(buildPath)) {
+  app.use(express.static(buildPath, { maxAge: "1y" }));
+  
+  // Catch-all route for frontend - only for non-API routes
+  app.get("/*", (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    
+    // Only serve index.html if it exists
+    const indexPath = path.join(buildPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      next(); // Pass to 404 handler
+    }
+  });
+}
 
 // ==============================================
 // ERROR HANDLING

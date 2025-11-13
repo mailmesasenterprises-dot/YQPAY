@@ -10,17 +10,17 @@ const { authenticateToken, requireRole } = require('../middleware/auth');
 // Optional models - handle if they don't exist
 let QRCode, QRCodeName, TheaterUser;
 try {
-  QRCode = require('../models/QRCode');
+  QRCode = require('../models/SingleQRCode');
 } catch (e) {
   console.warn('⚠️  QRCode model not available:', e.message);
 }
 try {
-  QRCodeName = require('../models/QRCodeName');
+  QRCodeName = require('../models/QRCodeName'); // NEW MODEL
 } catch (e) {
   console.warn('⚠️  QRCodeName model not available:', e.message);
 }
 try {
-  TheaterUser = require('../models/TheaterUser');
+  TheaterUser = require('../models/TheaterUserArray');
 } catch (e) {
   console.warn('⚠️  TheaterUser model not available:', e.message);
 }

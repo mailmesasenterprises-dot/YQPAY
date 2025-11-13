@@ -58,25 +58,38 @@ const Dashboard = () => {
     return null;
   }, [fetchError, response, token]);
 
-  // 🚀 PERFORMANCE: Auto-refresh every 30 seconds using refetch
+  // 🚀 PERFORMANCE: Auto-refresh every 30 seconds using refetch - Stable ref to prevent re-renders
+  const refetchRef = React.useRef(refetch);
+  refetchRef.current = refetch;
+  
   React.useEffect(() => {
     if (!token) return;
     
     const interval = setInterval(() => {
-      refetch(); // Refresh data in background
+      refetchRef.current(); // Use ref to avoid dependency on refetch
     }, 30000);
     
     return () => clearInterval(interval);
-  }, [token, refetch]);
+  }, [token]); // Only depend on token, not refetch
 
-  // Check for expiring agreements and show notification
+  // Check for expiring agreements and show notification - Optimized to prevent re-renders
   const [expiringAgreements, setExpiringAgreements] = React.useState([]);
   const { warning } = useToast();
+  const warningRef = React.useRef(warning);
+  warningRef.current = warning;
+  const lastCheckRef = React.useRef(0);
 
   React.useEffect(() => {
     if (!token) return;
 
     const checkExpiringAgreements = async () => {
+      const now = Date.now();
+      // Prevent multiple simultaneous calls
+      if (now - lastCheckRef.current < 1000) {
+        return;
+      }
+      lastCheckRef.current = now;
+      
       try {
         const response = await fetch(`${config.api.baseUrl}/theaters/expiring-agreements`, {
           headers: {
@@ -88,14 +101,21 @@ const Dashboard = () => {
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data.expiringTheaters.length > 0) {
-            setExpiringAgreements(result.data.expiringTheaters);
-            
-            // Show notification for each expiring agreement
-            result.data.expiringTheaters.forEach(theater => {
-              warning(
-                `Agreement for ${theater.theaterName} expires in ${theater.daysUntilExpiration} day(s)`,
-                5000
-              );
+            setExpiringAgreements(prev => {
+              // Only update if data actually changed
+              const prevIds = prev.map(t => t.theaterId).sort().join(',');
+              const newIds = result.data.expiringTheaters.map(t => t.theaterId).sort().join(',');
+              if (prevIds === newIds) return prev;
+              
+              // Show notification for each expiring agreement
+              result.data.expiringTheaters.forEach(theater => {
+                warningRef.current(
+                  `Agreement for ${theater.theaterName} expires in ${theater.daysUntilExpiration} day(s)`,
+                  5000
+                );
+              });
+              
+              return result.data.expiringTheaters;
             });
           }
         }
@@ -109,7 +129,7 @@ const Dashboard = () => {
     const interval = setInterval(checkExpiringAgreements, 300000); // 5 minutes
     
     return () => clearInterval(interval);
-  }, [token, warning]);
+  }, [token]); // Removed warning from dependencies
 
   // 🚀 INSTANT: Always show content - use skeleton if no data
   const hasData = stats || initialStats;

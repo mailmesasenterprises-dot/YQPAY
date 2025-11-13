@@ -269,12 +269,16 @@ const theaterSchema = new mongoose.Schema({
   lastLogin: Date
 });
 
-// Indexes
-theaterSchema.index({ username: 1 });
+// Indexes (username already has unique index from schema definition)
 theaterSchema.index({ email: 1 });
+theaterSchema.index({ name: 1 }); // Add index for name searches
+theaterSchema.index({ 'address.city': 1 }); // Add index for city searches
+theaterSchema.index({ createdAt: 1 }); // Add index for sorting
 // GeoJSON index for future map features (only if geoLocation.coordinates exists)
 theaterSchema.index({ 'geoLocation': '2dsphere' }, { sparse: true });
 theaterSchema.index({ status: 1, isActive: 1 });
+// Compound index for common filtered queries
+theaterSchema.index({ isActive: 1, createdAt: 1 });
 
 // Virtual for full address
 theaterSchema.virtual('fullAddress').get(function() {
@@ -336,4 +340,5 @@ theaterSchema.set('toJSON', {
   }
 });
 
-module.exports = mongoose.model('Theater', theaterSchema);
+const Theater = mongoose.model('Theater', theaterSchema);
+module.exports = Theater;

@@ -6,30 +6,33 @@
 const mongoose = require('mongoose');
 
 const optimizedConnectionOptions = {
-  // Connection pool settings
-  maxPoolSize: 50, // Maximum number of connections in the pool
-  minPoolSize: 10, // Minimum number of connections to maintain
-  maxIdleTimeMS: 30000, // Close connections after 30s of inactivity
+  // Connection pool settings - Optimized for MongoDB Atlas
+  maxPoolSize: 100, // Increased for Atlas (was 50)
+  minPoolSize: 5, // Reduced minimum (was 10) - Atlas manages this better
+  maxIdleTimeMS: 60000, // Increased to 60s for Atlas (was 30s)
   
-  // Timeout settings
-  serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-  socketTimeoutMS: 45000, // Close sockets after 45s
-  connectTimeoutMS: 10000, // Connection timeout
+  // Timeout settings - Increased for Atlas network latency
+  serverSelectionTimeoutMS: 30000, // Increased to 30s for Atlas (was 5s - too short!)
+  socketTimeoutMS: 120000, // Increased to 120s for Atlas (was 45s)
+  connectTimeoutMS: 30000, // Increased to 30s for Atlas (was 10s)
+  heartbeatFrequencyMS: 10000, // Check connection health every 10s
   
   // Note: bufferMaxEntries and bufferCommands are Mongoose-specific, not MongoDB options
   // These should be set on mongoose, not in connection options
   
-  // Retry settings
+  // Retry settings - Critical for Atlas
   retryWrites: true,
   retryReads: true,
   
   // Performance settings
   readPreference: 'primary', // Use primary for better compatibility
-  // readConcern and writeConcern removed for compatibility - can be added if needed
   
-  // Compression (optional - may not be supported by all MongoDB versions)
-  // compressors: ['zlib'],
-  // zlibCompressionLevel: 6,
+  // Atlas-specific optimizations
+  compressors: ['zlib'], // Enable compression for Atlas
+  zlibCompressionLevel: 6,
+  
+  // Connection monitoring
+  monitorCommands: true, // Enable command monitoring for debugging
 };
 
 /**
@@ -48,14 +51,31 @@ async function connectWithOptimizedPooling(uri) {
       console.log('✅ MongoDB: Connected with optimized pooling');
       console.log(`   Max Pool Size: ${optimizedConnectionOptions.maxPoolSize}`);
       console.log(`   Min Pool Size: ${optimizedConnectionOptions.minPoolSize}`);
+      console.log(`   Server Selection Timeout: ${optimizedConnectionOptions.serverSelectionTimeoutMS}ms`);
+      console.log(`   Socket Timeout: ${optimizedConnectionOptions.socketTimeoutMS}ms`);
     });
 
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
+      // Don't exit - let the reconnection logic handle it
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.log('⚠️  MongoDB: Disconnected');
+      console.log('⚠️  MongoDB: Disconnected - Attempting to reconnect...');
+      // Auto-reconnect after 5 seconds
+      setTimeout(() => {
+        if (mongoose.connection.readyState === 0) {
+          console.log('🔄 Attempting to reconnect to MongoDB...');
+          mongoose.connect(uri, optimizedConnectionOptions).catch(err => {
+            console.error('❌ Auto-reconnect failed:', err.message);
+          });
+        }
+      }, 5000);
+    });
+    
+    // Handle reconnection
+    mongoose.connection.on('reconnected', () => {
+      console.log('✅ MongoDB: Reconnected successfully');
     });
 
     // Log pool statistics periodically

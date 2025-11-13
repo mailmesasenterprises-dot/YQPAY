@@ -10,6 +10,7 @@ import { getCachedData, setCachedData } from '../../utils/cacheUtils';
 import DateFilter from '../../components/DateFilter';
 import Pagination from '../../components/Pagination';
 import config from '../../config';
+import apiService from '../../services/apiService';
 import '../../styles/TheaterGlobalModals.css'; // Global theater modal styles
 import '../../styles/QRManagementPage.css';
 import '../../styles/TheaterList.css';
@@ -208,124 +209,68 @@ const TheaterOrderHistory = React.memo(() => {
         setLoading(true);
       }
 
-      const params = new URLSearchParams({
+      // Build query parameters
+      const params = {
         page: page,
-        limit: limit,
-        theaterId: theaterId,
-        _t: Date.now()
-      });
-
-      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
-      if (forceRefresh) {
-        params.append('_t', Date.now().toString());
-        console.log('🔄 [TheaterOrderHistory] FORCE REFRESHING from server (bypassing ALL caches)');
-      }
+        limit: limit
+      };
 
       // Add search parameter if provided
       if (search.trim()) {
-        params.append('search', search.trim());
+        params.search = search.trim();
       }
 
       // Add status filter if not 'all'
       if (status !== 'all') {
-        params.append('status', status);
+        params.status = status;
       }
 
       // Add date filter parameters
       if (currentDateFilter.type === 'month') {
-        params.append('month', currentDateFilter.month);
-        params.append('year', currentDateFilter.year);
+        params.month = currentDateFilter.month;
+        params.year = currentDateFilter.year;
       } else if (currentDateFilter.type === 'date') {
-        params.append('date', currentDateFilter.selectedDate);
-      }
-
-      const baseUrl = `${config.api.baseUrl}/orders/theater-nested?${params.toString()}`;
-      
-      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
-      const headers = {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-      };
-
-      if (forceRefresh) {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        headers['Pragma'] = 'no-cache';
-        headers['Expires'] = '0';
-      } else {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        headers['Pragma'] = 'no-cache';
-        headers['Expires'] = '0';
-      }
-
-      const response = await fetch(baseUrl, {
-        signal: abortControllerRef.current.signal,
-        headers
-      });
-      
-
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        // Handle specific error cases
-        if (response.status === 401) {
-          throw new Error('Authentication failed. Please login again.');
-        } else if (response.status === 404) {
-          // 404 means no orders found - handle gracefully without error
-
-          if (!isMountedRef.current) return;
-          setAllOrders([]);
-          setOrders([]);
-          setTotalItems(0);
-          setTotalPages(0);
-          setCurrentPage(1);
-          setSummary({ totalOrders: 0, confirmedOrders: 0, completedOrders: 0, totalRevenue: 0 });
-          setLoading(false);
-          return; // Exit early without throwing error
-        } else {
-          throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        params.date = currentDateFilter.selectedDate;
+      } else if (currentDateFilter.type === 'range') {
+        if (currentDateFilter.startDate) {
+          params.startDate = currentDateFilter.startDate;
+        }
+        if (currentDateFilter.endDate) {
+          params.endDate = currentDateFilter.endDate;
         }
       }
 
-      const data = await response.json();
+      // Use the new API service with MVC response handling
+      const result = await apiService.getOrdersByTheater(theaterId, params);
 
       if (!isMountedRef.current) return;
 
-      if (data.success) {
-        // Handle multiple possible response structures
-        let ordersData = Array.isArray(data.data)
-          ? data.data
-          : (Array.isArray(data.data?.orders) ? data.data.orders : (Array.isArray(data.orders) ? data.orders : []));
+      // result contains: { items: [], pagination: {}, message: '' }
+      const ordersData = result.items || [];
+      
+      // Extract summary from result if available, or calculate from orders
+      const summaryData = result.summary || {
+        totalOrders: ordersData.length,
+        confirmedOrders: ordersData.filter(o => o.status === 'confirmed').length,
+        completedOrders: ordersData.filter(o => o.status === 'completed').length,
+        totalRevenue: ordersData.reduce((sum, o) => sum + (o.pricing?.total || 0), 0)
+      };
 
-        // Ensure ordersData is always an array
-        if (!Array.isArray(ordersData)) {
-          console.warn('Orders data is not an array:', ordersData);
-          ordersData = [];
-        }
-
-        const summaryData = data.summary || data.data?.summary || {
-          totalOrders: 0,
-          confirmedOrders: 0,
-          completedOrders: 0,
-          totalRevenue: 0
-        };
-        
-
-        // 🚀 BATCH ALL STATE UPDATES
-        setAllOrders(ordersData);
-        setOrders(ordersData);
-        setSummary(summaryData);
-        
-        // Update pagination
-        const paginationData = data.pagination || data.data?.pagination || {};
-        if (paginationData.total !== undefined || paginationData.totalItems !== undefined) {
-          setTotalItems(paginationData.total || paginationData.totalItems || 0);
-          setTotalPages(paginationData.pages || paginationData.totalPages || 1);
-          setCurrentPage(paginationData.current || paginationData.currentPage || page);
-        } else {
-          setTotalItems(ordersData.length);
-          setTotalPages(1);
-          setCurrentPage(page);
-        }
+      // 🚀 BATCH ALL STATE UPDATES
+      setAllOrders(ordersData);
+      setOrders(ordersData);
+      setSummary(summaryData);
+      
+      // Update pagination
+      if (result.pagination) {
+        setTotalItems(result.pagination.totalItems || 0);
+        setTotalPages(result.pagination.totalPages || 1);
+        setCurrentPage(result.pagination.current || page);
+      } else {
+        setTotalItems(ordersData.length);
+        setTotalPages(1);
+        setCurrentPage(page);
+      }
         
         setLoading(false);
         
@@ -334,26 +279,35 @@ const TheaterOrderHistory = React.memo(() => {
           const cacheKey = `theaterOrderHistory_${theaterId}_${currentDateFilter.selectedDate}`;
           setCachedData(cacheKey, {
             data: ordersData,
-            pagination: paginationData,
+            pagination: result.pagination || {},
             summary: summaryData
           });
         }
-      } else {
-        // Handle case where API returns success=false
-        console.error('API returned success=false:', data.message || data.error);
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      
+      if (error.name === 'AbortError') {
+        return; // Don't show error for aborted requests
+      }
+
+      console.error('Error loading orders:', error);
+      
+      // Handle specific error cases
+      if (error.message?.includes('Authentication')) {
+        setError('Authentication failed. Please login again.');
+      } else if (error.message?.includes('404') || error.message?.includes('not found')) {
+        // 404 means no orders found - handle gracefully
         setAllOrders([]);
         setOrders([]);
         setTotalItems(0);
         setTotalPages(0);
         setCurrentPage(1);
         setSummary({ totalOrders: 0, confirmedOrders: 0, completedOrders: 0, totalRevenue: 0 });
-        setLoading(false);
+      } else {
+        setError(error.message || 'Failed to load orders');
       }
-    } catch (error) {
-      if (error.name !== 'AbortError' && isMountedRef.current) {
-        // Don't clear existing data on error
-        setLoading(false);
-      }
+      
+      setLoading(false);
     }
   }, [theaterId, dateFilter]);
 

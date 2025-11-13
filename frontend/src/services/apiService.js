@@ -1,9 +1,17 @@
 /**
  * Centralized API Service for YQPayNow Theater Canteen
  * Handles all API requests with consistent error handling, authentication, and retries
+ * Updated to handle MVC response format from backend
  */
 
 import config from '../config';
+import { 
+  handleMVCResponse, 
+  handlePaginatedResponse, 
+  handleListResponse, 
+  handleItemResponse,
+  handleErrorResponse 
+} from '../utils/mvcResponseHandler';
 
 class ApiService {
   constructor() {
@@ -30,44 +38,79 @@ class ApiService {
   // Generic request method with error handling, caching, and deduplication
   async request(endpoint, options = {}, cacheKey = null, cacheTTL = 120000) {
     const url = `${this.baseURL}${endpoint}`;
-    const config = {
-      headers: this.getAuthHeaders(),
-      ...options,
+    const requestConfig = {
       headers: {
         ...this.getAuthHeaders(),
         ...options.headers
-      }
+        // Note: We don't add X-Skip-Auto-Cache header to avoid CORS issues
+        // Instead, we use _skipAutoCache property which withCaching.js checks
+      },
+      ...options,
+      _skipAutoCache: true // Flag for withCaching.js to skip auto-cache (not sent to server)
     };
 
     // 🚀 PERFORMANCE: Use optimized fetch with caching and deduplication
     try {
       const { optimizedFetch } = await import('../utils/apiOptimizer');
       const cacheKeyFinal = cacheKey || `api_${endpoint.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      return await optimizedFetch(url, config, cacheKeyFinal, cacheTTL);
+      const response = await optimizedFetch(url, requestConfig, cacheKeyFinal, cacheTTL);
+      
+      // Handle MVC response format
+      return handleMVCResponse(response, { extractData: false });
     } catch (error) {
       // Fallback to regular fetch if optimizer fails
       console.warn('⚠️ [ApiService] Optimizer failed, using regular fetch:', error);
       
-      const response = await fetch(url, config);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ 
-          error: 'Network error', 
-          message: response.statusText 
-        }));
+      try {
+        const response = await fetch(url, requestConfig);
         
-        throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
-      }
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ 
+            success: false,
+            error: 'Network error', 
+            message: response.statusText 
+          }));
+          
+          throw handleErrorResponse(errorData);
+        }
 
-      return await response.json();
+        const data = await response.json();
+        return handleMVCResponse(data, { extractData: false });
+      } catch (fetchError) {
+        throw handleErrorResponse(fetchError);
+      }
     }
   }
 
-  // GET request
+  // GET request - returns full MVC response
   async get(endpoint, params = {}) {
     const queryString = new URLSearchParams(params).toString();
     const fullEndpoint = queryString ? `${endpoint}?${queryString}` : endpoint;
     return this.request(fullEndpoint, { method: 'GET' });
+  }
+
+  // GET request that returns just the data
+  async getData(endpoint, params = {}) {
+    const response = await this.get(endpoint, params);
+    return handleMVCResponse(response, { extractData: true });
+  }
+
+  // GET request for paginated data
+  async getPaginated(endpoint, params = {}) {
+    const response = await this.get(endpoint, params);
+    return handlePaginatedResponse(response);
+  }
+
+  // GET request for list data (returns array)
+  async getList(endpoint, params = {}) {
+    const response = await this.get(endpoint, params);
+    return handleListResponse(response);
+  }
+
+  // GET request for single item
+  async getItem(endpoint, params = {}) {
+    const response = await this.get(endpoint, params);
+    return handleItemResponse(response);
   }
 
   // POST request
@@ -78,6 +121,12 @@ class ApiService {
     });
   }
 
+  // POST request that returns just the data
+  async postData(endpoint, data = {}) {
+    const response = await this.post(endpoint, data);
+    return handleMVCResponse(response, { extractData: true });
+  }
+
   // PUT request
   async put(endpoint, data = {}) {
     return this.request(endpoint, {
@@ -86,9 +135,21 @@ class ApiService {
     });
   }
 
+  // PUT request that returns just the data
+  async putData(endpoint, data = {}) {
+    const response = await this.put(endpoint, data);
+    return handleMVCResponse(response, { extractData: true });
+  }
+
   // DELETE request
   async delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' });
+  }
+
+  // DELETE request that returns just the data
+  async deleteData(endpoint) {
+    const response = await this.delete(endpoint);
+    return handleMVCResponse(response, { extractData: true });
   }
 
   // Upload file
@@ -108,28 +169,109 @@ class ApiService {
 
   // THEATER ENDPOINTS
   async getTheaters(params = {}) {
-    return this.get('/theaters', params);
+    return this.getPaginated('/theaters', params);
   }
 
   async getTheater(theaterId) {
-    return this.get(`/theaters/${theaterId}`);
+    return this.getItem(`/theaters/${theaterId}`);
   }
 
   async createTheater(theaterData) {
-    return this.post('/theaters', theaterData);
+    return this.postData('/theaters', theaterData);
   }
 
   async updateTheater(theaterId, theaterData) {
-    return this.put(`/theaters/${theaterId}`, theaterData);
+    return this.putData(`/theaters/${theaterId}`, theaterData);
   }
 
   async deleteTheater(theaterId) {
-    return this.delete(`/theaters/${theaterId}`);
+    return this.deleteData(`/theaters/${theaterId}`);
   }
 
   // THEATER DASHBOARD
   async getTheaterDashboard(theaterId) {
-    return this.get(`/theater-dashboard/${theaterId}`);
+    return this.getItem(`/theater-dashboard/${theaterId}`);
+  }
+
+  // ROLES ENDPOINTS
+  async getRoles(theaterId, params = {}) {
+    return this.getPaginated('/roles', { theaterId, ...params });
+  }
+
+  async getRole(roleId) {
+    return this.getItem(`/roles/${roleId}`);
+  }
+
+  async createRole(roleData) {
+    return this.postData('/roles', roleData);
+  }
+
+  async updateRole(roleId, roleData) {
+    return this.putData(`/roles/${roleId}`, roleData);
+  }
+
+  async deleteRole(roleId) {
+    return this.deleteData(`/roles/${roleId}`);
+  }
+
+  // PRODUCTS ENDPOINTS
+  async getProducts(theaterId, params = {}) {
+    return this.getPaginated(`/theater-products/${theaterId}`, params);
+  }
+
+  async getProduct(theaterId, productId) {
+    return this.getItem(`/theater-products/${theaterId}/${productId}`);
+  }
+
+  async createProduct(theaterId, productData) {
+    return this.postData(`/theater-products/${theaterId}`, productData);
+  }
+
+  async updateProduct(theaterId, productId, productData) {
+    return this.putData(`/theater-products/${theaterId}/${productId}`, productData);
+  }
+
+  async deleteProduct(theaterId, productId) {
+    return this.deleteData(`/theater-products/${theaterId}/${productId}`);
+  }
+
+  // ORDERS ENDPOINTS
+  async getOrders(params = {}) {
+    return this.getPaginated('/orders', params);
+  }
+
+  async getOrdersByTheater(theaterId, params = {}) {
+    return this.getPaginated(`/orders/theater/${theaterId}`, params);
+  }
+
+  async getOrder(theaterId, orderId) {
+    return this.getItem(`/orders/theater/${theaterId}/${orderId}`);
+  }
+
+  async createOrder(orderData) {
+    return this.postData('/orders/theater', orderData);
+  }
+
+  async updateOrderStatus(theaterId, orderId, status) {
+    return this.putData(`/orders/theater/${theaterId}/${orderId}/status`, { status });
+  }
+
+  // STOCK ENDPOINTS
+  async getStock(theaterId, params = {}) {
+    // Stock endpoint can be /theater-stock/:theaterId or /theater-stock/:theaterId/:productId
+    const { productId, ...otherParams } = params;
+    const endpoint = productId 
+      ? `/theater-stock/${theaterId}/${productId}`
+      : `/theater-stock/${theaterId}`;
+    return this.getPaginated(endpoint, otherParams);
+  }
+
+  async createStock(theaterId, stockData) {
+    return this.postData(`/theater-stock/${theaterId}`, stockData);
+  }
+
+  async updateStock(theaterId, stockId, stockData) {
+    return this.putData(`/theater-stock/${theaterId}/${stockId}`, stockData);
   }
 
   // AUTHENTICATION

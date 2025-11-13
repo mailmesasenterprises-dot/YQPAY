@@ -23,15 +23,20 @@ const BATCH_DELAY = 50; // Batch requests within 50ms
  * @returns {Promise} - Fetch promise
  */
 export const optimizedFetch = async (url, options = {}, cacheKey = null, cacheTTL = 120000) => {
-  if (!url) return null;
+  if (!url) {
+    console.error('❌ [optimizedFetch] No URL provided');
+    return null;
+  }
 
   // 🚀 INSTANT SYNCHRONOUS CACHE CHECK - No async import delay!
   const key = cacheKey || `fetch_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
   const cached = getCachedData(key, cacheTTL);
   if (cached) {
-    console.log(`⚡ [optimizedFetch] Cache HIT: ${key}`);
+    console.log(`⚡ [optimizedFetch] Cache HIT: ${key}`, cached);
     return cached;
   }
+
+  console.log(`🌐 [optimizedFetch] Cache MISS, fetching: ${url}`);
 
   // Check for duplicate pending request
   const requestKey = `${url}_${JSON.stringify(options)}`;
@@ -46,25 +51,36 @@ export const optimizedFetch = async (url, options = {}, cacheKey = null, cacheTT
     }
   }
 
+  console.log(`📡 [optimizedFetch] Making network request to: ${url}`);
+  
   // Create fetch promise
+  // Add flag to skip withCaching.js auto-cache (we handle caching ourselves)
+  // Note: _skipAutoCache is a property, not a header, so it won't cause CORS issues
   const fetchPromise = fetch(url, {
     ...options,
+    _skipAutoCache: true, // Skip withCaching.js auto-cache (property, not header)
     headers: {
       'Content-Type': 'application/json',
+      // Note: We don't add X-Skip-Auto-Cache header to avoid CORS issues
+      // withCaching.js checks the _skipAutoCache property instead
       ...options.headers
     }
   })
   .then(async (response) => {
+    console.log(`📥 [optimizedFetch] Response received: ${response.status} ${response.statusText}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    return response.json();
+    const data = await response.json();
+    console.log(`✅ [optimizedFetch] Response parsed successfully:`, data);
+    return data;
   })
   .then((result) => {
     // Cache the result
     setCachedData(key, result);
     // Remove from pending requests
     pendingRequests.delete(requestKey);
+    console.log(`💾 [optimizedFetch] Cached result for: ${key}`);
     return result;
   })
   .catch((err) => {

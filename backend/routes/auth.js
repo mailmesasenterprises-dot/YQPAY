@@ -169,14 +169,19 @@ router.post('/login', [
                     
                     // ✅ EXTRACT ROLE PERMISSIONS for theater users
                     if (roleInfo.permissions && Array.isArray(roleInfo.permissions)) {
+                      console.log('🔍 [Auth] Role permissions found:', roleInfo.permissions.length);
+                      const accessiblePermissions = roleInfo.permissions.filter(p => p.hasAccess === true);
+                      console.log('✅ [Auth] Accessible permissions:', accessiblePermissions.length);
                       rolePermissions = [{
                         role: {
                           _id: roleInfo._id,
                           name: roleInfo.name,
                           description: roleInfo.description || ''
                         },
-                        permissions: roleInfo.permissions.filter(p => p.hasAccess === true)
+                        permissions: accessiblePermissions
                       }];
+                    } else {
+                      console.log('⚠️ [Auth] No permissions found in roleInfo');
                     }
                   }
                 }
@@ -416,14 +421,19 @@ router.post('/validate-pin', [
               }
 
               if (roleInfo.permissions && Array.isArray(roleInfo.permissions)) {
+                console.log('🔍 [PIN Validation] Role permissions found:', roleInfo.permissions.length);
+                const accessiblePermissions = roleInfo.permissions.filter(p => p.hasAccess === true);
+                console.log('✅ [PIN Validation] Accessible permissions:', accessiblePermissions.length);
                 rolePermissions = [{
                   role: {
                     _id: roleInfo._id,
                     name: roleInfo.name,
                     description: roleInfo.description || ''
                   },
-                  permissions: roleInfo.permissions.filter(p => p.hasAccess === true)
+                  permissions: accessiblePermissions
                 }];
+              } else {
+                console.log('⚠️ [PIN Validation] No permissions found in roleInfo');
               }
             }
           }

@@ -53,8 +53,10 @@ export const useCachedFetch = (url, options = {}, cacheKey = null, cacheTTL = 12
       // Fetch fresh data
       if (!skipCache) setLoading(true);
       
+      // Skip withCaching.js auto-cache since we handle caching ourselves
       const response = await fetch(url, {
         ...options,
+        _skipAutoCache: true, // Skip withCaching.js auto-cache (we handle caching)
         headers: {
           'Content-Type': 'application/json',
           ...options.headers
@@ -137,8 +139,10 @@ export const useCachedFetchAll = (requests = [], dependencies = []) => {
       if (!skipCache) setLoading(true);
       
       const fetchPromises = requests.map(async (req) => {
+        // Skip withCaching.js auto-cache since we handle caching ourselves
         const response = await fetch(req.url, {
           ...req.options,
+          _skipAutoCache: true, // Skip withCaching.js auto-cache (we handle caching)
           headers: {
             'Content-Type': 'application/json',
             ...req.options?.headers
