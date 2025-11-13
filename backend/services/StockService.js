@@ -135,11 +135,12 @@ class StockService extends BaseService {
       throw new Error('Stock entry not found');
     }
 
-    // Update entry
+    // Update entry - ensure invordStock is set based on type
     Object.assign(monthlyDoc.stockDetails[entryIndex], {
       date: entryDate,
       type: updateData.type,
       quantity: updateData.quantity,
+      invordStock: updateData.type === 'ADDED' ? updateData.quantity : 0,
       expireDate: updateData.expireDate || null,
       notes: updateData.notes || '',
       batchNumber: updateData.batchNumber || null,

@@ -152,9 +152,50 @@ class ProductService extends BaseService {
       throw new Error('Invalid category');
     }
 
+    // Create product with proper structure and defaults
     const newProduct = {
       _id: new mongoose.Types.ObjectId(),
-      ...productData,
+      theaterId: theaterObjectId,
+      name: productData.name,
+      description: productData.description || '',
+      categoryId: new mongoose.Types.ObjectId(productData.categoryId),
+      productTypeId: productData.productTypeId ? new mongoose.Types.ObjectId(productData.productTypeId) : null,
+      sku: productData.sku || `SKU-${Date.now()}`,
+      barcode: productData.barcode || null,
+      quantity: productData.quantity || '',
+      pricing: {
+        basePrice: productData.pricing?.basePrice || 0,
+        salePrice: productData.pricing?.salePrice || productData.pricing?.sellingPrice || 0,
+        discountPercentage: productData.pricing?.discount || productData.pricing?.discountPercentage || 0,
+        taxRate: productData.pricing?.taxRate || 0,
+        currency: productData.pricing?.currency || 'INR',
+        gstType: productData.pricing?.gstType || 'EXCLUDE'
+      },
+      inventory: {
+        trackStock: productData.inventory?.trackStock !== undefined ? productData.inventory.trackStock : true,
+        currentStock: productData.inventory?.currentStock || 0,
+        minStock: productData.inventory?.minStock || 0,
+        maxStock: productData.inventory?.maxStock || 1000,
+        unit: productData.inventory?.unit || 'piece'
+      },
+      images: productData.images || (productData.image ? [{
+        url: productData.image,
+        filename: productData.image.split('/').pop(),
+        isMain: true
+      }] : []),
+      imageUrl: productData.imageUrl || productData.image || null,
+      image: productData.image || productData.imageUrl || null,
+      tags: productData.tags || [],
+      status: productData.status || 'active',
+      isActive: productData.isActive !== undefined ? productData.isActive : true,
+      isFeatured: productData.isFeatured || false,
+      sortOrder: productData.sortOrder || 0,
+      views: 0,
+      orders: 0,
+      rating: {
+        average: 0,
+        count: 0
+      },
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -181,7 +222,46 @@ class ProductService extends BaseService {
     const theaterObjectId = new mongoose.Types.ObjectId(theaterId);
     const productObjectId = new mongoose.Types.ObjectId(productId);
 
-    updateData.updatedAt = new Date();
+    // First, get the existing product to merge with updates
+    const existingDoc = await db.collection('productlist').findOne({
+      theater: theaterObjectId,
+      'productList._id': productObjectId
+    });
+
+    if (!existingDoc) {
+      throw new Error('Product not found');
+    }
+
+    const existingProduct = existingDoc.productList.find(
+      p => String(p._id) === String(productObjectId)
+    );
+
+    if (!existingProduct) {
+      throw new Error('Product not found');
+    }
+
+    // Merge existing product with update data
+    const mergedProduct = {
+      ...existingProduct,
+      ...updateData,
+      _id: productObjectId,
+      updatedAt: new Date()
+    };
+
+    // Handle nested objects (pricing, inventory) properly
+    if (updateData.pricing) {
+      mergedProduct.pricing = {
+        ...existingProduct.pricing,
+        ...updateData.pricing
+      };
+    }
+
+    if (updateData.inventory) {
+      mergedProduct.inventory = {
+        ...existingProduct.inventory,
+        ...updateData.inventory
+      };
+    }
 
     const result = await db.collection('productlist').findOneAndUpdate(
       {
@@ -190,7 +270,7 @@ class ProductService extends BaseService {
       },
       {
         $set: {
-          'productList.$[elem]': { ...updateData, _id: productObjectId },
+          'productList.$[elem]': mergedProduct,
           updatedAt: new Date()
         }
       },
@@ -205,7 +285,7 @@ class ProductService extends BaseService {
     }
 
     const updatedProduct = result.value.productList.find(
-      p => String(p._id) === productId
+      p => String(p._id) === String(productId)
     );
 
     return updatedProduct;

@@ -475,15 +475,37 @@ const TheaterCategories = React.memo(() => {
           }
         }, 0);
       } else {
-        const errorData = await response.json();
+        // Parse error response
+        let errorData;
+        try {
+          const errorText = await response.text();
+          errorData = errorText ? JSON.parse(errorText) : {};
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError);
+          errorData = { error: 'Server error occurred' };
+        }
+        
         console.error('❌ API Error:', errorData);
-        setImageError(errorData.message || errorData.error || 'Failed to save category. Please try again.');
-        showError(errorData.message || errorData.error || 'Failed to save category');
+        
+        // Provide user-friendly error messages
+        let errorMessage = 'Failed to save category. Please try again.';
+        
+        if (errorData.code === 'DUPLICATE_CATEGORY' || errorData.error?.includes('already exists')) {
+          errorMessage = `A category named "${formData.name}" already exists. Please use a different name.`;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+        
+        setImageError(errorMessage);
+        showError(errorMessage);
       }
     } catch (error) {
       console.error('❌ Submit Error:', error);
-      setImageError(error.message || 'An error occurred. Please try again.');
-      showError(error.message || 'An error occurred while saving the category');
+      const errorMessage = error.message || 'An error occurred. Please try again.';
+      setImageError(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

@@ -86,63 +86,87 @@ export const SettingsProvider = React.memo(({ children }) => {
         console.log('⚠️ [SettingsContext] Invalid logo URL, skipping favicon update:', logoUrl);
         return;
       }
+
+      // Check if this URL was already attempted and failed
+      const failedLogoKey = 'failedLogoUrl';
+      const failedUrl = sessionStorage.getItem(failedLogoKey);
+      if (failedUrl === logoUrl) {
+        return; // Don't retry failed URLs in the same session
+      }
       
-      const faviconSelectors = [
-        'link[rel="icon"]',
-        'link[rel="shortcut icon"]', 
-        'link[rel="apple-touch-icon"]',
-        'link[rel="apple-touch-icon-precomposed"]',
-        'link[type="image/x-icon"]'
-      ];
-      
-      faviconSelectors.forEach(selector => {
-        const links = document.querySelectorAll(selector);
-        links.forEach(link => link.remove());
-      });
+      // Test if the logo URL is accessible before setting as favicon
+      fetch(logoUrl, { method: 'HEAD' })
+        .then(response => {
+          if (!response.ok) {
+            // Logo not available (404 or other error), don't set favicon
+            console.warn('⚠️ Logo not configured or unavailable (will not retry this session)');
+            sessionStorage.setItem(failedLogoKey, logoUrl);
+            return;
+          }
+          
+          // Logo exists, update favicon
+          const faviconSelectors = [
+            'link[rel="icon"]',
+            'link[rel="shortcut icon"]', 
+            'link[rel="apple-touch-icon"]',
+            'link[rel="apple-touch-icon-precomposed"]',
+            'link[type="image/x-icon"]'
+          ];
+          
+          faviconSelectors.forEach(selector => {
+            const links = document.querySelectorAll(selector);
+            links.forEach(link => link.remove());
+          });
 
-      const cacheBustUrl = `${logoUrl}?t=${Date.now()}&cb=${Math.random()}`;
+          const cacheBustUrl = `${logoUrl}?t=${Date.now()}&cb=${Math.random()}`;
 
-      const link = document.createElement('link');
-      link.type = 'image/x-icon';
-      link.rel = 'shortcut icon';
-      link.href = cacheBustUrl;
-      document.getElementsByTagName('head')[0].appendChild(link);
+          const link = document.createElement('link');
+          link.type = 'image/x-icon';
+          link.rel = 'shortcut icon';
+          link.href = cacheBustUrl;
+          document.getElementsByTagName('head')[0].appendChild(link);
 
-      const iconLink = document.createElement('link');
-      iconLink.rel = 'icon';
-      iconLink.type = 'image/png';
-      iconLink.href = cacheBustUrl;
-      iconLink.sizes = '32x32';
-      document.getElementsByTagName('head')[0].appendChild(iconLink);
+          const iconLink = document.createElement('link');
+          iconLink.rel = 'icon';
+          iconLink.type = 'image/png';
+          iconLink.href = cacheBustUrl;
+          iconLink.sizes = '32x32';
+          document.getElementsByTagName('head')[0].appendChild(iconLink);
 
-      const iconLink48 = document.createElement('link');
-      iconLink48.rel = 'icon';
-      iconLink48.type = 'image/png';
-      iconLink48.href = cacheBustUrl;
-      iconLink48.sizes = '48x48';
-      document.getElementsByTagName('head')[0].appendChild(iconLink48);
+          const iconLink48 = document.createElement('link');
+          iconLink48.rel = 'icon';
+          iconLink48.type = 'image/png';
+          iconLink48.href = cacheBustUrl;
+          iconLink48.sizes = '48x48';
+          document.getElementsByTagName('head')[0].appendChild(iconLink48);
 
-      const appleLink = document.createElement('link');
-      appleLink.rel = 'apple-touch-icon';
-      appleLink.href = cacheBustUrl;
-      appleLink.sizes = '180x180';
-      document.getElementsByTagName('head')[0].appendChild(appleLink);
+          const appleLink = document.createElement('link');
+          appleLink.rel = 'apple-touch-icon';
+          appleLink.href = cacheBustUrl;
+          appleLink.sizes = '180x180';
+          document.getElementsByTagName('head')[0].appendChild(appleLink);
 
-      setTimeout(() => {
-        const tempLink = document.createElement('link');
-        tempLink.rel = 'icon';
-        tempLink.href = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
-        document.head.appendChild(tempLink);
-        
-        setTimeout(() => {
-          tempLink.remove();
-          const finalLink = document.createElement('link');
-          finalLink.rel = 'icon';
-          finalLink.href = cacheBustUrl;
-          finalLink.type = 'image/png';
-          document.head.appendChild(finalLink);
-        }, 100);
-      }, 100);
+          setTimeout(() => {
+            const tempLink = document.createElement('link');
+            tempLink.rel = 'icon';
+            tempLink.href = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+            document.head.appendChild(tempLink);
+            
+            setTimeout(() => {
+              tempLink.remove();
+              const finalLink = document.createElement('link');
+              finalLink.rel = 'icon';
+              finalLink.href = cacheBustUrl;
+              finalLink.type = 'image/png';
+              document.head.appendChild(finalLink);
+            }, 100);
+          }, 100);
+        })
+        .catch(error => {
+          // Network error or CORS issue, silently fail
+          console.warn('⚠️ Could not load logo (will not retry this session):', error.message);
+          sessionStorage.setItem(failedLogoKey, logoUrl);
+        });
     } catch (error) {
       // Silent fail
     }

@@ -83,6 +83,14 @@ class SettingsController extends BaseController {
       const axios = require('axios');
       const db = mongoose.connection.db;
       
+      // Always set CORS headers first (even for errors)
+      res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Cross-Origin-Resource-Policy': 'cross-origin'
+      });
+      
       // Get logo URL from settings
       const settingsDoc = await db.collection('settings').findOne({ type: 'general' });
       
@@ -100,30 +108,41 @@ class SettingsController extends BaseController {
           // Get content type from response
           const contentType = imageResponse.headers['content-type'] || 'image/png';
           
-          // Set CORS and cache headers for favicon
+          // Set additional headers for successful response
           res.set({
             'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
-            'Access-Control-Allow-Origin': '*', // Allow all origins for favicon
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Cross-Origin-Resource-Policy': 'cross-origin' // Important for favicon
+            'Cache-Control': 'public, max-age=3600' // Cache for 1 hour
           });
           
           // Send the image buffer
           res.send(Buffer.from(imageResponse.data));
         } catch (proxyError) {
           console.error('❌ Error fetching logo from URL:', proxyError.message);
-          // Return 404 instead of error
-          return res.status(404).send('Logo not found or unavailable');
+          // Return 404 with CORS headers
+          return res.status(404).json({ 
+            success: false,
+            error: 'Logo not found or unavailable' 
+          });
         }
       } else {
-        // Return 404 for no logo
-        return res.status(404).send('Logo not configured');
+        // Return 404 with CORS headers for no logo configured
+        return res.status(404).json({ 
+          success: false,
+          error: 'Logo not configured' 
+        });
       }
     } catch (error) {
       console.error('❌ Error serving logo:', error);
-      return res.status(500).send('Error loading logo');
+      // Set CORS headers for error response
+      res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      });
+      return res.status(500).json({ 
+        success: false,
+        error: 'Error loading logo' 
+      });
     }
   }
 }
