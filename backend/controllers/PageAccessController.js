@@ -30,8 +30,23 @@ class PageAccessController extends BaseController {
    */
   static async create(req, res) {
     try {
+      console.log('🔵 [PageAccessController] Create request received');
+      console.log('🔵 [PageAccessController] Request body:', JSON.stringify(req.body, null, 2));
+      console.log('🔵 [PageAccessController] Request user:', req.user);
+      
       const { theaterId, ...pageData } = req.body;
+      
+      if (!theaterId) {
+        console.error('❌ [PageAccessController] Theater ID is missing');
+        return BaseController.error(res, 'Theater ID is required', 400);
+      }
+      
+      console.log('✅ [PageAccessController] Theater ID:', theaterId);
+      console.log('✅ [PageAccessController] Page data:', pageData);
+      
       const result = await pageAccessService.createPageAccess(theaterId, pageData);
+      
+      console.log('✅ [PageAccessController] Page access created successfully');
 
       return res.status(201).json({
         success: true,
@@ -39,9 +54,12 @@ class PageAccessController extends BaseController {
         data: result
       });
     } catch (error) {
-      console.error('Create page access error:', error);
+      console.error('❌ [PageAccessController] Create page access error:', error);
+      console.error('❌ [PageAccessController] Error stack:', error.stack);
+      console.error('❌ [PageAccessController] Error message:', error.message);
       return BaseController.error(res, 'Failed to create page access', 500, {
-        message: error.message
+        message: error.message,
+        details: error.stack
       });
     }
   }

@@ -46,13 +46,18 @@ class PageAccessService extends BaseService {
    * Create page access
    */
   async createPageAccess(theaterId, pageData) {
+    console.log('🔵 [PageAccessService] Creating page access for theater:', theaterId);
+    console.log('🔵 [PageAccessService] Page data:', pageData);
+    
     let pageAccessDoc = await PageAccessArray.findOrCreateByTheater(theaterId);
+    console.log('✅ [PageAccessService] Page access doc found/created:', pageAccessDoc._id);
 
-    const newPage = await pageAccessDoc.addPageAccess({
-      page: pageData.page.trim(),
-      pageName: pageData.pageName.trim(),
-      displayName: pageData.displayName || pageData.pageName.trim(),
-      route: pageData.route.trim(),
+    // Use addPage method (not addPageAccess)
+    const newPage = await pageAccessDoc.addPage({
+      page: pageData.page?.trim() || '',
+      pageName: pageData.pageName?.trim() || '',
+      displayName: pageData.displayName || pageData.pageName?.trim() || '',
+      route: pageData.route?.trim() || '',
       category: pageData.category || 'admin',
       description: pageData.description || '',
       icon: pageData.icon || '',
@@ -66,6 +71,8 @@ class PageAccessService extends BaseService {
       requiresSubscription: pageData.requiresSubscription || false,
       tags: pageData.tags || []
     });
+
+    console.log('✅ [PageAccessService] Page access added successfully');
 
     await pageAccessDoc.populate('theater', 'name location contactInfo');
 

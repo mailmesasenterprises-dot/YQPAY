@@ -736,11 +736,13 @@ const RoleAccessManagement = () => {
                           onClick={() => viewRolePermission(rolePermission)}
                           title="View Role Access Details"
                         />
-                        <ActionButton 
-                          type="edit"
-                          onClick={() => editRolePermission(rolePermission)}
-                          title="Edit Role Access"
-                        />
+                        {rolePermission.name !== 'Kiosk Screen' && (
+                          <ActionButton 
+                            type="edit"
+                            onClick={() => editRolePermission(rolePermission)}
+                            title="Edit Role Access"
+                          />
+                        )}
                       </ActionButtons>
                     </td>
                   </tr>

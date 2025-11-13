@@ -251,6 +251,26 @@ const PageAccessManagement = () => {
       
       if (isEnabled) {
         console.log('🔘 [handlePageToggleChange] Enabling page - POST to:', `${config.api.baseUrl}/page-access`);
+        
+        // Validate required data
+        if (!theaterId) {
+          showError('Theater ID is required to enable page access');
+          console.error('❌ [handlePageToggleChange] Missing theaterId');
+          return;
+        }
+        
+        const payload = {
+          page: page.page,
+          pageName: page.pageName,
+          route: page.route,
+          description: page.description || '',
+          allowedRoles: page.roles || [],
+          isActive: true,
+          theaterId: theaterId
+        };
+        
+        console.log('🔘 [handlePageToggleChange] POST payload:', JSON.stringify(payload, null, 2));
+        
         // POST to backend to save page access
         const response = await fetch(`${config.api.baseUrl}/page-access`, {
           method: 'POST',
@@ -258,21 +278,14 @@ const PageAccessManagement = () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}` // ✅ FIX: Added auth header
           },
-          body: JSON.stringify({
-            page: page.page,
-            pageName: page.pageName,
-            route: page.route,
-            description: page.description,
-            allowedRoles: page.roles || [],
-            isActive: true,
-            theaterId: theaterId // ✅ FIX: Include theaterId for theater-specific page access
-          })
+          body: JSON.stringify(payload)
         });
 
         console.log('🔘 [handlePageToggleChange] POST Response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
+          console.log('✅ [handlePageToggleChange] Success response:', data);
           if (data.success) {
             setPageToggleStates(prev => ({
               ...prev,
@@ -285,8 +298,15 @@ const PageAccessManagement = () => {
         } else if (response.status === 401) {
           throw new Error('Unauthorized: Please login as super admin');
         } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}: Failed to save page access`);
+          const errorText = await response.text();
+          console.error('❌ [handlePageToggleChange] Error response:', errorText);
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { message: errorText };
+          }
+          throw new Error(errorData.message || errorData.error || `HTTP ${response.status}: Failed to save page access`);
         }
       } else {
         // ✅ FIX: DELETE - Need to find the page's MongoDB _id first, then delete by ID
@@ -324,15 +344,20 @@ const PageAccessManagement = () => {
           return;
         }
         
+        console.log('🔘 [handlePageToggleChange] Disabling page - DELETE:', pageToDelete._id);
 
-        // Now delete by ID
-        const response = await fetch(`${config.api.baseUrl}/page-access/${pageToDelete._id}`, {
+        // Now delete by theaterId and pageId (route expects /:theaterId/:pageId)
+        const deleteUrl = `${config.api.baseUrl}/page-access/${theaterId}/${pageToDelete._id}`;
+        console.log('🔘 [handlePageToggleChange] DELETE URL:', deleteUrl);
+        
+        const response = await fetch(deleteUrl, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
 
+        console.log('🔘 [handlePageToggleChange] DELETE Response status:', response.status);
 
         if (response.ok) {
           setPageToggleStates(prev => ({
@@ -343,8 +368,15 @@ const PageAccessManagement = () => {
         } else if (response.status === 401) {
           throw new Error('Unauthorized: Please login as super admin');
         } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || `HTTP ${response.status}: Failed to remove page access`);
+          const errorText = await response.text();
+          console.error('❌ [handlePageToggleChange] DELETE Error response:', errorText);
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { message: errorText };
+          }
+          throw new Error(errorData.message || errorData.error || `HTTP ${response.status}: Failed to remove page access`);
         }
       }
     } catch (error) {

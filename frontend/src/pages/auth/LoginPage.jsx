@@ -60,9 +60,14 @@ const LoginPage = () => {
     document.title = 'Login - YQPayNow';
   }, []);
 
-  // ✅ REDIRECT LOGIC: Check if user is already authenticated
+  // ✅ REDIRECT LOGIC: Check if user is already authenticated (e.g., page refresh)
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
+    // Only run redirect logic if coming from a page refresh or direct URL access
+    // NOT during active login flow (handled in handlePinSubmit)
+    if (!authLoading && isAuthenticated && !showPinInput) {
+      console.log('🔄 [Redirect] Already authenticated, redirecting...');
+      console.log('🔄 [Redirect] userType:', userType);
+      console.log('🔄 [Redirect] rolePermissions:', rolePermissions);
 
       // Redirect based on user type
       if (userType === 'theater_user' || userType === 'theater_admin') {
@@ -78,18 +83,21 @@ const LoginPage = () => {
                 : getRouteFromPageId(firstPage.page, theaterId);
               
               if (firstRoute) {
+                console.log('✅ [Redirect] Navigating to:', firstRoute);
                 navigate(firstRoute, { replace: true });
                 return;
               }
             }
           }
-          // Only theater_admin should fallback to dashboard, theater_user with no permissions should logout
+          // Only theater_admin should fallback to dashboard
           if (userType === 'theater_admin') {
+            console.log('✅ [Redirect] Theater admin → dashboard');
             navigate(`/theater-dashboard/${theaterId}`, { replace: true });
           } else {
-            // Theater user has no accessible pages - logout
-            logout();
-            setErrors({ general: 'You do not have access to any pages. Please contact your administrator.' });
+            // Theater user already logged in but no accessible pages
+            // This shouldn't happen if login validation worked properly
+            console.warn('⚠️ [Redirect] Theater user with no pages - this should have been caught at login');
+            navigate(`/theater-dashboard/${theaterId}`, { replace: true });
           }
         } else {
           // Fallback if theaterId is missing
@@ -100,7 +108,7 @@ const LoginPage = () => {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [isAuthenticated, userType, theaterId, rolePermissions, authLoading, navigate, logout]);
+  }, [isAuthenticated, userType, theaterId, rolePermissions, authLoading, showPinInput, navigate]);
 
   // Show loading while checking authentication status
   if (authLoading) {
@@ -177,21 +185,17 @@ const LoginPage = () => {
         const theaterId = data.user.theaterId;
         const rolePermissions = data.rolePermissions;
         
-        // Complete login with AuthContext
-        login(userData, data.token, userType, theaterId, rolePermissions);
-        
-        // Show success toast
-        toast.success('Login Successfully.');
-        
-        // ✅ ROLE-BASED NAVIGATION: Navigate to first accessible page based on permissions
         console.log('🔍 [PIN] rolePermissions:', rolePermissions);
+        console.log('🔍 [PIN] userType:', userType);
+        console.log('🔍 [PIN] theaterId:', theaterId);
         
+        // ✅ ROLE-BASED NAVIGATION: Check permissions BEFORE login to avoid useEffect race condition
         if (rolePermissions && rolePermissions.length > 0 && rolePermissions[0].permissions) {
           const accessiblePages = rolePermissions[0].permissions.filter(p => p.hasAccess === true);
           console.log('✅ [PIN] Accessible pages:', accessiblePages.length);
           
           if (accessiblePages.length > 0) {
-            // Navigate to FIRST accessible page (not always theater-dashboard)
+            // Navigate to FIRST accessible page
             const firstPage = accessiblePages[0];
             console.log('🎯 [PIN] First accessible page:', firstPage);
             
@@ -203,20 +207,28 @@ const LoginPage = () => {
             console.log('🚀 [PIN] Navigating to:', firstRoute);
             
             if (firstRoute) {
-              navigate(firstRoute);
+              // Complete login with AuthContext AFTER confirming navigation route
+              login(userData, data.token, userType, theaterId, rolePermissions);
+              
+              // Show success toast
+              toast.success('Login Successfully.');
+              
+              // Navigate to first accessible page
+              navigate(firstRoute, { replace: true });
+              return;
             } else {
               console.error('❌ [PIN] No valid route found for page:', firstPage);
               setErrors({ pin: 'Navigation error. Contact administrator.' });
               return;
             }
           } else {
-            // ❌ NO accessible pages - show error, don't navigate
+            // ❌ NO accessible pages - show error, don't login
             console.error('❌ [PIN] No accessible pages found');
             setErrors({ pin: 'Your account has no page access. Contact administrator.' });
             return;
           }
         } else {
-          // ❌ NO permissions defined - show error, don't navigate
+          // ❌ NO permissions defined - show error, don't login
           console.error('❌ [PIN] No role permissions found or invalid structure');
           setErrors({ pin: 'No role permissions found. Contact administrator.' });
           return;

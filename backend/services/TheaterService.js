@@ -90,18 +90,22 @@ class TheaterService extends BaseService {
     });
 
     const savedTheater = await theater.save();
+    console.log(`✅ [TheaterService] Theater saved: ${savedTheater.name} (ID: ${savedTheater._id})`);
 
     // Initialize defaults (non-blocking)
+    console.log('🔧 [TheaterService] Initializing default settings and roles...');
     Promise.all([
-      Settings.initializeDefaults(savedTheater._id).catch(err => 
-        console.warn('Settings init failed:', err.message)
-      ),
-      roleService.createDefaultTheaterAdminRole(savedTheater._id, savedTheater.name).catch(err => 
-        console.warn('Role creation failed:', err.message)
-      ),
-      roleService.createDefaultKioskRole(savedTheater._id, savedTheater.name).catch(err => 
-        console.warn('Kiosk role creation failed:', err.message)
-      )
+      Settings.initializeDefaults(savedTheater._id)
+        .then(() => console.log('✅ [TheaterService] Settings initialized'))
+        .catch(err => console.warn('⚠️ [TheaterService] Settings init failed:', err.message)),
+      
+      roleService.createDefaultRoles(savedTheater._id, savedTheater.name)
+        .then((roles) => {
+          console.log(`✅ [TheaterService] Default roles created successfully`);
+          console.log(`   - Theater Admin: ${roles.adminRole?._id}`);
+          console.log(`   - Kiosk Screen: ${roles.kioskRole?._id}`);
+        })
+        .catch(err => console.warn('⚠️ [TheaterService] Default roles creation failed:', err.message))
     ]);
 
     return savedTheater;

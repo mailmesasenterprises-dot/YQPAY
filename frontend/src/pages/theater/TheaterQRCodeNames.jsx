@@ -272,8 +272,10 @@ const TheaterQRCodeNames = () => {
     try {
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
+      console.log('🗑️ [QRCodeNames] Deleting QR code name:', selectedQRCodeName._id);
+      console.log('🗑️ [QRCodeNames] Theater ID:', theaterId);
 
-      const response = await fetch(`${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}?permanent=true`, {
+      const response = await fetch(`${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}?theaterId=${theaterId}&permanent=true`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -281,17 +283,25 @@ const TheaterQRCodeNames = () => {
         }
       });
       
+      console.log('📥 [QRCodeNames] Delete response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ [QRCodeNames] Delete success:', data);
 
         setShowDeleteModal(false);
-          toast.success('Record deleted successfully!');
         showSuccess('QR Code Name deleted successfully!');
-        loadQRCodeNameData(true);
         setSelectedQRCodeName(null);
+        
+        // Reload data
+        setTimeout(() => {
+          loadQRCodeNameData(true).catch(err => {
+            console.warn('⚠️ Failed to reload after delete:', err);
+          });
+        }, 100);
       } else {
         const errorData = await response.json();
+        console.error('❌ [QRCodeNames] Delete error:', errorData);
 
         // Enhanced error handling
         if (errorData.message && errorData.message.includes('Theater QR names not found')) {
@@ -304,7 +314,7 @@ const TheaterQRCodeNames = () => {
         }
       }
     } catch (error) {
-
+      console.error('❌ [QRCodeNames] Delete exception:', error);
       showError('Failed to delete QR Code Name. Please try again.');
     }
   };
@@ -325,9 +335,9 @@ const TheaterQRCodeNames = () => {
         theaterId: theaterId
       };
       
-      console.log('🔍 [QRCodeNames] Save request URL:', url);
-      console.log('🔍 [QRCodeNames] Save request method:', method);
-      console.log('🔍 [QRCodeNames] Save request payload:', payload);
+      console.log('💾 [QRCodeNames] Save request URL:', url);
+      console.log('💾 [QRCodeNames] Save request method:', method);
+      console.log('💾 [QRCodeNames] Save request payload:', payload);
       
       const response = await fetch(url, {
         method: method,
@@ -339,43 +349,56 @@ const TheaterQRCodeNames = () => {
       });
       
       console.log('📥 [QRCodeNames] Response status:', response.status);
+      console.log('📥 [QRCodeNames] Response ok:', response.ok);
+      
+      // Parse response once
+      let result;
+      try {
+        const responseText = await response.text();
+        console.log('📥 [QRCodeNames] Raw response:', responseText);
+        result = responseText ? JSON.parse(responseText) : {};
+        console.log('📥 [QRCodeNames] Parsed response:', result);
+      } catch (parseError) {
+        console.error('❌ [QRCodeNames] Failed to parse response:', parseError);
+        throw new Error('Invalid response from server');
+      }
       
       if (response.ok) {
-        const result = await response.json();
         console.log('✅ [QRCodeNames] Success response:', result);
         
-        showSuccess(isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!');
-        if (isEditMode) {
+        // Close modal first
+        if (isEdit) {
           setShowEditModal(false);
-          toast.success('QR Code Name updated successfully!');
         } else {
           setShowCreateModal(false);
-          toast.success('QR Code Name created successfully!');
         }
         
-        // Reset form first
+        // Reset form
         setFormData({
           qrName: '',
           seatClass: 'GENERAL',
           description: '',
           isActive: true
         });
+        setSelectedQRCodeName(null);
         
-        // Reload data in background - don't let it throw errors to user
-        try {
-          await loadQRCodeNameData(true);
-        } catch (loadError) {
-          console.warn('⚠️ [QRCodeNames] Failed to reload data after save:', loadError);
-          // Don't show error to user - the save was successful
-        }
+        // Show success message
+        showSuccess(isEdit ? 'QR Code Name updated successfully!' : 'QR Code Name created successfully!');
+        
+        // Reload data in background
+        setTimeout(() => {
+          loadQRCodeNameData(true).catch(loadError => {
+            console.warn('⚠️ [QRCodeNames] Failed to reload data after save:', loadError);
+          });
+        }, 100);
       } else {
-        const errorData = await response.json().catch(() => ({ message: 'No error details available' }));
-        console.error('❌ [QRCodeNames] Error response:', errorData);
+        console.error('❌ [QRCodeNames] Error response:', result);
         
-        if (errorData.message && errorData.message.includes('already exists')) {
+        // Show error message
+        if (result.message && result.message.includes('already exists')) {
           showError('A QR code name with this name already exists in this theater.');
         } else {
-          showError(errorData.message || 'Failed to save QR Code Name');
+          showError(result.message || 'Failed to save QR Code Name');
         }
       }
     } catch (error) {
