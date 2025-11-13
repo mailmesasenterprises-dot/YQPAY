@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Pagination from '../components/Pagination';
-import { useModal } from '../contexts/ModalContext';
+import { useToast } from '../contexts/ToastContext';
 import { clearTheaterCache, addCacheBuster } from '../utils/cacheManager';
 import { usePerformanceMonitoring, preventLayoutShift } from '../hooks/usePerformanceMonitoring';
 import { optimizedFetch } from '../utils/apiOptimizer';
@@ -143,7 +143,7 @@ TableSkeleton.displayName = 'TableSkeleton';
 const QRManagement = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { showError } = useModal();
+  const toast = useToast();
   
   // PERFORMANCE MONITORING: Track page performance metrics
   usePerformanceMonitoring('QRManagement');

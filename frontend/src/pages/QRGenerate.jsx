@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
-import { useModal } from '../contexts/ModalContext';
+import { useToast } from '../contexts/ToastContext';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { clearTheaterCache } from '../utils/cacheManager';
@@ -45,7 +45,7 @@ const TheaterSelectSkeleton = React.memo(() => (
 
 const QRGenerate = React.memo(() => {
   const navigate = useNavigate();
-  const { alert, showError, showSuccess } = useModal();
+  const toast = useToast();
   const performanceMetrics = usePerformanceMonitoring('QRGenerate');
   const abortControllerRef = useRef(null);
   
@@ -699,7 +699,7 @@ const QRGenerate = React.memo(() => {
           }
           
           // Show success and auto-navigate after 2 seconds
-          showSuccess('Success', message);
+          toast.success('Success', message);
           
           // Auto-navigate to QR Management page after 2 seconds
           setTimeout(() => {
@@ -826,7 +826,7 @@ const QRGenerate = React.memo(() => {
       seatEnd: '',
       selectedSeats: [...new Set([...prev.selectedSeats, ...currentRangeSeats])]
     }));
-  }, [formData.seatStart, formData.seatEnd, showError]);
+  }, [formData.seatStart, formData.seatEnd, toast]);
 
   // Delete specific row from seat map
   const handleDeleteRow = useCallback((rowToDelete) => {
