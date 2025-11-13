@@ -349,16 +349,35 @@ const TheaterList = React.memo(() => {
       const newTheaters = result.data || result.theaters || [];
       const paginationData = result.pagination || {};
       
+      // Check agreement expiration status for each theater
+      const now = new Date();
+      const theatersWithExpirationStatus = newTheaters.map(theater => {
+        if (theater.agreementDetails?.endDate) {
+          const endDate = new Date(theater.agreementDetails.endDate);
+          const daysUntilExpiration = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+          const isExpiring = daysUntilExpiration <= 5 && daysUntilExpiration >= 0;
+          const isExpired = daysUntilExpiration < 0;
+          
+          return {
+            ...theater,
+            agreementExpiring: isExpiring,
+            agreementExpired: isExpired,
+            daysUntilExpiration: isExpired ? 0 : daysUntilExpiration
+          };
+        }
+        return theater;
+      });
+      
       // Update state
-      setTheaters(newTheaters);
+      setTheaters(theatersWithExpirationStatus);
       setPagination(paginationData);
       setTotalPages(paginationData.totalPages || 0);
       setTotalItems(paginationData.totalItems || 0);
       
       // Calculate and update summary statistics
-      const activeCount = newTheaters.filter(theater => theater.isActive).length;
-      const inactiveCount = newTheaters.filter(theater => !theater.isActive).length;
-      const activeAgreementsCount = newTheaters.filter(theater => 
+      const activeCount = theatersWithExpirationStatus.filter(theater => theater.isActive).length;
+      const inactiveCount = theatersWithExpirationStatus.filter(theater => !theater.isActive).length;
+      const activeAgreementsCount = theatersWithExpirationStatus.filter(theater => 
         theater.agreementDetails && 
         theater.agreementDetails.startDate && 
         theater.agreementDetails.endDate &&
@@ -366,7 +385,7 @@ const TheaterList = React.memo(() => {
       ).length;
       
       setSummary({
-        totalTheaters: newTheaters.length,
+        totalTheaters: theatersWithExpirationStatus.length,
         activeTheaters: activeCount,
         inactiveTheaters: inactiveCount,
         activeAgreements: activeAgreementsCount
@@ -1024,8 +1043,26 @@ const TheaterList = React.memo(() => {
                               <div className="start-date">
                                 From: {new Date(theater.agreementDetails.startDate).toLocaleDateString()}
                               </div>
-                              <div className="end-date">
+                              <div className={`end-date ${theater.agreementExpiring ? 'expiring' : ''} ${theater.agreementExpired ? 'expired' : ''}`}>
                                 To: {new Date(theater.agreementDetails.endDate).toLocaleDateString()}
+                                {theater.agreementExpiring && (
+                                  <span className="expiring-badge" title={`Expires in ${theater.daysUntilExpiration} day(s)`}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                                      <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    {theater.daysUntilExpiration} day(s)
+                                  </span>
+                                )}
+                                {theater.agreementExpired && (
+                                  <span className="expired-badge" title="Agreement has expired">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                                      <circle cx="12" cy="12" r="10"></circle>
+                                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                    </svg>
+                                    Expired
+                                  </span>
+                                )}
                               </div>
                             </>
                           ) : (

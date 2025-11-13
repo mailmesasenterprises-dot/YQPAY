@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -61,22 +61,7 @@ const TheaterPaymentGatewaySettings = () => {
     paytm: { enabled: false, merchantId: '', merchantKey: '' }
   });
 
-  useEffect(() => {
-    if (theaterId) {
-      setSelectedTheater(theaterId);
-      fetchTheaterConfig(theaterId);
-    } else {
-      fetchTheaters();
-    }
-  }, [theaterId]);
-
-  useEffect(() => {
-    if (selectedTheater && !theaterId) {
-      fetchTheaterConfig(selectedTheater);
-    }
-  }, [selectedTheater]);
-
-  const fetchTheaters = async () => {
+  const fetchTheaters = useCallback(async () => {
     try {
       const token = config.helpers.getAuthToken();
       // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
@@ -101,9 +86,9 @@ const TheaterPaymentGatewaySettings = () => {
       console.error('Error fetching theaters:', error);
       modal?.showError?.('Failed to fetch theaters');
     }
-  };
+  }, [modal]);
 
-  const fetchTheaterConfig = async (theaterIdToFetch) => {
+  const fetchTheaterConfig = useCallback(async (theaterIdToFetch) => {
     try {
       setLoading(true);
       const token = config.helpers.getAuthToken();
@@ -160,7 +145,22 @@ const TheaterPaymentGatewaySettings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [modal]);
+
+  useEffect(() => {
+    if (theaterId) {
+      setSelectedTheater(theaterId);
+      fetchTheaterConfig(theaterId);
+    } else {
+      fetchTheaters();
+    }
+  }, [theaterId, fetchTheaterConfig, fetchTheaters]);
+
+  useEffect(() => {
+    if (selectedTheater && !theaterId) {
+      fetchTheaterConfig(selectedTheater);
+    }
+  }, [selectedTheater, theaterId, fetchTheaterConfig]);
 
   const handleSave = async () => {
     if (!selectedTheater) {

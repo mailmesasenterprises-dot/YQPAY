@@ -42,7 +42,7 @@ router.post('/', [
       });
     }
 
-    const { theaterId, qrType, qrName, seatClass, seat, seats, logoUrl, logoType } = req.body;
+    const { theaterId, qrType, qrName, seatClass, seat, seats, logoUrl, logoType, orientation } = req.body;
 
     console.log('📥 Creating QR Code:', {
       theaterId,
@@ -104,6 +104,7 @@ router.post('/', [
         seat: null,
         logoUrl,
         logoType,
+        orientation: orientation || 'landscape',
         userId: req.user?.userId
       });
 
@@ -115,6 +116,7 @@ router.post('/', [
         qrCodeData: qrCodeResult.qrCodeData,
         logoUrl: qrCodeResult.logoUrl || logoUrl || '',
         logoType: logoType || 'default',
+        orientation: orientation || 'landscape',
         scanCount: 0,
         seats: [], // Empty array for single type
         metadata: {
@@ -167,6 +169,7 @@ router.post('/', [
           seat: seatId,
           logoUrl,
           logoType,
+          orientation: orientation || 'landscape',
           userId: req.user?.userId
         });
 
@@ -176,6 +179,7 @@ router.post('/', [
           qrCodeData: qrCodeResult.qrCodeData,
           logoUrl: qrCodeResult.logoUrl || logoUrl || '',
           logoType: logoType || 'default',
+          orientation: orientation || 'landscape',
           scanCount: 0,
           metadata: {
             generatedBy: req.user?.userId,
@@ -204,6 +208,7 @@ router.post('/', [
           qrCodeData: '', // Not used for screen type
           logoUrl: '', // Not used for screen type
           logoType: 'default',
+          orientation: orientation || 'landscape', // Save orientation for screen type
           scanCount: 0, // Not used for screen type
           seats: generatedSeats, // Nested array of seats
           metadata: {
@@ -687,6 +692,7 @@ router.put('/:id/details/:detailId', [
         seat: updates.seat || qrDetail.seat || null,
         logoUrl: updates.logoUrl || qrDetail.logoUrl,
         logoType: updates.logoType || qrDetail.logoType,
+        orientation: updates.orientation || qrDetail.orientation || 'landscape',
         userId: req.user.id
       });
 
@@ -973,6 +979,7 @@ router.post('/:id/details/:detailId/seats', [
           seat: seat,
           logoUrl: finalLogoUrl,
           logoType: finalLogoType,
+          orientation: qrDetail.orientation || 'landscape',
           userId: req.user?.id || 'system'
         });
 
@@ -984,28 +991,16 @@ router.post('/:id/details/:detailId/seats', [
       } catch (qrError) {
         console.error('❌ Failed to generate QR code:', qrError);
 
-        // ✅ FIXED URL GENERATION
-        let baseUrl;
-
-        if (process.env.NODE_ENV === 'production') {
-          baseUrl = process.env.BASE_URL?.trim() || 'https://yqpaynow.com';
-        } else {
-          baseUrl = process.env.FRONTEND_URL?.trim();
-        }
+        // Use environment variables for base URL
+        const baseUrl = process.env.BASE_URL?.trim() || process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
 
         qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(
           qrDetail.qrName
         )}&seat=${encodeURIComponent(seat)}&type=screen`;
       }
     } else {
-      // ✅ FIXED URL GENERATION (same as above)
-      let baseUrl;
-
-      if (process.env.NODE_ENV === 'production') {
-        baseUrl = process.env.BASE_URL?.trim() || 'https://yqpaynow.com';
-      } else {
-        baseUrl = process.env.FRONTEND_URL?.trim();
-      }
+      // Use environment variables for base URL
+      const baseUrl = process.env.BASE_URL?.trim() || process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
 
       qrCodeData = `${baseUrl}/menu/${singleQR.theater}?qrName=${encodeURIComponent(
         qrDetail.qrName
@@ -1019,6 +1014,7 @@ router.post('/:id/details/:detailId/seats', [
       qrCodeData: qrCodeData,
       logoUrl: finalLogoUrl || '',
       logoType: finalLogoType || 'theater',
+      orientation: qrDetail.orientation || 'landscape', // Use parent QR detail orientation
       isActive: isActive,
       scanCount: 0,
       createdAt: Date.now(),

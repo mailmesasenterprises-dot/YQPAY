@@ -922,6 +922,51 @@ body .filter-controls {
 .agreement-info .end-date {
   color: var(--warning-color);
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.agreement-info .end-date.expiring {
+  color: #F59E0B;
+}
+
+.agreement-info .end-date.expired {
+  color: #EF4444;
+}
+
+.expiring-badge,
+.expired-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.expiring-badge {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.expiring-badge svg {
+  color: #F59E0B;
+  flex-shrink: 0;
+}
+
+.expired-badge {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.expired-badge svg {
+  color: #EF4444;
+  flex-shrink: 0;
 }
 
 /* Status Cell */

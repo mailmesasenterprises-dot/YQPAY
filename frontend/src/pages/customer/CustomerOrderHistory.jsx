@@ -63,8 +63,6 @@ const CustomerOrderHistory = () => {
       const data = await ultraFetch(
         `${config.api.baseUrl}/orders/theater/${theaterId}`
       , {}, { cacheTTL: 60000 }).catch(error => { throw new Error('Request failed'); });
-
-      const data = await response.json();
       
       console.log('📦 Total orders received:', data.orders?.length);
 

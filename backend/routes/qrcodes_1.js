@@ -26,7 +26,8 @@ router.post('/generate', [
       });
     }
 
-    const { theaterId, tableNumber, baseUrl = 'http://localhost:3000' } = req.body;
+    const defaultBaseUrl = process.env.BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
+    const { theaterId, tableNumber, baseUrl = defaultBaseUrl } = req.body;
 
     // Find theater
     const theater = await Theater.findById(theaterId);

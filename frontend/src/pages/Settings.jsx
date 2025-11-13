@@ -1877,8 +1877,8 @@ const Settings = React.memo(() => {
                       }}
                     />
                     <small style={{color: '#666', fontSize: '12px'}}>
-                      Upload a logo to display in the browser tab and application header. 
-                      Recommended size: 32x32 or 48x48 pixels. Supports PNG, JPG, ICO formats.
+                      Upload a logo to display in the browser tab, application header, and as the default QR code logo. 
+                      Recommended size: 512x512 pixels for QR codes, minimum 32x32 pixels. Supports PNG, JPG, ICO formats.
                     </small>
                     {generalSettings.logoUrl && (
                       <button 

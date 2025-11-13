@@ -13,6 +13,7 @@ import '../styles/QRGenerate.css';
 import '../styles/TheaterList.css';
 import { useDeepMemo, useComputed } from '../utils/ultraPerformance';
 import { ultraFetch } from '../utils/ultraFetch';
+import QRCode from 'qrcode';
 
 
 
@@ -60,7 +61,8 @@ const QRGenerate = React.memo(() => {
     selectedSeats: [],
     logoType: '', // 'default' or 'theater'
     logoUrl: '',
-    seatClass: '' // Will be auto-populated from QR name selection
+    seatClass: '', // Will be auto-populated from QR name selection
+    orientation: 'landscape' // 'landscape' or 'portrait'
   });
   
   // Cache keys - constants for consistency
@@ -200,8 +202,8 @@ const QRGenerate = React.memo(() => {
       );
 
       if (data && data.success && data.data) {
-        // Use qrCodeUrl first (for QR codes), then fallback to logoUrl
-        const logoUrl = data.data.qrCodeUrl || data.data.logoUrl || '';
+        // Use logoUrl from Super Admin -> Settings -> General -> Application Logo
+        const logoUrl = data.data.logoUrl || '';
         setDefaultLogoUrl(logoUrl);
       }
     } catch (error) {
@@ -293,9 +295,9 @@ const QRGenerate = React.memo(() => {
 
         if (availableQRNames.length === 0 && data.data.qrCodeNames.length > 0) {
           // All QR names have been generated
-        } else if (existingQRNames.length === 0) {
+  } else if (existingQRNames.length === 0) {
           // No existing QR names found
-        }
+  }
       } else {
 
         setQrNames([]);
@@ -361,8 +363,8 @@ const QRGenerate = React.memo(() => {
     let logoUrl = '';
     
     if (logoType === 'default') {
-      logoUrl = defaultLogoUrl;
-  } else if (logoType === 'theater' && selectedTheater) {
+      logoUrl = defaultLogoUrl || '';
+    } else if (logoType === 'theater' && selectedTheater) {
       // Check multiple possible logo locations in theater object
       logoUrl = selectedTheater.branding?.logoUrl 
         || selectedTheater.branding?.logo 
@@ -371,8 +373,7 @@ const QRGenerate = React.memo(() => {
         || selectedTheater.logo 
         || selectedTheater.logoUrl 
         || '';
-      
-  }
+    }
     
     setFormData(prev => ({
       ...prev,
@@ -399,6 +400,227 @@ const QRGenerate = React.memo(() => {
     theaters.find(t => t._id === formData.theaterId),
     [theaters, formData.theaterId]
   );
+
+  // QR Code Preview State
+  const [qrPreviewUrl, setQrPreviewUrl] = useState(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const qrCanvasRef = useRef(null);
+  const imageRef = useRef(null);
+
+  // Image alternatives list
+  const imageAlternatives = [
+    '/images/scan/scan-order-pay.png',
+    '/images/scan/scan-order-pay.jpg',
+    '/images/scan/scan-order-pay.webp',
+    '/images/scan/scan.png',
+    '/images/scan/scan.jpg',
+    '/images/scan/scan.webp',
+    '/images/scan/order-pay.png',
+    '/images/scan.png', // Fallback to existing file in images root
+    '/images/scan.webp' // Final fallback
+  ];
+
+  // Reset image state when orientation changes
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageError(false);
+    setCurrentImageIndex(0);
+  }, [formData.orientation]);
+
+  // Check if image is already loaded (for cached images)
+  useEffect(() => {
+    const checkImageLoaded = () => {
+      if (imageRef.current && imageRef.current.complete && imageRef.current.naturalHeight !== 0) {
+        setImageLoaded(true);
+        setImageError(false);
+      }
+    };
+    
+    // Check immediately
+    checkImageLoaded();
+    
+    // Also check after a short delay to catch images that load quickly
+    const timeout = setTimeout(checkImageLoaded, 100);
+    
+    return () => clearTimeout(timeout);
+  }, [currentImageIndex]);
+
+  // Generate QR code preview
+  useEffect(() => {
+    let timeoutId = null;
+    let isMounted = true;
+    
+    const generateQRPreview = async () => {
+      // Wait for canvas to be available with retries
+      const checkCanvas = (retries = 10) => {
+        if (qrCanvasRef.current) {
+          // Canvas is available, proceed with generation
+          return true;
+        }
+        if (retries > 0 && isMounted) {
+          timeoutId = setTimeout(() => {
+            if (isMounted && qrCanvasRef.current) {
+              // Canvas is now available, generate QR code
+              generateQRPreview();
+            } else if (isMounted) {
+              checkCanvas(retries - 1);
+            }
+          }, 100);
+        }
+        return false;
+      };
+      
+      if (!checkCanvas()) {
+        return;
+      }
+
+      try {
+        const canvas = qrCanvasRef.current;
+        if (!canvas) {
+          console.warn('Canvas not available');
+          return;
+        }
+
+        const size = formData.orientation === 'landscape' ? 200 : 250;
+        
+        // Set canvas dimensions
+        canvas.width = size;
+        canvas.height = size;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // Clear canvas with white background
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Generate QR code data URL - use default if form not filled
+        let qrCodeData;
+        if (formData.theaterId && formData.name) {
+          // Use actual form data
+          const baseUrl = config.api.baseUrl?.replace('/api', '') || window.location.origin;
+          qrCodeData = formData.qrType === 'screen' && formData.selectedSeats.length > 0
+            ? `${baseUrl}/menu/${formData.theaterId}?qrName=${encodeURIComponent(formData.name)}&seat=${encodeURIComponent(formData.selectedSeats[0])}&type=screen`
+            : `${baseUrl}/menu/${formData.theaterId}?qrName=${encodeURIComponent(formData.name)}&type=single`;
+        } else {
+          // Use default QR code data
+          const baseUrl = window.location.origin;
+          qrCodeData = `${baseUrl}/menu/preview`;
+        }
+        
+        // Generate QR code
+        await QRCode.toCanvas(canvas, qrCodeData, {
+          width: size,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          },
+          errorCorrectionLevel: 'H'
+        });
+        
+        console.log('QR code generated successfully');
+
+        // Determine which logo URL to use
+        let logoToUse = '';
+        if (formData.logoType === 'default') {
+          // Use default logo if default logo type is selected
+          logoToUse = defaultLogoUrl || formData.logoUrl || '';
+        } else if (formData.logoType === 'theater') {
+          // Use theater logo if theater logo type is selected
+          logoToUse = formData.logoUrl || '';
+        } else if (formData.logoUrl) {
+          // Fallback to any logoUrl if set
+          logoToUse = formData.logoUrl;
+        }
+
+        // Overlay logo if available (show instantly when logo type is selected)
+        if (logoToUse) {
+          try {
+            const logoImg = new Image();
+            logoImg.crossOrigin = 'anonymous';
+            
+            await new Promise((resolve, reject) => {
+              logoImg.onload = () => {
+                try {
+                  // Calculate logo size (30% of QR code size - increased from 20%)
+                  const logoSize = size * 0.30;
+                  const logoX = (size - logoSize) / 2;
+                  const logoY = (size - logoSize) / 2;
+                  
+                  // Draw white background circle for logo with border
+                  const centerX = size / 2;
+                  const centerY = size / 2;
+                  const borderWidth = 8; // White border width
+                  const radius = logoSize / 2 + borderWidth;
+                  
+                  // Draw outer white circle (border)
+                  ctx.fillStyle = '#FFFFFF';
+                  ctx.beginPath();
+                  ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                  ctx.fill();
+                  
+                  // Draw inner white circle (background)
+                  const innerRadius = logoSize / 2 + 4;
+                  ctx.fillStyle = '#FFFFFF';
+                  ctx.beginPath();
+                  ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
+                  ctx.fill();
+                  
+                  // Draw logo
+                  ctx.save();
+                  ctx.beginPath();
+                  ctx.arc(centerX, centerY, logoSize / 2, 0, Math.PI * 2);
+                  ctx.clip();
+                  ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+                  ctx.restore();
+                  
+                  console.log('Logo overlaid successfully:', logoToUse);
+                  resolve();
+                } catch (err) {
+                  console.error('Error drawing logo on QR:', err);
+                  resolve(); // Continue even if logo fails
+                }
+              };
+              
+              logoImg.onerror = () => {
+                console.warn('Failed to load logo for preview:', logoToUse);
+                resolve(); // Continue without logo
+              };
+              
+              logoImg.src = logoToUse;
+            });
+          } catch (error) {
+            console.error('Error overlaying logo:', error);
+            // Continue without logo
+          }
+        }
+
+        // Convert canvas to data URL
+        const dataUrl = canvas.toDataURL('image/png');
+        setQrPreviewUrl(dataUrl);
+      } catch (error) {
+        console.error('Error generating QR preview:', error);
+        setQrPreviewUrl(null);
+      }
+    };
+
+    // Small delay to ensure canvas is mounted
+    const initTimeout = setTimeout(() => {
+      generateQRPreview();
+    }, 50);
+    
+    return () => {
+      isMounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (initTimeout) {
+        clearTimeout(initTimeout);
+      }
+    };
+  }, [formData.theaterId, formData.name, formData.qrType, formData.selectedSeats, formData.orientation, formData.logoUrl, formData.logoType, defaultLogoUrl]);
 
   const qrCodeCount = useMemo(() => {
     if (formData.qrType === 'single') return 1;
@@ -644,7 +866,8 @@ const QRGenerate = React.memo(() => {
           qrName: formData.name,
           seatClass: formData.seatClass,
           logoUrl: formData.logoUrl || (formData.logoType === 'default' ? defaultLogoUrl : ''),
-          logoType: formData.logoType || 'default'
+        logoType: formData.logoType || 'default',
+        orientation: formData.orientation || 'landscape'
         };
       } else {
         // For screen QR codes
@@ -655,7 +878,8 @@ const QRGenerate = React.memo(() => {
           seatClass: formData.seatClass,
           seats: formData.selectedSeats, // Array of seats (A1, A2, B1, etc.)
           logoUrl: formData.logoUrl || (formData.logoType === 'default' ? defaultLogoUrl : ''),
-          logoType: formData.logoType || 'default'
+        logoType: formData.logoType || 'default',
+        orientation: formData.orientation || 'landscape'
         };
       }
       
@@ -968,12 +1192,13 @@ const QRGenerate = React.memo(() => {
             <div className="theater-list-header">
               <h1>Generate QR Codes</h1>
             </div>
-          <form onSubmit={handleSubmit} className="qr-generate-form">
-          {/* Form Section Header */}
-          <div className="form-section">
-                <h2 className="section-title">Basic Information</h2>
-                
-                <div className="form-grid">
+            <div className="qr-generate-container" style={{ display: 'flex', gap: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+              {/* Left Column - Form */}
+              <div className="qr-generate-form-wrapper" style={{ flex: '1', minWidth: '0' }}>
+                <form onSubmit={handleSubmit} className="qr-generate-form">
+                  <div className="form-section">
+                    <h2 className="section-title">Basic Information</h2>
+                    <div className="form-grid">
                   {/* Theater Selection */}
                   <div className="form-group">
                     <label htmlFor="theaterId">
@@ -1015,18 +1240,24 @@ const QRGenerate = React.memo(() => {
                     <label htmlFor="logoType">
                       LOGO SELECTION <span className="required">*</span>
                     </label>
-                    <select
-                      id="logoType"
-                      name="logoType"
-                      value={formData.logoType}
-                      onChange={(e) => handleLogoTypeChange(e.target.value)}
-                      className="form-control"
-                      required
-                    >
-                      <option value="">Select Logo Type</option>
-                      <option value="default">Default Logo</option>
-                      <option value="theater">Theater Logo</option>
-                    </select>
+                    {!formData.theaterId ? (
+                      <div className="form-control disabled-dropdown">
+                        <span>Please select a theater first</span>
+                      </div>
+                    ) : (
+                      <select
+                        id="logoType"
+                        name="logoType"
+                        value={formData.logoType}
+                        onChange={(e) => handleLogoTypeChange(e.target.value)}
+                        className="form-control"
+                        required
+                      >
+                        <option value="">Select Logo Type</option>
+                        <option value="default">Default Logo</option>
+                        <option value="theater">Theater Logo</option>
+                      </select>
+                    )}
                     {formData.logoType === 'default' && !defaultLogoUrl && (
                       <p className="form-help-text">
                         No default logo configured in settings. Please upload a default logo in settings.
@@ -1050,18 +1281,28 @@ const QRGenerate = React.memo(() => {
                     <label htmlFor="qrType">
                       QR CODE TYPE <span className="required">*</span>
                     </label>
-                    <select
-                      id="qrType"
-                      name="qrType"
-                      value={formData.qrType}
-                      onChange={(e) => handleQRTypeChange(e.target.value)}
-                      className="form-control"
-                      required
-                    >
+                    {!formData.theaterId || !formData.logoType ? (
+                      <div className="form-control disabled-dropdown">
+                        <span>
+                          {!formData.theaterId 
+                            ? "Please select a theater first" 
+                            : "Please select a logo type first"}
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        id="qrType"
+                        name="qrType"
+                        value={formData.qrType}
+                        onChange={(e) => handleQRTypeChange(e.target.value)}
+                        className="form-control"
+                        required
+                      >
                       <option value="">Select QR Code Type</option>
                       <option value="single">SINGLE QR CODE</option>
                       <option value="screen">Screen</option>
                     </select>
+                    )}
                   </div>
 
                   {/* QR Code Name */}
@@ -1273,6 +1514,265 @@ const QRGenerate = React.memo(() => {
                 </button>
               </div>
             </form>
+                </div>
+
+                {/* Right Column - QR Preview */}
+                <div className="qr-preview-wrapper" style={{ flex: '1', minWidth: '0' }}>
+                  <div className="qr-preview-container" style={{ 
+                    border: 'none', 
+                    borderRadius: '12px', 
+                    padding: '24px',
+                    background: '#FFFFFF',
+                    position: 'sticky',
+                    top: '24px'
+                  }}>
+                    <h3 className="qr-preview-title" style={{ 
+                      margin: '0 0 20px 0', 
+                      fontSize: '1.5rem', 
+                      fontWeight: '600',
+                      color: '#1F2937'
+                    }}>
+                      QR Code Preview
+                    </h3>
+                    
+                    {/* Orientation Toggle */}
+                    <div className="qr-orientation-toggle" style={{ 
+                      display: 'flex', 
+                      gap: '12px', 
+                      marginBottom: '24px' 
+                    }}>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, orientation: 'landscape' }))}
+                        className={`orientation-btn ${formData.orientation === 'landscape' ? 'active' : ''}`}
+                        style={{
+                          flex: 1,
+                          padding: '12px 24px',
+                          border: `2px solid ${formData.orientation === 'landscape' ? '#8B5CF6' : '#E5E7EB'}`,
+                          borderRadius: '8px',
+                          background: formData.orientation === 'landscape' ? '#8B5CF6' : '#FFFFFF',
+                          color: formData.orientation === 'landscape' ? '#FFFFFF' : '#6B7280',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontSize: '0.95rem'
+                        }}
+                      >
+                        Landscape
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, orientation: 'portrait' }))}
+                        className={`orientation-btn ${formData.orientation === 'portrait' ? 'active' : ''}`}
+                        style={{
+                          flex: 1,
+                          padding: '12px 24px',
+                          border: `2px solid ${formData.orientation === 'portrait' ? '#8B5CF6' : '#E5E7EB'}`,
+                          borderRadius: '8px',
+                          background: formData.orientation === 'portrait' ? '#8B5CF6' : '#FFFFFF',
+                          color: formData.orientation === 'portrait' ? '#FFFFFF' : '#6B7280',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontSize: '0.95rem'
+                        }}
+                      >
+                        Portrait
+                      </button>
+                    </div>
+
+                    {/* QR Code Preview Card */}
+                    <div className={`qr-preview-card ${formData.orientation}`} style={{
+                      background: '#FFFFFF',
+                      borderRadius: '12px',
+                      padding: formData.orientation === 'landscape' ? '16px' : '20px',
+                      border: '1px solid #E5E7EB',
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                      display: 'flex',
+                      flexDirection: formData.orientation === 'landscape' ? 'row' : 'column',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: formData.orientation === 'landscape' ? '20px' : '16px',
+                      minHeight: formData.orientation === 'landscape' ? '200px' : '350px',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}>
+                      {/* Left/Top Section - Content with Theater Name */}
+                      <div className="qr-preview-content" style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: formData.orientation === 'landscape' ? '12px' : '16px',
+                        flex: formData.orientation === 'landscape' ? '1' : 'none',
+                        minWidth: 0,
+                        width: formData.orientation === 'landscape' ? 'auto' : '100%',
+                        height: formData.orientation === 'landscape' ? '100%' : 'auto',
+                        alignSelf: 'center'
+                      }}>
+                        {/* Theater Name Display */}
+                        {selectedTheater && (
+                          <div style={{
+                            textAlign: 'center',
+                            width: '100%',
+                            marginBottom: formData.orientation === 'landscape' ? '8px' : '12px'
+                          }}>
+                            <h2 style={{
+                              fontSize: formData.orientation === 'landscape' ? '1.5rem' : '1.75rem',
+                              fontWeight: '700',
+                              color: '#000000',
+                              margin: '0',
+                              lineHeight: '1.2',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em'
+                            }}>
+                              {selectedTheater.name}
+                            </h2>
+                          </div>
+                        )}
+                        
+                        {/* Food Icons Image */}
+                        <div className="qr-food-icons" style={{
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          width: '100%',
+                          position: 'relative',
+                          minHeight: formData.orientation === 'landscape' ? '100px' : '80px',
+                          height: '100%',
+                          cursor: 'pointer',
+                          transition: 'transform 0.3s ease, opacity 0.3s ease',
+                          transform: 'scale(1)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                        >
+                          <img 
+                            ref={imageRef}
+                            key={currentImageIndex}
+                            src={imageAlternatives[currentImageIndex]} 
+                            alt="Scan Order Pay" 
+                            style={{
+                              maxWidth: formData.orientation === 'landscape' ? '100%' : '100%',
+                              width: 'auto',
+                              height: 'auto',
+                              maxHeight: formData.orientation === 'landscape' ? '140px' : '160px',
+                              objectFit: 'contain',
+                              display: imageError && currentImageIndex >= imageAlternatives.length - 1 ? 'none' : 'block',
+                              margin: 'auto',
+                              opacity: imageLoaded ? 1 : 0.5,
+                              transition: 'opacity 0.3s ease-in-out',
+                              visibility: imageError && currentImageIndex >= imageAlternatives.length - 1 ? 'hidden' : 'visible'
+                            }}
+                            onError={() => {
+                              // Try next alternative
+                              if (currentImageIndex < imageAlternatives.length - 1) {
+                                const nextIndex = currentImageIndex + 1;
+                                console.log('Image failed, trying alternative:', imageAlternatives[nextIndex]);
+                                setCurrentImageIndex(nextIndex);
+                                setImageError(false);
+                                setImageLoaded(false);
+                              } else {
+                                // All alternatives exhausted
+                                console.error('All image alternatives failed. Image not found.');
+                                setImageError(true);
+                                setImageLoaded(false);
+                              }
+                            }}
+                            onLoad={() => {
+                              // Image loaded successfully
+                              console.log('Image loaded successfully:', imageAlternatives[currentImageIndex]);
+                              setImageLoaded(true);
+                              setImageError(false);
+                            }}
+                            loading="eager"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right/Bottom Section - QR Code */}
+                      <div className="qr-preview-qr" style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '12px',
+                        flexShrink: 0,
+                        alignSelf: 'center'
+                      }}>
+                        {/* QR Code Display */}
+                        <div style={{
+                          width: formData.orientation === 'landscape' ? '180px' : '220px',
+                          height: formData.orientation === 'landscape' ? '180px' : '220px',
+                          borderRadius: '8px',
+                          background: '#FFFFFF',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          padding: '12px',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                          cursor: 'pointer',
+                          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                          transform: 'scale(1)'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.25)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
+                        }}
+                        >
+                          <canvas
+                            ref={qrCanvasRef}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              maxWidth: '100%',
+                              maxHeight: '100%',
+                              objectFit: 'contain',
+                              borderRadius: '4px',
+                              display: 'block'
+                            }}
+                          />
+                        </div>
+
+                        {/* Theater Info Footer */}
+                        {selectedTheater && formData.name && (
+                          <div style={{
+                            width: '100%',
+                            borderTop: '1px solid #E5E7EB',
+                            paddingTop: '12px',
+                            marginTop: '12px',
+                            textAlign: formData.orientation === 'landscape' ? 'center' : 'center',
+                            fontSize: '0.875rem',
+                            color: '#000000',
+                            fontWeight: '500',
+                            fontFamily: 'Arial, sans-serif',
+                            alignSelf: 'stretch'
+                          }}>
+                            {selectedTheater.name}
+                            {selectedTheater.location?.city && ` - ${selectedTheater.location.city}`}
+                            {selectedTheater.location?.area && ` - ${selectedTheater.location.area}`}
+                            {formData.qrType === 'screen' && ` - Screen`}
+                            {formData.qrType === 'screen' && formData.selectedSeats.length > 0 && ` - ${formData.selectedSeats[0]}`}
+                            {formData.qrType === 'screen' && formData.selectedSeats.length === 0 && ' - __'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             
             {/* QR Generation Loading Overlay - Rendered via Portal */}
             {generating && ReactDOM.createPortal(

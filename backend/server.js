@@ -122,20 +122,17 @@ if (generalLimiter) {
   console.log('⚠️  Using basic rate limiting (install redis for advanced)');
 }
 
-// CORS configuration - Allow localhost and network IP for mobile QR scanning
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3001',
-  'http://localhost:5173',
-  'https://yqpaynow.com',
-  'https://yqpay-78918378061.us-central1.run.app',
-  
-  // optional: your LAN IP if testing on mobile
-  'http://192.168.1.8:3001',
-  'http://172.20.10.2:3001'
-];
+// CORS configuration - Use environment variable for allowed origins
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:5173',
+      'https://yqpaynow.com'
+    ];
 
+console.log('🔒 CORS allowed origins:', allowedOrigins);
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -175,7 +172,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // DATABASE CONNECTION (Ultra Optimized)
 // ==============================================
 
-const MONGODB_URI = process.env.MONGODB_URI ;
+const MONGODB_URI = process.env.MONGODB_URI?.trim();
+
+// Validate MongoDB URI
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI is not set in environment variables!');
+  console.error('   Please set MONGODB_URI in your .env file');
+  process.exit(1);
+}
 
 // Redis cache is DISABLED - removed to prevent caching issues
 // All routes will now return fresh data from database
@@ -273,6 +277,38 @@ app.get('/api/health', (req, res) => {
   res.json(health);
 });
 
+// Helper function to normalize URL to absolute URL
+function normalizeImageUrl(url) {
+  if (!url) return null;
+  
+  // Don't process data URLs
+  if (url.startsWith('data:')) {
+    return null; // Data URLs should not be proxied
+  }
+  
+  // Already absolute URL (http/https)
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // Handle Google Cloud Storage URLs (gs://)
+  if (url.startsWith('gs://')) {
+    // Convert gs:// URL to https:// public URL
+    return url.replace('gs://yqpaynow-theater-qr-codes/', 'https://storage.googleapis.com/yqpaynow-theater-qr-codes/');
+  }
+  
+  // Handle relative paths (e.g., /images/logo.jpg)
+  if (url.startsWith('/')) {
+    // Convert relative path to full URL using environment variables
+    const baseUrl = process.env.BASE_URL?.trim() || process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
+    return `${baseUrl}${url}`;
+  }
+  
+  // If URL doesn't have protocol, assume it's a relative path and prepend base URL
+  const baseUrl = process.env.BASE_URL?.trim() || process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
+  return `${baseUrl}/${url}`;
+}
+
 // Image proxy endpoint to bypass CORS
 // Supports both GET (for small URLs) and POST (for large URLs to avoid 431 header size errors)
 app.get('/api/proxy-image', async (req, res) => {
@@ -282,14 +318,19 @@ app.get('/api/proxy-image', async (req, res) => {
     return res.status(400).json({ error: 'URL parameter is required' });
   }
   
-  // Don't proxy data URLs (base64) - they're already complete
-  if (url.startsWith('data:')) {
-    return res.status(400).json({ error: 'Data URLs should not be proxied' });
+  // Normalize URL to absolute URL
+  const absoluteUrl = normalizeImageUrl(url);
+  
+  if (!absoluteUrl) {
+    if (url.startsWith('data:')) {
+      return res.status(400).json({ error: 'Data URLs should not be proxied' });
+    }
+    return res.status(400).json({ error: 'Invalid URL format' });
   }
   
   try {
     const fetch = (await import('node-fetch')).default;
-    const response = await fetch(url);
+    const response = await fetch(absoluteUrl);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -303,7 +344,7 @@ app.get('/api/proxy-image', async (req, res) => {
     res.send(buffer);
   } catch (error) {
     console.error('Image proxy error:', error);
-    res.status(500).json({ error: 'Failed to proxy image' });
+    res.status(500).json({ error: 'Failed to proxy image', details: error.message });
   }
 });
 
@@ -315,14 +356,19 @@ app.post('/api/proxy-image', async (req, res) => {
     return res.status(400).json({ error: 'URL parameter is required' });
   }
   
-  // Don't proxy data URLs (base64) - they're already complete
-  if (url.startsWith('data:')) {
-    return res.status(400).json({ error: 'Data URLs should not be proxied' });
+  // Normalize URL to absolute URL
+  const absoluteUrl = normalizeImageUrl(url);
+  
+  if (!absoluteUrl) {
+    if (url.startsWith('data:')) {
+      return res.status(400).json({ error: 'Data URLs should not be proxied' });
+    }
+    return res.status(400).json({ error: 'Invalid URL format' });
   }
   
   try {
     const fetch = (await import('node-fetch')).default;
-    const response = await fetch(url);
+    const response = await fetch(absoluteUrl);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -336,7 +382,7 @@ app.post('/api/proxy-image', async (req, res) => {
     res.send(buffer);
   } catch (error) {
     console.error('Image proxy error:', error);
-    res.status(500).json({ error: 'Failed to proxy image' });
+    res.status(500).json({ error: 'Failed to proxy image', details: error.message });
   }
 });
 
@@ -535,13 +581,17 @@ app.use((error, req, res, next) => {
   });
 });
 
-// 
 // ------------------------------
 // START SERVER
 // ------------------------------
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 YQPayNow Server running on port ${PORT}`);
+const HOST = process.env.SERVER_HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 YQPayNow Server running on ${HOST}:${PORT}`);
+  console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'Not configured'}`);
+  console.log(`🔗 Base URL: ${process.env.BASE_URL || 'Not configured'}`);
+  console.log(`🗄️  Database: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}`);
 });
 
 module.exports = app;

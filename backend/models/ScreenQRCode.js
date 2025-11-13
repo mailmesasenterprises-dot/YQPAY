@@ -77,6 +77,14 @@ const screenQRCodeSchema = new mongoose.Schema({
     default: ''
   },
   
+  // Orientation: 'landscape' or 'portrait'
+  orientation: {
+    type: String,
+    enum: ['landscape', 'portrait'],
+    default: 'landscape',
+    index: true
+  },
+  
   // Active status (for soft delete)
   isActive: {
     type: Boolean,

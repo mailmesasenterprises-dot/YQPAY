@@ -6,6 +6,7 @@
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
 const ExcelJS = require('exceljs');
+const { getTheaterEmailAddresses } = require('./stockEmailHelper');
 
 /**
  * Get SMTP configuration from database
@@ -200,9 +201,12 @@ async function generateStockExcelBuffer(stockData, reportTitle = 'Stock Report')
  */
 async function sendStockExpirationWarning(theater, products) {
   try {
-    if (!theater.email) {
-      console.warn(`⚠️  Theater ${theater.name} has no email configured. Skipping expiration warning.`);
-      return { success: false, error: 'No email configured for theater' };
+    // Get email addresses from email notification endpoint
+    const emailAddresses = await getTheaterEmailAddresses(theater._id || theater);
+    
+    if (!emailAddresses || emailAddresses.length === 0) {
+      console.warn(`⚠️  Theater ${theater.name} has no active email notifications configured. Skipping expiration warning.`);
+      return { success: false, error: 'No active email notifications configured for theater' };
     }
     
     const stockData = products.map(p => ({
@@ -270,7 +274,7 @@ async function sendStockExpirationWarning(theater, products) {
     `;
     
     return await sendEmail({
-      to: theater.email,
+      to: emailAddresses,
       subject: `⚠️ Stock Expiration Warning - ${theater.name}`,
       html,
       attachments: [{
@@ -289,9 +293,12 @@ async function sendStockExpirationWarning(theater, products) {
  */
 async function sendLowStockAlert(theater, products) {
   try {
-    if (!theater.email) {
-      console.warn(`⚠️  Theater ${theater.name} has no email configured. Skipping low stock alert.`);
-      return { success: false, error: 'No email configured for theater' };
+    // Get email addresses from email notification endpoint
+    const emailAddresses = await getTheaterEmailAddresses(theater._id || theater);
+    
+    if (!emailAddresses || emailAddresses.length === 0) {
+      console.warn(`⚠️  Theater ${theater.name} has no active email notifications configured. Skipping low stock alert.`);
+      return { success: false, error: 'No active email notifications configured for theater' };
     }
     
     const stockData = products.map(p => ({
@@ -358,7 +365,7 @@ async function sendLowStockAlert(theater, products) {
     `;
     
     return await sendEmail({
-      to: theater.email,
+      to: emailAddresses,
       subject: `📦 Low Stock Alert - ${theater.name}`,
       html,
       attachments: [{
@@ -459,9 +466,12 @@ async function sendStockAddedNotification(theater, stockEntry) {
  */
 async function sendDailySalesReport(theater, salesData) {
   try {
-    if (!theater.email) {
-      console.warn(`⚠️  Theater ${theater.name} has no email configured. Skipping daily sales report.`);
-      return { success: false, error: 'No email configured for theater' };
+    // Get email addresses from email notification endpoint
+    const emailAddresses = await getTheaterEmailAddresses(theater._id || theater);
+    
+    if (!emailAddresses || emailAddresses.length === 0) {
+      console.warn(`⚠️  Theater ${theater.name} has no active email notifications configured. Skipping daily sales report.`);
+      return { success: false, error: 'No active email notifications configured for theater' };
     }
     
     // Generate Excel for sales report (reuse existing sales report generation logic)
@@ -540,7 +550,7 @@ async function sendDailySalesReport(theater, salesData) {
     `;
     
     return await sendEmail({
-      to: theater.email,
+      to: emailAddresses,
       subject: `📊 Daily Sales Report - ${theater.name} - ${new Date().toLocaleDateString('en-IN')}`,
       html,
       attachments: [{
@@ -554,11 +564,218 @@ async function sendDailySalesReport(theater, salesData) {
   }
 }
 
+/**
+ * Send daily stock report email
+ * Includes all products with their current stock levels
+ */
+async function sendDailyStockReport(theater, stockData) {
+  try {
+    // Get email addresses from email notification endpoint
+    const emailAddresses = await getTheaterEmailAddresses(theater._id || theater);
+    
+    if (!emailAddresses || emailAddresses.length === 0) {
+      console.warn(`⚠️  Theater ${theater.name} has no active email notifications configured. Skipping daily stock report.`);
+      return { success: false, error: 'No active email notifications configured for theater' };
+    }
+    
+    // Generate Excel attachment
+    const excelBuffer = await generateStockExcelBuffer(stockData, `Daily Stock Report - ${theater.name}`);
+    const fileName = `Daily_Stock_Report_${theater.name}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    // Calculate summary statistics
+    const totalProducts = stockData.length;
+    const totalStock = stockData.reduce((sum, item) => sum + (item.balance || 0), 0);
+    const lowStockCount = stockData.filter(item => {
+      const balance = item.balance || 0;
+      const threshold = item.lowStockAlert || 5;
+      return balance > 0 && balance <= threshold;
+    }).length;
+    const outOfStockCount = stockData.filter(item => (item.balance || 0) <= 0).length;
+    const expiringSoonCount = stockData.filter(item => {
+      if (!item.expireDate) return false;
+      const expiryDate = new Date(item.expireDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+      return daysUntilExpiry <= 3 && daysUntilExpiry >= 0;
+    }).length;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .header { background-color: #8B5CF6; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; }
+          .summary { background-color: #E0E7FF; padding: 20px; margin: 20px 0; border-radius: 5px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 15px; }
+          .summary-item { background: white; padding: 15px; border-radius: 5px; }
+          .summary-item h4 { margin: 0 0 10px 0; color: #8B5CF6; }
+          .summary-item p { margin: 0; font-size: 24px; font-weight: bold; color: #333; }
+          .footer { background-color: #F3F4F6; padding: 15px; text-align: center; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>📊 Daily Stock Report</h1>
+        </div>
+        <div class="content">
+          <p>Dear ${theater.name} Team,</p>
+          
+          <div class="summary">
+            <h3>Stock Summary for ${new Date().toLocaleDateString('en-IN')}</h3>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <h4>Total Products</h4>
+                <p>${totalProducts}</p>
+              </div>
+              <div class="summary-item">
+                <h4>Total Stock</h4>
+                <p>${totalStock.toLocaleString('en-IN')} units</p>
+              </div>
+              <div class="summary-item">
+                <h4>Low Stock Items</h4>
+                <p style="color: #F59E0B;">${lowStockCount}</p>
+              </div>
+              <div class="summary-item">
+                <h4>Out of Stock</h4>
+                <p style="color: #EF4444;">${outOfStockCount}</p>
+              </div>
+              <div class="summary-item">
+                <h4>Expiring Soon (≤3 days)</h4>
+                <p style="color: #F59E0B;">${expiringSoonCount}</p>
+              </div>
+            </div>
+          </div>
+          
+          <p>Please find the detailed daily stock report attached in Excel format. The report includes all products with their current stock levels, expiration dates, and status.</p>
+          
+          <p>Best regards,<br>YQPayNow System</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated notification. Please do not reply to this email.</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    return await sendEmail({
+      to: emailAddresses,
+      subject: `📊 Daily Stock Report - ${theater.name} - ${new Date().toLocaleDateString('en-IN')}`,
+      html,
+      attachments: [{
+        filename: fileName,
+        content: excelBuffer
+      }]
+    });
+  } catch (error) {
+    console.error('❌ Error sending daily stock report:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Send expired stock notification email
+ */
+async function sendExpiredStockNotification(theater, products) {
+  try {
+    // Get email addresses from email notification endpoint
+    const emailAddresses = await getTheaterEmailAddresses(theater._id || theater);
+    
+    if (!emailAddresses || emailAddresses.length === 0) {
+      console.warn(`⚠️  Theater ${theater.name} has no active email notifications configured. Skipping expired stock notification.`);
+      return { success: false, error: 'No active email notifications configured for theater' };
+    }
+    
+    const stockData = products.map(p => ({
+      productName: p.productName,
+      oldStock: p.oldStock || 0,
+      invordStock: p.invordStock || 0,
+      sales: p.sales || 0,
+      damageStock: p.damageStock || 0,
+      expiredStock: p.expiredStock || 0,
+      balance: p.balance || 0,
+      expireDate: p.expireDate,
+      status: 'Expired'
+    }));
+    
+    // Generate Excel attachment
+    const excelBuffer = await generateStockExcelBuffer(stockData, `Expired Stock Notification - ${theater.name}`);
+    const fileName = `Expired_Stock_${theater.name}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .header { background-color: #EF4444; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; }
+          .alert { background-color: #FEE2E2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0; }
+          .product-list { margin: 20px 0; }
+          .product-item { padding: 10px; border-bottom: 1px solid #ddd; }
+          .footer { background-color: #F3F4F6; padding: 15px; text-align: center; font-size: 12px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>⚠️ Expired Stock Notification</h1>
+        </div>
+        <div class="content">
+          <p>Dear ${theater.name} Team,</p>
+          
+          <div class="alert">
+            <strong>⚠️ Urgent:</strong> You have ${products.length} product(s) with expired stock that require immediate attention.
+          </div>
+          
+          <h3>Expired Products:</h3>
+          <div class="product-list">
+            ${products.map(p => `
+              <div class="product-item">
+                <strong>${p.productName}</strong><br>
+                Expiry Date: ${new Date(p.expireDate).toLocaleDateString('en-IN')}<br>
+                Expired Stock: ${p.expiredStock || 0} units<br>
+                Current Balance: ${p.balance || 0} units
+              </div>
+            `).join('')}
+          </div>
+          
+          <p><strong>Action Required:</strong> Please remove expired stock from inventory immediately to prevent sales of expired products.</p>
+          
+          <p>Please review the attached Excel report for detailed stock information.</p>
+          
+          <p>Best regards,<br>YQPayNow System</p>
+        </div>
+        <div class="footer">
+          <p>This is an automated notification. Please do not reply to this email.</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    return await sendEmail({
+      to: emailAddresses,
+      subject: `⚠️ Expired Stock Notification - ${theater.name}`,
+      html,
+      attachments: [{
+        filename: fileName,
+        content: excelBuffer
+      }]
+    });
+  } catch (error) {
+    console.error('❌ Error sending expired stock notification:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendStockExpirationWarning,
   sendLowStockAlert,
   sendStockAddedNotification,
   sendDailySalesReport,
+  sendDailyStockReport,
+  sendExpiredStockNotification,
   getSMTPConfig,
   createTransporter
 };

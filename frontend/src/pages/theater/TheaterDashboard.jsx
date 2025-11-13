@@ -224,6 +224,50 @@ const TheaterDashboard = React.memo(() => {
     }
   }, [theaterId, userTheaterId, userType, navigate, user, fetchDashboardData, initialLoadDone]);
 
+  // Check for expiring agreement and show notification to theater admin
+  const { warning } = useToast();
+
+  React.useEffect(() => {
+    const effectiveTheaterId = theaterId || userTheaterId;
+    if (!effectiveTheaterId) return;
+
+    const checkAgreementStatus = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        const response = await fetch(`${config.api.baseUrl}/theaters/${effectiveTheaterId}/agreement-status`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data.hasAgreement) {
+            if (result.data.isExpiring) {
+              warning(
+                `Your agreement expires in ${result.data.daysUntilExpiration} day(s). Please contact support to renew.`,
+                8000
+              );
+            } else if (result.data.isExpired) {
+              warning(
+                'Your agreement has expired. Please contact support immediately to renew.',
+                10000
+              );
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking agreement status:', error);
+      }
+    };
+
+    // Check immediately and then every 5 minutes
+    checkAgreementStatus();
+    const interval = setInterval(checkAgreementStatus, 300000); // 5 minutes
+    
+    return () => clearInterval(interval);
+  }, [theaterId, userTheaterId, warning]);
 
   // 🚀 INSTANT: Always show content - use skeleton if loading
   const hasData = stats.totalOrders > 0 || recentOrders.length > 0 || theaterInfo.name;

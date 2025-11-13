@@ -4,6 +4,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import config from '../config';
 import { useCachedFetch } from '../hooks/useCachedFetch';
 import { SkeletonDashboard } from '../components/SkeletonLoader';
+import { useToast } from '../contexts/ToastContext';
 import '../styles/SuperAdminDashboard.css';
 
 
@@ -68,6 +69,48 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [token, refetch]);
 
+  // Check for expiring agreements and show notification
+  const [expiringAgreements, setExpiringAgreements] = React.useState([]);
+  const { warning } = useToast();
+
+  React.useEffect(() => {
+    if (!token) return;
+
+    const checkExpiringAgreements = async () => {
+      try {
+        const response = await fetch(`${config.api.baseUrl}/theaters/expiring-agreements`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data.expiringTheaters.length > 0) {
+            setExpiringAgreements(result.data.expiringTheaters);
+            
+            // Show notification for each expiring agreement
+            result.data.expiringTheaters.forEach(theater => {
+              warning(
+                `Agreement for ${theater.theaterName} expires in ${theater.daysUntilExpiration} day(s)`,
+                5000
+              );
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error checking expiring agreements:', error);
+      }
+    };
+
+    // Check immediately and then every 5 minutes
+    checkExpiringAgreements();
+    const interval = setInterval(checkExpiringAgreements, 300000); // 5 minutes
+    
+    return () => clearInterval(interval);
+  }, [token, warning]);
+
   // 🚀 INSTANT: Always show content - use skeleton if no data
   const hasData = stats || initialStats;
   
@@ -88,7 +131,11 @@ const Dashboard = () => {
       <AdminLayout pageTitle="Dashboard" currentPage="dashboard">
         <div className="sadmin-wrapper">
           <div className="sadmin-error">
-            <div className="sadmin-error-icon">⚠️</div>
+            <div className="sadmin-error-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
             <h3>Error Loading Dashboard</h3>
             <p>{error}</p>
             <button onClick={refetch} className="sadmin-retry-btn">
@@ -191,7 +238,7 @@ const Dashboard = () => {
             </div>
             <div className="sadmin-projects-stats">
               <div className="sadmin-project-stat">
-                <div className="sadmin-project-number">{stats?.projects?.open || 0}</div>
+                <div className="sadmin-project-number">{stats?.projects?.open || stats?.summary?.activeTheaters || 0}</div>
                 <div className="sadmin-project-label">Active</div>
               </div>
               <div className="sadmin-project-stat">
@@ -199,13 +246,13 @@ const Dashboard = () => {
                 <div className="sadmin-project-label">Setup Complete</div>
               </div>
               <div className="sadmin-project-stat">
-                <div className="sadmin-project-number">{stats?.projects?.hold || 0}</div>
+                <div className="sadmin-project-number">{stats?.projects?.hold || stats?.summary?.inactiveTheaters || 0}</div>
                 <div className="sadmin-project-label">Inactive</div>
               </div>
             </div>
             <div className="sadmin-progress-bar">
-              <div className="sadmin-progress-fill" style={{ width: `${stats?.projects?.progression || 0}%` }}></div>
-              <div className="sadmin-progress-label">Active Rate {stats?.projects?.progression || 0}%</div>
+              <div className="sadmin-progress-fill" style={{ width: `${stats?.projects?.progression || (stats?.summary?.totalTheaters > 0 ? Math.round((stats?.summary?.activeTheaters / stats?.summary?.totalTheaters) * 100) : 0)}%` }}></div>
+              <div className="sadmin-progress-label">Active Rate {stats?.projects?.progression || (stats?.summary?.totalTheaters > 0 ? Math.round((stats?.summary?.activeTheaters / stats?.summary?.totalTheaters) * 100) : 0)}%</div>
             </div>
           </div>
 
@@ -225,31 +272,31 @@ const Dashboard = () => {
                 <span className="sadmin-invoice-dot sadmin-dot-overdue"></span>
                 <span className="sadmin-invoice-label">Overdue</span>
                 <span className="sadmin-invoice-count">{stats?.invoices?.overdue || 0}</span>
-                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.overdue || 0) * 100).toFixed(2)}</span>
+                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.overdue || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="sadmin-invoice-item">
                 <span className="sadmin-invoice-dot sadmin-dot-notpaid"></span>
                 <span className="sadmin-invoice-label">Pending</span>
                 <span className="sadmin-invoice-count">{stats?.invoices?.notPaid || 0}</span>
-                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.notPaid || 0) * 150).toFixed(2)}</span>
+                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.notPaid || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="sadmin-invoice-item">
                 <span className="sadmin-invoice-dot sadmin-dot-partial"></span>
                 <span className="sadmin-invoice-label">In Progress</span>
                 <span className="sadmin-invoice-count">{stats?.invoices?.partiallyPaid || 0}</span>
-                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.partiallyPaid || 0) * 200).toFixed(2)}</span>
+                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.partiallyPaid || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="sadmin-invoice-item">
                 <span className="sadmin-invoice-dot sadmin-dot-paid"></span>
                 <span className="sadmin-invoice-label">Completed</span>
                 <span className="sadmin-invoice-count">{stats?.invoices?.fullyPaid || 0}</span>
-                <span className="sadmin-invoice-amount">₹{(stats?.invoices?.totalInvoiced || 0).toFixed(2)}</span>
+                <span className="sadmin-invoice-amount">₹{(stats?.invoices?.totalInvoiced || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="sadmin-invoice-item">
                 <span className="sadmin-invoice-dot sadmin-dot-draft"></span>
                 <span className="sadmin-invoice-label">Cancelled</span>
                 <span className="sadmin-invoice-count">{stats?.invoices?.draft || 0}</span>
-                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.draft || 0) * 50).toFixed(2)}</span>
+                <span className="sadmin-invoice-amount">₹{((stats?.invoices?.draft || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
             <div className="sadmin-invoice-totals">

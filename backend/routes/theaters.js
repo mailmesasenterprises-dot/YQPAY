@@ -1079,4 +1079,112 @@ router.get('/:id/dashboard', [authenticateToken], async (req, res) => {
   }
 });
 
+/**
+ * GET /api/theaters/expiring-agreements
+ * Get theaters with agreements expiring within 5 days
+ */
+router.get('/expiring-agreements', authenticateToken, async (req, res) => {
+  try {
+    const now = new Date();
+    const fiveDaysFromNow = new Date(now);
+    fiveDaysFromNow.setDate(fiveDaysFromNow.getDate() + 5);
+    
+    // Find theaters with agreements expiring within 5 days
+    const expiringTheaters = await Theater.find({
+      'agreementDetails.endDate': {
+        $gte: now,
+        $lte: fiveDaysFromNow
+      },
+      isActive: true
+    })
+    .select('name _id agreementDetails.endDate ownerDetails.contactNumber')
+    .lean();
+
+    // Calculate days until expiration for each theater
+    const theatersWithDays = expiringTheaters.map(theater => {
+      const endDate = new Date(theater.agreementDetails.endDate);
+      const daysUntilExpiration = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+      
+      return {
+        theaterId: theater._id,
+        theaterName: theater.name,
+        endDate: theater.agreementDetails.endDate,
+        daysUntilExpiration,
+        contactNumber: theater.ownerDetails?.contactNumber || null
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        expiringTheaters: theatersWithDays,
+        count: theatersWithDays.length,
+        checkDate: now,
+        expirationWindow: 5
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching expiring agreements:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch expiring agreements',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/theaters/:theaterId/agreement-status
+ * Get agreement expiration status for a specific theater
+ */
+router.get('/:theaterId/agreement-status', authenticateToken, async (req, res) => {
+  try {
+    const theater = await Theater.findById(req.params.theaterId)
+      .select('name agreementDetails.endDate isActive')
+      .lean();
+
+    if (!theater) {
+      return res.status(404).json({
+        success: false,
+        error: 'Theater not found'
+      });
+    }
+
+    if (!theater.agreementDetails?.endDate) {
+      return res.json({
+        success: true,
+        data: {
+          hasAgreement: false,
+          isExpiring: false,
+          daysUntilExpiration: null
+        }
+      });
+    }
+
+    const now = new Date();
+    const endDate = new Date(theater.agreementDetails.endDate);
+    const daysUntilExpiration = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+    const isExpiring = daysUntilExpiration <= 5 && daysUntilExpiration >= 0;
+    const isExpired = daysUntilExpiration < 0;
+
+    res.json({
+      success: true,
+      data: {
+        hasAgreement: true,
+        isExpiring,
+        isExpired,
+        daysUntilExpiration: isExpired ? 0 : daysUntilExpiration,
+        endDate: theater.agreementDetails.endDate
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching agreement status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch agreement status',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;

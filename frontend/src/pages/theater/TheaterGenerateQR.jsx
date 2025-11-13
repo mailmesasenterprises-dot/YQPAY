@@ -160,9 +160,9 @@ const TheaterGenerateQR = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data) {
-          // Use qrCodeUrl (correct field name) or logoUrl as fallback
-          const logoUrl = data.data.qrCodeUrl || data.data.logoUrl || '';
-          console.log('🎨 Loaded Default Logo URL:', logoUrl);
+          // Use logoUrl from Super Admin -> Settings -> General -> Application Logo
+          const logoUrl = data.data.logoUrl || '';
+          console.log('🎨 Loaded Default Logo URL from Settings:', logoUrl);
           setDefaultLogoUrl(logoUrl);
         }
       }
@@ -1005,7 +1005,7 @@ const TheaterGenerateQR = () => {
                     Preview of QR code with selected logo
                   </p>
                   <QRCodePreview 
-                    data={`https://yqpaynow.com/menu/${theaterId}?qrName=${encodeURIComponent(formData.name)}`}
+                    data={`${config.app.publicUrl || window.location.origin}/menu/${theaterId}?qrName=${encodeURIComponent(formData.name)}`}
                     logoUrl={formData.logoUrl}
                     size={200}
                   />

@@ -54,7 +54,7 @@ const config = {
     environment: import.meta.env.MODE || 'development',
     isDevelopment: import.meta.env.DEV || import.meta.env.MODE === 'development',
     isProduction: import.meta.env.PROD || import.meta.env.MODE === 'production',
-    publicUrl: import.meta.env.BASE_URL || ''
+    publicUrl: import.meta.env.VITE_APP_BASE_URL || import.meta.env.BASE_URL || ''
   },
 
   // ==============================================

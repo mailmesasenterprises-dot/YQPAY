@@ -307,7 +307,6 @@ const Header = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, setSidebarColla
               </div>
             )}
           </div>
-          <button className="icon-btn">{getIcon('settings')}</button>
           <div className="user-profile-container" ref={profileRef}>
             <div 
               className="user-avatar clickable" 

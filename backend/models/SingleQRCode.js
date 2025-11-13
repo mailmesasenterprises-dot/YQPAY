@@ -68,6 +68,13 @@ const singleQRCodeSchema = new mongoose.Schema({
       default: 'default'
     },
     
+    // Orientation: 'landscape' or 'portrait' - only for single type
+    orientation: {
+      type: String,
+      enum: ['landscape', 'portrait'],
+      default: 'landscape'
+    },
+    
     // Scan tracking - only for single type
     scanCount: {
       type: Number,
@@ -116,6 +123,13 @@ const singleQRCodeSchema = new mongoose.Schema({
         type: String,
         enum: ['default', 'theater', 'custom', ''],
         default: 'default'
+      },
+      
+      // Orientation: 'landscape' or 'portrait'
+      orientation: {
+        type: String,
+        enum: ['landscape', 'portrait'],
+        default: 'landscape'
       },
       
       // Scan tracking

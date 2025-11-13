@@ -477,7 +477,7 @@ const TransactionDetail = () => {
     } finally {
       setDownloadingExcel(false);
     }
-  }, [theaterId, dateFilter, sourceFilter, showError, toast]);
+  }, [theaterId, dateFilter, sourceFilter, toast]);
 
   // Header button for date filter
   const headerButton = (

@@ -191,7 +191,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
 
   const handleSubmit = (e) => {
     if (e && e.preventDefault) {
-      e.preventDefault();
+    e.preventDefault();
     }
     onSave(formData);
   };
@@ -576,9 +576,9 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                   const blob = await response.blob();
                                   const filename = `${seat.seat}_QR.png`;
                                   folder.file(filename, blob);
-                                } catch (error) {
+  } catch (error) {
                                   // Silent fail for individual seat
-                                }
+  }
                               });
                               
                               await Promise.all(fetchPromises);

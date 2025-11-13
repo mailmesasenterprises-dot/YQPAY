@@ -58,8 +58,18 @@
 }
 
 .sadmin-error-icon {
-  font-size: 3rem;
+  width: 64px;
+  height: 64px;
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #EF4444;
+}
+
+.sadmin-error-icon svg {
+  width: 48px;
+  height: 48px;
 }
 
 .sadmin-error h3 {

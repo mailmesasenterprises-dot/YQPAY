@@ -77,13 +77,8 @@ async function fetchLogo(logoUrl) {
     if (logoUrl.startsWith('/')) {
       console.log(`🔗 Relative URL detected: ${logoUrl}`);
       
-      // Convert relative path to full URL using frontend base URL
-      let baseUrl;
-      if (process.env.NODE_ENV === 'production') {
-        baseUrl = process.env.BASE_URL?.trim() || 'https://yqpaynow.com';
-      } else {
-        baseUrl = process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
-      }
+      // Convert relative path to full URL using frontend base URL from env
+      const baseUrl = process.env.BASE_URL?.trim() || process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
       
       const fullUrl = `${baseUrl}${logoUrl}`;
       console.log(`🔄 Converted relative path to full URL: ${fullUrl}`);
@@ -129,23 +124,53 @@ async function fetchLogo(logoUrl) {
  * @returns {Promise<Buffer>} - QR code with logo overlay
  */
 /**
- * Add text above and below QR code image
+ * Add full QR code structure with text, icons, and layout
  * @param {Buffer} qrBuffer - QR code image buffer
- * @param {string} topText - Text to display above QR (application name)
+ * @param {string} topText - Text to display above QR (ORDER YOUR FOOD HERE)
  * @param {string} bottomText - Text to display below QR (QR code name/seat)
- * @returns {Promise<Buffer>} - QR code with text
+ * @param {string} scanText - Text to display (Scan | Order | Pay)
+ * @param {string} theaterInfo - Theater information text
+ * @param {string} orientation - 'landscape' or 'portrait'
+ * @returns {Promise<Buffer>} - QR code with full structure
  */
-async function addTextToQR(qrBuffer, topText, bottomText) {
+async function addTextToQR(qrBuffer, topText, bottomText, scanText = 'Scan | Order | Pay', theaterInfo = '', orientation = 'landscape', theaterName = '') {
   try {
     // Load QR code image
     const qrImage = await loadImage(qrBuffer);
 
-    // Calculate canvas size (QR code + space for text)
-    const padding = 20;
-    const topTextHeight = 60;
-    const bottomTextHeight = 50;
-    const canvasWidth = qrImage.width + (padding * 2);
-    const canvasHeight = qrImage.height + topTextHeight + bottomTextHeight + (padding * 2);
+    const padding = 30;
+    const qrSize = Math.max(qrImage.width, qrImage.height);
+    const theaterNameHeight = theaterName ? 60 : 0; // Space for theater name at top
+    const bottomInfoHeight = theaterInfo ? 50 : 0; // Space for seat info at bottom
+    
+    // Calculate dimensions based on orientation
+    let canvasWidth, canvasHeight;
+    let qrX, qrY;
+    let contentX, contentY;
+    
+    if (orientation === 'landscape') {
+      // Landscape: Content on left, QR on right
+      const contentWidth = 300;
+      const qrPadding = 20;
+      canvasWidth = contentWidth + qrSize + (padding * 2) + qrPadding;
+      canvasHeight = Math.max(400, qrSize + (padding * 2)) + theaterNameHeight + bottomInfoHeight;
+      
+      contentX = padding;
+      contentY = padding + theaterNameHeight;
+      qrX = contentWidth + padding + qrPadding;
+      qrY = ((canvasHeight - theaterNameHeight - bottomInfoHeight) - qrSize) / 2 + theaterNameHeight;
+    } else {
+      // Portrait: Content on top, QR on bottom
+      const contentHeight = 200;
+      const qrPadding = 20;
+      canvasWidth = Math.max(400, qrSize + (padding * 2));
+      canvasHeight = contentHeight + qrSize + (padding * 2) + qrPadding + theaterNameHeight + bottomInfoHeight;
+      
+      contentX = padding;
+      contentY = padding + theaterNameHeight;
+      qrX = (canvasWidth - qrSize) / 2;
+      qrY = contentHeight + padding + qrPadding + theaterNameHeight;
+    }
 
     // Create canvas
     const canvas = createCanvas(canvasWidth, canvasHeight);
@@ -155,26 +180,70 @@ async function addTextToQR(qrBuffer, topText, bottomText) {
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-    // Draw top text (Application Name)
+    // Draw "ORDER YOUR FOOD HERE" text
     if (topText) {
       ctx.fillStyle = '#000000';
-      ctx.font = 'bold 28px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(topText.toUpperCase(), canvasWidth / 2, topTextHeight / 2 + padding);
+      ctx.font = orientation === 'landscape' ? 'bold 32px Arial' : 'bold 36px Arial';
+      ctx.textAlign = orientation === 'landscape' ? 'left' : 'center';
+      ctx.textBaseline = 'top';
+      const topY = contentY + 20;
+      ctx.fillText(topText.toUpperCase(), orientation === 'landscape' ? contentX : canvasWidth / 2, topY);
     }
 
-    // Draw QR code in center
-    ctx.drawImage(qrImage, padding, topTextHeight + padding);
+    // Draw food icons (popcorn, burger, drink)
+    const iconSize = 40;
+    const iconSpacing = 16;
+    const iconY = contentY + (orientation === 'landscape' ? 80 : 100);
+    const totalIconsWidth = (iconSize * 3) + (iconSpacing * 2);
+    const iconStartX = orientation === 'landscape' 
+      ? contentX 
+      : (canvasWidth - totalIconsWidth) / 2;
 
-    // Draw bottom text (QR Code Name/Seat)
-    if (bottomText) {
+    // Popcorn icon (simplified box)
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(iconStartX, iconY, iconSize, iconSize);
+    ctx.fillStyle = '#000000';
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('🍿', iconStartX + iconSize / 2, iconY + iconSize / 2 + 8);
+
+    // Burger icon
+    ctx.strokeRect(iconStartX + iconSize + iconSpacing, iconY, iconSize, iconSize);
+    ctx.fillText('🍔', iconStartX + iconSize + iconSpacing + iconSize / 2, iconY + iconSize / 2 + 8);
+
+    // Drink icon
+    ctx.strokeRect(iconStartX + (iconSize + iconSpacing) * 2, iconY, iconSize, iconSize);
+    ctx.fillText('🥤', iconStartX + (iconSize + iconSpacing) * 2 + iconSize / 2, iconY + iconSize / 2 + 8);
+
+    // Draw "Scan | Order | Pay" text
+    if (scanText) {
       ctx.fillStyle = '#000000';
-      ctx.font = 'bold 24px Arial';
+      ctx.font = 'bold 18px Arial';
+      ctx.textAlign = orientation === 'landscape' ? 'left' : 'center';
+      ctx.textBaseline = 'top';
+      const scanY = iconY + iconSize + 20;
+      ctx.fillText(scanText, orientation === 'landscape' ? contentX : canvasWidth / 2, scanY);
+    }
+
+    // Draw QR code
+    ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
+
+    // Draw theater info at bottom (below QR for portrait, to the right for landscape)
+    if (theaterInfo) {
+      ctx.fillStyle = '#6B7280';
+      ctx.font = '14px Arial';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const bottomY = topTextHeight + padding + qrImage.height + (bottomTextHeight / 2);
-      ctx.fillText(bottomText, canvasWidth / 2, bottomY);
+      ctx.textBaseline = 'top';
+      if (orientation === 'landscape') {
+        // Theater info below QR code on right side
+        const infoY = qrY + qrSize + 15;
+        ctx.fillText(theaterInfo, qrX + qrSize / 2, infoY);
+      } else {
+        // Theater info below QR code
+        const infoY = qrY + qrSize + 15;
+        ctx.fillText(theaterInfo, canvasWidth / 2, infoY);
+      }
     }
 
     // Return canvas as buffer
@@ -312,7 +381,7 @@ async function getApplicationName() {
 }
 
 /**
- * Get default logo URL from settings
+ * Get default logo URL from settings (Super Admin -> Settings -> General -> Application Logo)
  * @returns {Promise<string>} Default logo URL
  */
 async function getDefaultLogoUrl() {
@@ -320,13 +389,13 @@ async function getDefaultLogoUrl() {
     const db = mongoose.connection.db;
     const settingsDoc = await db.collection('settings').findOne({ type: 'general' });
 
-    if (settingsDoc && settingsDoc.generalConfig && settingsDoc.generalConfig.qrCodeUrl) {
-      console.log('🎨 Found default logo URL in settings:', settingsDoc.generalConfig.qrCodeUrl);
-      return settingsDoc.generalConfig.qrCodeUrl;
+    if (settingsDoc && settingsDoc.generalConfig && settingsDoc.generalConfig.logoUrl) {
+      console.log('🎨 Found default logo URL in settings:', settingsDoc.generalConfig.logoUrl);
+      return settingsDoc.generalConfig.logoUrl;
     }
 
     // Fallback to empty string if no default logo configured
-    console.log('⚠️ No default logo URL found in settings');
+    console.log('⚠️ No default logo URL found in settings (Super Admin -> Settings -> General -> Application Logo)');
     return '';
   } catch (error) {
     console.error('⚠️ Error fetching default logo URL, using empty string:', error.message);
@@ -355,6 +424,7 @@ async function generateSingleQRCode({
   seat = null,
   logoUrl = '',
   logoType = 'default',
+  orientation = 'landscape',
   userId
 }) {
   try {
@@ -386,20 +456,14 @@ async function generateSingleQRCode({
     const seatPart = seat ? `_${seat}` : '';
     const uniqueId = `${theaterId}_${qrName}_${seatClass}${seatPart}_${timestamp}`.replace(/\s+/g, '_');
 
-let baseUrl;
+    // Use environment variables for base URL
+    const baseUrl = process.env.BASE_URL?.trim() || process.env.FRONTEND_URL?.trim() || 'http://localhost:3000';
 
-if (process.env.NODE_ENV === 'production') {
-  // use cloud run domain
-  baseUrl = process.env.BASE_URL?.trim() || 'https://yqpaynow.com';
-} else {
-  baseUrl = process.env.FRONTEND_URL?.trim() || 'https://yqpaynow.com';
-}
+    console.log(`🌐 QR Code Base URL: ${baseUrl}`);
 
-console.log(`🌐 QR Code Base URL: ${baseUrl}`);
-
-const typeParam = seat ? 'screen' : 'single';
-const seatParam = seat ? `&seat=${encodeURIComponent(seat)}` : '';
-const qrCodeData = `${baseUrl}/menu/${theaterId}?qrName=${encodeURIComponent(qrName)}&type=${typeParam}${seatParam}`;
+    const typeParam = seat ? 'screen' : 'single';
+    const seatParam = seat ? `&seat=${encodeURIComponent(seat)}` : '';
+    const qrCodeData = `${baseUrl}/menu/${theaterId}?qrName=${encodeURIComponent(qrName)}&type=${typeParam}${seatParam}`;
 
     // QR code options with super admin primary color
     const qrOptions = {
@@ -433,11 +497,14 @@ const qrCodeData = `${baseUrl}/menu/${theaterId}?qrName=${encodeURIComponent(qrN
       console.log(`⚠️  No logo URL provided, skipping logo overlay`);
     }
 
-    // Get application name and add text to QR code
+    // Get application name and add full structure to QR code
     const applicationName = await getApplicationName();
     const bottomText = seat ? `${qrName} | ${seat}` : qrName;
-    console.log(`📝 Adding text to QR: Top="${applicationName}", Bottom="${bottomText}"`);
-    qrCodeBuffer = await addTextToQR(qrCodeBuffer, applicationName, bottomText);
+    const theaterInfoText = seat 
+      ? `${qrName} | ${seatClass} | ${seat}` 
+      : `${qrName} | ${seatClass}`;
+    console.log(`📝 Adding full structure to QR: Top="ORDER YOUR FOOD HERE", Bottom="${bottomText}", Orientation="${orientation}"`);
+    qrCodeBuffer = await addTextToQR(qrCodeBuffer, 'ORDER YOUR FOOD HERE', bottomText, 'Scan | Order | Pay', theaterInfoText, orientation);
 
     // Upload to Google Cloud Storage
     const gcsPath = await uploadToGCS(qrCodeBuffer, {
