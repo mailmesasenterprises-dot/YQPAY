@@ -1405,11 +1405,8 @@ const TheaterProductList = () => {
       unitOfMeasure: product.inventory?.unit || product.unitOfMeasure || 'Piece',
       lowStockAlert: product.inventory?.minStock || product.lowStockAlert || '',
       displayOrder: product.displayOrder || '',
-      visibleInMenu: product.visibleInMenu !== undefined ? product.visibleInMenu : true,
       isVeg: product.isVeg || product.dietary?.isVeg || '',
       preparationTime: product.preparationTime || product.specifications?.preparationTime || '',
-      isCustomizable: product.isCustomizable || false,
-      isComboItem: product.isComboItem || false,
       ingredients: product.specifications?.ingredients?.join(', ') || product.ingredients || '',
       existingImage: existingImage // Store existing image URL for display
     });
@@ -2335,39 +2332,6 @@ const TheaterProductList = () => {
                     )}
                   </div>
 
-                  {/* Checkboxes - simplified structure */}
-                  <div className="form-group">
-                    <label>Menu Options</label>
-                    <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={editFormData.visibleInMenu || false}
-                          onChange={(e) => handleEditFormChange('visibleInMenu', e.target.checked)}
-                        />
-                        <span className="checkmark"></span>
-                        Visible in Menu
-                      </label>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={editFormData.isCustomizable || false}
-                          onChange={(e) => handleEditFormChange('isCustomizable', e.target.checked)}
-                        />
-                        <span className="checkmark"></span>
-                        Customizable Product
-                      </label>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={editFormData.isComboItem || false}
-                          onChange={(e) => handleEditFormChange('isComboItem', e.target.checked)}
-                        />
-                        <span className="checkmark"></span>
-                        Combo Item
-                      </label>
-                    </div>
-                  </div>
 
                   {/* Error Display */}
                   {editErrors.submit && (

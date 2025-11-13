@@ -221,6 +221,7 @@ const TheaterList = React.memo(() => {
     aadharCard: null,
     panCard: null,
     gstCertificate: null,
+    fssaiCertificate: null,
     businessLicense: null,
     agreementDocument: null
   });
@@ -257,6 +258,7 @@ const TheaterList = React.memo(() => {
       aadharCard: null,
       panCard: null,
       gstCertificate: null,
+      fssaiCertificate: null,
       businessLicense: null,
       agreementDocument: null
     });
@@ -449,6 +451,7 @@ const TheaterList = React.memo(() => {
       aadharCard: null,
       panCard: null,
       gstCertificate: null,
+      fssaiCertificate: null,
       businessLicense: null,
       agreementDocument: null
     });
@@ -1552,8 +1555,8 @@ const TheaterList = React.memo(() => {
               </div>
               
               <div className="modal-body">
-                <div className="edit-form">
-                  <div className="form-grid">
+                <div className="edit-form" style={{marginBottom: '32px'}}>
+                  <div className="form-grid" style={{marginBottom: '24px'}}>
                     <div className="form-group">
                       <label className="required">Theater Name</label>
                       <input 
@@ -1576,7 +1579,7 @@ const TheaterList = React.memo(() => {
                     </div>
                   </div>
 
-                  <div className="form-grid">
+                  <div className="form-grid" style={{marginBottom: '24px'}}>
                     <div className="form-group full-width">
                       <label>Address</label>
                       <textarea 
@@ -1589,7 +1592,7 @@ const TheaterList = React.memo(() => {
                     </div>
                   </div>
 
-                  <div className="form-grid">
+                  <div className="form-grid" style={{marginBottom: '24px'}}>
                     <div className="form-group">
                       <label className="required">Theater Phone</label>
                       <input 
@@ -1612,7 +1615,7 @@ const TheaterList = React.memo(() => {
                     </div>
                   </div>
 
-                  <div className="form-grid">
+                  <div className="form-grid" style={{marginBottom: '24px'}}>
                     <div className="form-group">
                       <label>Email Address</label>
                       <input 
@@ -1635,7 +1638,7 @@ const TheaterList = React.memo(() => {
                     </div>
                   </div>
 
-                  <div className="form-grid">
+                  <div className="form-grid" style={{marginBottom: '0'}}>
                     <div className="form-group">
                       <label className="required">State</label>
                       <input 
@@ -1659,76 +1662,332 @@ const TheaterList = React.memo(() => {
                   </div>
                 </div>
 
-                {/* Documents & Media Section - View Only (Like View Modal) */}
-                <div className="form-section">
+                {/* Documents & Media Section */}
+                <div className="form-section" style={{marginTop: '32px', paddingTop: '32px', borderTop: '1px solid #e2e8f0'}}>
                   <h3>📁 Documents & Media</h3>
                   
                   <div className="documents-grid">
                     {/* Theater Photo */}
-                    {editModal.theater?.documents?.theaterPhoto && (
-                      <div className="document-item">
-                        <label>Theater Photo</label>
-                        <div className="document-preview">
-                          <InstantImage 
-                            src={editModal.theater.documents.theaterPhoto} 
-                            alt="Theater Photo"
-                            className="document-image"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'block';
-                            }}
-                          />
-                          <button 
-                            className="action-btn download-btn download-btn-overlay"
-                            onClick={() => handleDownloadFile(
-                              editModal.theater.documents.theaterPhoto,
-                              `${editModal.theater.name}_Theater_Photo.jpg`
-                            )}
-                            title="Download Theater Photo"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
-                            </svg>
-                          </button>
-                          <div className="document-placeholder" style={{display: 'none'}}>
+                    <div className="document-item">
+                      <label>Theater Photo</label>
+                      <div className="document-preview">
+                        {editModal.theater?.documents?.theaterPhoto ? (
+                          <>
+                            <InstantImage 
+                              src={editModal.theater.documents.theaterPhoto} 
+                              alt="Theater Photo"
+                              className="document-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                editModal.theater.documents.theaterPhoto,
+                                `${editModal.theater.name}_Theater_Photo.jpg`
+                              )}
+                              title="Download Theater Photo"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
+                            <div className="document-placeholder" style={{display: 'none'}}>
+                              📷 Theater Photo
+                            </div>
+                          </>
+                        ) : (
+                          <div className="document-placeholder">
                             📷 Theater Photo
                           </div>
-                        </div>
+                        )}
                       </div>
-                    )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'theaterPhoto')}
+                        className="file-input"
+                        style={{marginTop: '8px', width: '100%'}}
+                      />
+                    </div>
 
                     {/* Theater Logo */}
-                    {(editModal.theater?.documents?.logo || editModal.theater?.branding?.logo || editModal.theater?.branding?.logoUrl) && (
-                      <div className="document-item">
-                        <label>Theater Logo</label>
-                        <div className="document-preview">
-                          <InstantImage 
-                            src={editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl} 
-                            alt="Theater Logo"
-                            className="document-image"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'block';
-                            }}
-                          />
-                          <button 
-                            className="action-btn download-btn download-btn-overlay"
-                            onClick={() => handleDownloadFile(
-                              editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl,
-                              `${editModal.theater.name}_Logo.jpg`
-                            )}
-                            title="Download Theater Logo"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
-                            </svg>
-                          </button>
-                          <div className="document-placeholder" style={{display: 'none'}}>
+                    <div className="document-item">
+                      <label>Theater Logo</label>
+                      <div className="document-preview">
+                        {(editModal.theater?.documents?.logo || editModal.theater?.branding?.logo || editModal.theater?.branding?.logoUrl) ? (
+                          <>
+                            <InstantImage 
+                              src={editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl} 
+                              alt="Theater Logo"
+                              className="document-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                editModal.theater.documents?.logo || editModal.theater.branding?.logo || editModal.theater.branding?.logoUrl,
+                                `${editModal.theater.name}_Logo.jpg`
+                              )}
+                              title="Download Theater Logo"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
+                            <div className="document-placeholder" style={{display: 'none'}}>
+                              🏢 Theater Logo
+                            </div>
+                          </>
+                        ) : (
+                          <div className="document-placeholder">
                             🏢 Theater Logo
                           </div>
-                        </div>
+                        )}
                       </div>
-                    )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'logo')}
+                        className="file-input"
+                        style={{marginTop: '8px', width: '100%'}}
+                      />
+                    </div>
+
+                    {/* Aadhar Card */}
+                    <div className="document-item">
+                      <label>Aadhar Card</label>
+                      <div className="document-preview">
+                        {editModal.theater?.documents?.aadharCard ? (
+                          <>
+                            <InstantImage 
+                              src={editModal.theater.documents.aadharCard} 
+                              alt="Aadhar Card"
+                              className="document-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                editModal.theater.documents.aadharCard,
+                                `${editModal.theater.name}_Aadhar_Card.pdf`
+                              )}
+                              title="Download Aadhar Card"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
+                            <div className="document-placeholder" style={{display: 'none'}}>
+                              🆔 Aadhar Card
+                            </div>
+                          </>
+                        ) : (
+                          <div className="document-placeholder">
+                            🆔 Aadhar Card
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => handleFileUpload(e, 'aadharCard')}
+                        className="file-input"
+                        style={{marginTop: '8px', width: '100%'}}
+                      />
+                    </div>
+
+                    {/* PAN Card */}
+                    <div className="document-item">
+                      <label>PAN Card</label>
+                      <div className="document-preview">
+                        {editModal.theater?.documents?.panCard ? (
+                          <>
+                            <InstantImage 
+                              src={editModal.theater.documents.panCard} 
+                              alt="PAN Card"
+                              className="document-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                editModal.theater.documents.panCard,
+                                `${editModal.theater.name}_PAN_Card.pdf`
+                              )}
+                              title="Download PAN Card"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
+                            <div className="document-placeholder" style={{display: 'none'}}>
+                              📄 PAN Card
+                            </div>
+                          </>
+                        ) : (
+                          <div className="document-placeholder">
+                            📄 PAN Card
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => handleFileUpload(e, 'panCard')}
+                        className="file-input"
+                        style={{marginTop: '8px', width: '100%'}}
+                      />
+                    </div>
+
+                    {/* GST Certificate */}
+                    <div className="document-item">
+                      <label>GST Certificate</label>
+                      <div className="document-preview">
+                        {editModal.theater?.documents?.gstCertificate ? (
+                          <>
+                            <InstantImage 
+                              src={editModal.theater.documents.gstCertificate} 
+                              alt="GST Certificate"
+                              className="document-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                editModal.theater.documents.gstCertificate,
+                                `${editModal.theater.name}_GST_Certificate.pdf`
+                              )}
+                              title="Download GST Certificate"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
+                            <div className="document-placeholder" style={{display: 'none'}}>
+                              📋 GST Certificate
+                            </div>
+                          </>
+                        ) : (
+                          <div className="document-placeholder">
+                            📋 GST Certificate
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => handleFileUpload(e, 'gstCertificate')}
+                        className="file-input"
+                        style={{marginTop: '8px', width: '100%'}}
+                      />
+                    </div>
+
+                    {/* FSSAI Certificate */}
+                    <div className="document-item">
+                      <label>FSSAI Certificate</label>
+                      <div className="document-preview">
+                        {editModal.theater?.documents?.fssaiCertificate ? (
+                          <>
+                            <InstantImage 
+                              src={editModal.theater.documents.fssaiCertificate} 
+                              alt="FSSAI Certificate"
+                              className="document-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                editModal.theater.documents.fssaiCertificate,
+                                `${editModal.theater.name}_FSSAI_Certificate.pdf`
+                              )}
+                              title="Download FSSAI Certificate"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
+                            <div className="document-placeholder" style={{display: 'none'}}>
+                              🍽️ FSSAI Certificate
+                            </div>
+                          </>
+                        ) : (
+                          <div className="document-placeholder">
+                            🍽️ FSSAI Certificate
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => handleFileUpload(e, 'fssaiCertificate')}
+                        className="file-input"
+                        style={{marginTop: '8px', width: '100%'}}
+                      />
+                    </div>
+
+                    {/* Agreement Copy */}
+                    <div className="document-item">
+                      <label>Agreement Copy</label>
+                      <div className="document-preview">
+                        {editModal.theater?.documents?.agreementCopy ? (
+                          <>
+                            <InstantImage 
+                              src={editModal.theater.documents.agreementCopy} 
+                              alt="Agreement Copy"
+                              className="document-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'block';
+                              }}
+                            />
+                            <button 
+                              className="action-btn download-btn download-btn-overlay"
+                              onClick={() => handleDownloadFile(
+                                editModal.theater.documents.agreementCopy,
+                                `${editModal.theater.name}_Agreement_Copy.pdf`
+                              )}
+                              title="Download Agreement Copy"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-6 2h12v2H6v-2z"/>
+                              </svg>
+                            </button>
+                            <div className="document-placeholder" style={{display: 'none'}}>
+                              📝 Agreement Copy
+                            </div>
+                          </>
+                        ) : (
+                          <div className="document-placeholder">
+                            📝 Agreement Copy
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => handleFileUpload(e, 'agreementDocument')}
+                        className="file-input"
+                        style={{marginTop: '8px', width: '100%'}}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1792,11 +2051,70 @@ const TheaterList = React.memo(() => {
           width: 85% !important;
         }
 
+        .theater-edit-modal-content .modal-body {
+          padding: 24px !important;
+        }
+
+        .theater-edit-modal-content .edit-form .form-grid {
+          margin-bottom: 24px;
+        }
+
+        .theater-edit-modal-content .edit-form .form-grid:last-of-type {
+          margin-bottom: 0;
+        }
+
+        .theater-edit-modal-content .form-section {
+          margin-top: 32px;
+          padding-top: 32px;
+          border-top: 1px solid #e2e8f0;
+        }
+
+        .theater-edit-modal-content .form-section h3 {
+          margin-bottom: 20px;
+          font-size: 18px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+
+        .theater-edit-modal-content .documents-grid {
+          margin-top: 0;
+        }
+
+        .theater-edit-modal-content .document-item {
+          margin-bottom: 0;
+        }
+
+        .theater-edit-modal-content .form-group {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .theater-edit-modal-content .form-group label {
+          margin-bottom: 8px;
+        }
+
+        .theater-edit-modal-content .form-group.full-width {
+          grid-column: 1 / -1;
+        }
+
         @media (max-width: 768px) {
           .theater-view-modal-content,
           .theater-edit-modal-content {
             width: 95% !important;
             max-width: none !important;
+          }
+
+          .theater-edit-modal-content .modal-body {
+            padding: 20px !important;
+          }
+
+          .theater-edit-modal-content .edit-form .form-grid {
+            margin-bottom: 20px;
+          }
+
+          .theater-edit-modal-content .form-section {
+            margin-top: 24px;
+            padding-top: 24px;
           }
         }
       `

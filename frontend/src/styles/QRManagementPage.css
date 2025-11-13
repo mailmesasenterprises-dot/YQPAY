@@ -690,16 +690,16 @@ div[class*="theater"] .filter-controls {
 .qr-management-table th:nth-child(1) { width: 60px; } /* S.No */
 .qr-management-table th:nth-child(2) { width: 60px; } /* Logo */
 .qr-management-table th:nth-child(3) { width: 350px; } /* Theater Name */
-.qr-management-table th:nth-child(4) { width: 180px; } /* Canteen QR Count */
-.qr-management-table th:nth-child(5) { width: 180px; } /* Screen QR Count */
+.qr-management-table th:nth-child(4) { width: 180px; } /* Single QR */
+.qr-management-table th:nth-child(5) { width: 180px; } /* Screen QR */
 .qr-management-table th:nth-child(6) { width: 70px; } /* Action */
 
 /* Main QR Management Table Cell Alignment */
 .qr-management-table td:nth-child(1) { text-align: center !important; } /* S.No */
 .qr-management-table td:nth-child(2) { text-align: center !important; } /* Logo */
 .qr-management-table td:nth-child(3) { text-align: center !important; } /* Theater Name */
-.qr-management-table td:nth-child(4) { text-align: center !important; } /* Canteen QR Count */
-.qr-management-table td:nth-child(5) { text-align: center !important; } /* Screen QR Count */
+.qr-management-table td:nth-child(4) { text-align: center !important; } /* Single QR */
+.qr-management-table td:nth-child(5) { text-align: center !important; } /* Screen QR */
 .qr-management-table td:nth-child(6) { text-align: center !important; } /* Action */
 
 /* NOTE: The following column widths are overridden below for different table types */
@@ -1197,6 +1197,28 @@ div[class*="theater"] .filter-controls {
   vertical-align: middle !important;
   display: table-cell !important;
   white-space: nowrap !important;
+}
+
+/* Actions Cell - Center alignment */
+.actions-cell {
+  text-align: center !important;
+  padding: 12px 8px !important;
+  vertical-align: middle !important;
+}
+
+.actions-cell .action-btn {
+  margin: 0 auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.actions-cell .action-buttons {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  margin: 0 auto !important;
+  width: fit-content !important;
 }
 
 .action-buttons {

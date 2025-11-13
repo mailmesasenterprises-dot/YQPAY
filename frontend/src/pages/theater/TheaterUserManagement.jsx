@@ -832,7 +832,6 @@ const TheaterUserManagement = () => {
 
               <div className="modal-body">
                 <div className="edit-form">
-                  <form onSubmit={handleSubmit}>
                     {/* Username */}
                     <div className="form-group">
                       <label>Username *</label>
@@ -1018,7 +1017,6 @@ const TheaterUserManagement = () => {
                     {formErrors.submit && (
                       <div className="form-error-message">{formErrors.submit}</div>
                     )}
-                  </form>
                 </div>
               </div>
 

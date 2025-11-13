@@ -266,7 +266,65 @@ const QRManagement = () => {
       if (data.success) {
         // Process theaters data from theaters API
         const theaters = data.data || [];
-        setManagementData(theaters);
+        
+        // Fetch QR codes for each theater to count unique screens
+        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json'
+        };
+        
+        // Process theaters with QR code counts
+        const theatersWithCounts = await Promise.all(
+          theaters.map(async (theater) => {
+            try {
+              // Fetch QR codes for this theater
+              const qrResponse = await fetch(
+                `${config.api.baseUrl}/single-qrcodes/theater/${theater._id}?_t=${Date.now()}`,
+                { headers, signal: abortControllerRef.current?.signal }
+              );
+              
+              if (qrResponse.ok) {
+                const qrData = await qrResponse.json();
+                if (qrData.success && qrData.data?.qrCodes) {
+                  const qrCodes = qrData.data.qrCodes;
+                  
+                  // Count unique screen names (qrName) for each type
+                  const singleQRScreens = new Set();
+                  const screenQRScreens = new Set();
+                  
+                  qrCodes.forEach(qr => {
+                    const qrName = qr.name || qr.qrName;
+                    if (qrName) {
+                      if (qr.qrType === 'single') {
+                        singleQRScreens.add(qrName);
+                      } else if (qr.qrType === 'screen') {
+                        screenQRScreens.add(qrName);
+                      }
+                    }
+                  });
+                  
+                  return {
+                    ...theater,
+                    canteenQRCount: singleQRScreens.size, // Count of unique screens for single type
+                    screenQRCount: screenQRScreens.size  // Count of unique screens for screen type
+                  };
+                }
+              }
+            } catch (error) {
+              console.warn(`Failed to fetch QR codes for theater ${theater._id}:`, error);
+            }
+            
+            // Return theater with 0 counts if QR fetch fails
+            return {
+              ...theater,
+              canteenQRCount: 0,
+              screenQRCount: 0
+            };
+          })
+        );
+        
+        setManagementData(theatersWithCounts);
         
         // Handle pagination data from theaters API
         const paginationData = data.pagination || {};
@@ -275,18 +333,13 @@ const QRManagement = () => {
         setTotalItems(paginationData.totalItems || 0);
         
         // Calculate QR statistics from theaters data
-        const totalTheaters = theaters.length;
+        const totalTheaters = theatersWithCounts.length;
         let totalCanteenQRs = 0;
         let totalScreenQRs = 0;
         
-        theaters.forEach(theater => {
-          // Count QR codes from theater data if available
-          if (theater.qrCodes) {
-            theater.qrCodes.forEach(qr => {
-              if (qr.type === 'canteen') totalCanteenQRs++;
-              else if (qr.type === 'screen') totalScreenQRs++;
-            });
-          }
+        theatersWithCounts.forEach(theater => {
+          totalCanteenQRs += theater.canteenQRCount || 0;
+          totalScreenQRs += theater.screenQRCount || 0;
         });
         
         setSummary({
@@ -455,8 +508,8 @@ const QRManagement = () => {
                           <th className="sno-col">S NO</th>
                           <th className="photo-col">LOGO</th>
                           <th className="name-col">Theater Name</th>
-                          <th className="owner-col">Canteen QR Count</th>
-                          <th className="contact-col">Screen QR Count</th>
+                          <th className="owner-col">Single QR</th>
+                          <th className="contact-col">Screen QR</th>
                           <th className="actions-col">Action</th>
                         </tr>
                       </thead>

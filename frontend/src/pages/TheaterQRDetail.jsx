@@ -190,7 +190,9 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     onSave(formData);
   };
 
@@ -237,7 +239,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
         </div>
         
         <div className="modal-body">
-          <form className="edit-form" onSubmit={handleSubmit}>
+          <div className="edit-form">
             <div className="form-group">
               <label>QR Code Name *</label>
               <select
@@ -421,59 +423,48 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
 
               return shouldShowSeatInfo;
             })() && (
-              <div className="form-group full-width">
+              <div className="form-group full-width qr-seat-info-container">
                 <label>Seat Information</label>
-                <div className="seat-info-display" style={{
-                  padding: '15px',
-                  backgroundColor: '#f3f4f6',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-                    <strong>QR Code Name:</strong> {formData.name || formData.parentQRName}
+                <div className="qr-seat-info-display">
+                  <div className="qr-seat-info-item">
+                    <div className="qr-seat-info-label">QR Code Name</div>
+                    <div className="qr-seat-info-value">{formData.name || formData.parentQRName}</div>
                   </div>
-                  <div style={{ fontSize: '16px', color: '#1f2937', fontWeight: '600', marginBottom: '8px' }}>
-                    <strong>Seat Number:</strong> {formData.seatNumber || 'N/A'}
+                  <div className="qr-seat-info-item">
+                    <div className="qr-seat-info-label">Seat Number</div>
+                    <div className="qr-seat-info-value highlight">{formData.seatNumber || 'N/A'}</div>
                   </div>
-                  <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                    <strong>Seat Class:</strong> {formData.seatClass || 'N/A'}
+                  <div className="qr-seat-info-item">
+                    <div className="qr-seat-info-label">Seat Class</div>
+                    <div className="qr-seat-info-value">{formData.seatClass || 'N/A'}</div>
                   </div>
                   
                   {/* Show QR Code Image for individual seat in view/edit mode */}
                   {formData.isSeatRow && formData.qrImageUrl && (
-                    <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e5e7eb' }}>
-                      <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-                        <strong>QR Code Image:</strong>
-                      </div>
-                      <div style={{ textAlign: 'center' }}>
+                    <div className="qr-seat-image-section">
+                      <div className="qr-seat-image-label">QR Code Image</div>
+                      <div className="qr-seat-image-container">
                         <InstantImage 
                           src={formData.qrImageUrl} 
                           alt={`QR Code for ${formData.seatNumber}`}
-                          style={{
-                            maxWidth: '200px',
-                            maxHeight: '200px',
-                            border: '2px solid #e5e7eb',
-                            borderRadius: '8px',
-                            padding: '8px',
-                            backgroundColor: 'white'
-                          }}
+                          className="qr-seat-image"
                           onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.nextElementSibling.style.display = 'block';
                           }}
                         />
 
-                        <div style={{ display: 'none', color: '#ef4444', fontSize: '12px', marginTop: '8px' }}>
+                        <div className="qr-seat-image-error">
                           QR code image not available
                         </div>
                       </div>
                       
                       {/* Download Button for Seat QR Code */}
-                      <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                      <div className="qr-seat-download-container">
                         <button
                           type="button"
+                          className="qr-seat-download-btn"
                           onClick={() => {
-
                             const link = document.createElement('a');
                             link.href = formData.qrImageUrl;
                             link.download = `${formData.seatClass || formData.name}_${formData.seatNumber}_QR.png`;
@@ -482,63 +473,19 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                             link.click();
                             document.body.removeChild(link);
                           }}
-                          style={{
-                            backgroundColor: '#8b5cf6',
-                            color: 'white',
-                            border: 'none',
-                            padding: '10px 20px',
-                            borderRadius: '6px',
-                            fontSize: '14px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            transition: 'all 0.2s',
-                            boxShadow: '0 2px 4px rgba(139, 92, 246, 0.3)'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#7c3aed';
-                            e.currentTarget.style.transform = 'translateY(-1px)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.4)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#8b5cf6';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
-                          }}
                         >
-                          <span>??</span>
+                          <span>📥</span>
                           <span>Download QR Code</span>
                         </button>
                       </div>
                       
                       {/* QR Image Update in Edit Mode */}
                       {mode === 'edit' && (
-                        <div style={{ marginTop: '12px' }}>
-                          <label style={{ 
-                            display: 'block', 
-                            fontSize: '13px', 
-                            color: '#6b7280', 
-                            marginBottom: '6px' 
-                          }}>
+                        <div className="qr-seat-update-section">
+                          <label className="qr-seat-update-label">
                             Update QR Code Image URL:
                           </label>
-                          {/* <input
-                            type="text"
-                            name="qrImageUrl"
-                            className="form-control"
-                            value={formData.qrImageUrl || ''}
-                            onChange={handleInputChange}
-                            placeholder="Enter new QR code image URL"
-                            style={{ fontSize: '13px' }}
-                          /> */}
-                          <p style={{ 
-                            fontSize: '11px', 
-                            color: '#9ca3af', 
-                            marginTop: '4px',
-                            marginBottom: '0'
-                          }}>
+                          <p className="qr-seat-update-note">
                             Paste the new Google Cloud Storage URL for this seat's QR code
                           </p>
                         </div>
@@ -556,39 +503,23 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
 
               return shouldShowSeatGrid;
             })() && (
-              <div className="form-group full-width" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflow: 'visible', minWidth: 0 }}>
+              <div className="form-group full-width qr-seat-layout-container">
                 <label style={{ fontSize: '16px', fontWeight: '600', marginBottom: '15px', display: 'block' }}>
                   Seat Layout ({formData.seats.length} seats)
                 </label>
-                <div style={{
-                  padding: '20px',
-                  backgroundColor: '#f9fafb',
-                  borderRadius: '12px',
-                  border: '1px solid #e5e7eb'
-                }}>
+                <div className="qr-seat-layout-wrapper">
                   {/* Screen Header with Download All Button */}
-                  <div style={{
-                    backgroundColor: '#8b5cf6',
-                    color: 'white',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    marginBottom: '20px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>??</span>
+                  <div className="qr-seat-screen-header">
+                    <div className="qr-seat-screen-title">
+                      <span>🎬</span>
                       <span>SCREEN - {formData.seatClass || formData.name}</span>
                     </div>
                     
-                    <div style={{ display: 'flex', gap: '10px' }}>
+                    <div className="qr-seat-screen-actions">
                       {mode === 'view' && (
                         <button
                           type="button"
+                          className="qr-seat-action-btn"
                           onClick={() => {
                             const currentMaxSeat = Math.max(...formData.seats.map(s => {
                               const match = s.seat.match(/\d+/);
@@ -621,33 +552,8 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                               onSeatEdit(newSeatData);
                             }
                           }}
-                          style={{
-                            backgroundColor: 'white',
-                            color: '#8b5cf6',
-                            border: 'none',
-                            padding: '8px 14px',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            minWidth: 'fit-content',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#f3f4f6';
-                            e.currentTarget.style.transform = 'scale(1.05)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'white';
-                            e.currentTarget.style.transform = 'scale(1)';
-                          }}
                         >
-                          <span>?</span>
+                          <span>➕</span>
                           <span>Add Seat</span>
                         </button>
                       )}
@@ -655,6 +561,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                       {mode === 'view' && formData.seats.filter(s => s.qrCodeUrl).length > 0 && (
                         <button
                           type="button"
+                          className="qr-seat-action-btn"
                           onClick={async () => {
                             const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
 
@@ -669,14 +576,14 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                   const blob = await response.blob();
                                   const filename = `${seat.seat}_QR.png`;
                                   folder.file(filename, blob);
-  } catch (error) {
-  }
+                                } catch (error) {
+                                  // Silent fail for individual seat
+                                }
                               });
                               
                               await Promise.all(fetchPromises);
                               
                               // Generate ZIP file
-
                               const zipBlob = await zip.generateAsync({ type: 'blob' });
                               
                               // Download ZIP
@@ -688,40 +595,13 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                               document.body.removeChild(link);
                               URL.revokeObjectURL(link.href);
                               
-
-                              alert(`? Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
+                              alert(`✅ Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
                             } catch (error) {
-
-                              alert('? Failed to create ZIP file. Please try again.');
+                              alert('❌ Failed to create ZIP file. Please try again.');
                             }
                           }}
-                          style={{
-                            backgroundColor: 'white',
-                            color: '#8b5cf6',
-                            border: 'none',
-                            padding: '8px 14px',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            minWidth: 'fit-content',
-                            borderRadius: '6px',
-                            fontSize: '13px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#f3f4f6';
-                            e.currentTarget.style.transform = 'scale(1.05)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'white';
-                            e.currentTarget.style.transform = 'scale(1)';
-                          }}
                         >
-                          <span>??</span>
+                          <span>📦</span>
                           <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
                         </button>
                       )}
@@ -729,11 +609,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                   </div>
 
                   {/* Seat Grid - Grouped by Row Letter */}
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px'
-                  }}>
+                  <div className="qr-seat-grid-container">
                     {(() => {
                       // Group seats by their letter prefix
                       const seatsByRow = {};
@@ -749,29 +625,14 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                       const sortedRows = Object.keys(seatsByRow).sort();
 
                       return sortedRows.map(rowLetter => (
-                        <div key={rowLetter} style={{
-                          display: 'flex',
-                          gap: '8px',
-                          alignItems: 'center'
-                        }}>
+                        <div key={rowLetter} className="qr-seat-row">
                           {/* Row Label */}
-                          <div style={{
-                            minWidth: '30px',
-                            fontSize: '16px',
-                            fontWeight: '600',
-                            color: '#374151',
-                            textAlign: 'center'
-                          }}>
+                          <div className="qr-seat-row-label">
                             {rowLetter}
                           </div>
 
                           {/* Seat Buttons in this row */}
-                          <div style={{
-                            display: 'flex',
-                            gap: '8px',
-                            flexWrap: 'wrap',
-                            flex: 1
-                          }}>
+                          <div className="qr-seat-row-seats">
                             {seatsByRow[rowLetter]
                               .sort((a, b) => {
                                 // Sort by number part: A1, A2, A3, etc.
@@ -782,21 +643,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                               .map((seat, index) => (
                                 <div
                                   key={seat._id || index}
-                                  style={{
-                                    backgroundColor: seat.isActive ? '#8b5cf6' : '#d1d5db',
-                                    color: 'white',
-                                    padding: '10px 16px',
-                                    borderRadius: '6px',
-                                    textAlign: 'center',
-                                    fontSize: '12px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    position: 'relative',
-                                    border: '2px solid transparent',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                    minWidth: '50px'
-                                  }}
+                                  className={`qr-seat-button ${!seat.isActive ? 'inactive' : ''}`}
                                   title={mode === 'view' ? `Left-click: Edit | Right-click: Download ${seat.seat}` : `Editing ${seat.seat}`}
                                   onClick={() => {
                                     // In view mode: Trigger seat edit callback
@@ -825,7 +672,6 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                     e.preventDefault(); // Prevent default context menu
                                     if (seat.qrCodeUrl && mode === 'view') {
                                       // Download QR code for this seat
-
                                       const link = document.createElement('a');
                                       link.href = seat.qrCodeUrl;
                                       link.download = `${formData.seatClass || formData.name}_${seat.seat}_QR.png`;
@@ -841,29 +687,10 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                       }, 150);
                                     }
                                   }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1.05)';
-                                    e.currentTarget.style.borderColor = '#6366f1';
-                                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.3)';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.transform = 'scale(1)';
-                                    e.currentTarget.style.borderColor = 'transparent';
-                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                                  }}
                                 >
                                   {seat.seat}
                                   {seat.qrCodeUrl && (
-                                    <div style={{
-                                      position: 'absolute',
-                                      top: '-4px',
-                                      right: '-4px',
-                                      width: '12px',
-                                      height: '12px',
-                                      backgroundColor: '#10b981',
-                                      borderRadius: '50%',
-                                      border: '2px solid white'
-                                    }} title="QR code available" />
+                                    <div className="qr-seat-qr-indicator" title="QR code available" />
                                   )}
                                 </div>
                               ))}
@@ -874,44 +701,28 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                   </div>
 
                   {/* Legend */}
-                  <div style={{
-                    marginTop: '20px',
-                    paddingTop: '15px',
-                    borderTop: '1px solid #e5e7eb',
-                    display: 'flex',
-                    gap: '20px',
-                    fontSize: '12px',
-                    color: '#6b7280',
-                    flexWrap: 'wrap'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '20px', height: '20px', backgroundColor: '#8b5cf6', borderRadius: '4px' }}></div>
+                  <div className="qr-seat-legend">
+                    <div className="qr-seat-legend-item">
+                      <div className="qr-seat-legend-box"></div>
                       <span>Active with QR</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '20px', height: '20px', backgroundColor: '#d1d5db', borderRadius: '4px' }}></div>
+                    <div className="qr-seat-legend-item">
+                      <div className="qr-seat-legend-box inactive"></div>
                       <span>Inactive</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <div style={{ width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '50%' }}></div>
+                    <div className="qr-seat-legend-item">
+                      <div className="qr-seat-legend-dot"></div>
                       <span>QR Code Available (click to view)</span>
                     </div>
                   </div>
 
                   {/* Seat Count Summary */}
-                  <div style={{
-                    marginTop: '15px',
-                    padding: '12px',
-                    backgroundColor: '#f3f4f6',
-                    borderRadius: '6px',
-                    fontSize: '13px',
-                    color: '#374151'
-                  }}>
-                    <div style={{ marginBottom: '8px' }}>
+                  <div className="qr-seat-summary">
+                    <div className="qr-seat-summary-text">
                       <strong>Summary:</strong> {formData.seats.filter(s => s.isActive).length} active seats, 
                       {' '}{formData.seats.filter(s => s.qrCodeUrl).length} with QR codes
                     </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e5e7eb' }}>
+                    <div className="qr-seat-quick-actions">
                       <strong>Quick Actions:</strong> Left-click to edit � Right-click to download
                     </div>
                   </div>
@@ -929,7 +740,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                 <span className="stat-value">₹{formData.totalRevenue || 0}</span>
               </div>
             </div> */}
-          </form>
+          </div>
         </div>
 
         {/* Modal Footer */}
@@ -1038,7 +849,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                 {actionLoading[formData.seatId] ? 'Deleting...' : 'Delete'}
               </button>
               <button
-                type="submit"
+                type="button"
                 className="btn-primary"
                 onClick={handleSubmit}
                 disabled={actionLoading[formData._id]}
@@ -1054,7 +865,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                 Cancel
               </button>
               <button
-                type="submit"
+                type="button"
                 className="btn-primary"
                 onClick={handleSubmit}
                 disabled={actionLoading[formData._id]}
@@ -1070,7 +881,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                 Cancel
               </button>
               <button
-                type="submit"
+                type="button"
                 className="btn-primary"
                 onClick={handleSubmit}
                 disabled={actionLoading.new}

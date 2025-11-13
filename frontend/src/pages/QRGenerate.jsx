@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ReactDOM from 'react-dom';
 import AdminLayout from '../components/AdminLayout';
 import { useToast } from '../contexts/ToastContext';
 import ErrorBoundary from '../components/ErrorBoundary';
@@ -102,6 +103,16 @@ const QRGenerate = React.memo(() => {
   // QR Names state
   const [qrNames, setQrNames] = useState([]);
   const [qrNamesLoading, setQrNamesLoading] = useState(false);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (generating) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = 'unset';
+      };
+    }
+  }, [generating]);
 
   // Load active theaters on component mount - OPTIMIZED: Load in parallel
   useEffect(() => {
@@ -281,8 +292,10 @@ const QRGenerate = React.memo(() => {
         setQrNames(availableQRNames);
 
         if (availableQRNames.length === 0 && data.data.qrCodeNames.length > 0) {
-  } else if (existingQRNames.length === 0) {
-  }
+          // All QR names have been generated
+        } else if (existingQRNames.length === 0) {
+          // No existing QR names found
+        }
       } else {
 
         setQrNames([]);
@@ -716,7 +729,7 @@ const QRGenerate = React.memo(() => {
       // Removed error modal - errors logged to console only
       setGenerating(false);
     }
-  }, [formData, validateForm, showSuccess, navigate, loadQRNames, defaultLogoUrl]);
+  }, [formData, validateForm, navigate, loadQRNames, defaultLogoUrl, toast]);
 
   // Add button click handler to generate seat map
   const handleGenerateSeatMap = useCallback(() => {
@@ -731,9 +744,92 @@ const QRGenerate = React.memo(() => {
         seatStart: 'A1',
         seatEnd: 'A20'
       }));
-      // Use setTimeout to wait for state update
+      // Use setTimeout to wait for state update and call the function again
       setTimeout(() => {
-        handleGenerateSeatMap();
+        // Re-read formData from state after update
+        const updatedSeatStart = 'A1';
+        const updatedSeatEnd = 'A20';
+        
+        // Validate format
+        const startMatch = updatedSeatStart.match(/^([A-Z]+)(\d+)$/);
+        const endMatch = updatedSeatEnd.match(/^([A-Z]+)(\d+)$/);
+        
+        if (!startMatch || !endMatch) {
+          return;
+        }
+        
+        const [, startRow, startNum] = startMatch;
+        const [, endRow, endNum] = endMatch;
+        const startRowCode = startRow.charCodeAt(0);
+        const endRowCode = endRow.charCodeAt(0);
+        const startNumber = parseInt(startNum);
+        const endNumber = parseInt(endNum);
+        
+        // Add current range to available seats list
+        const currentRange = {
+          startRow,
+          endRow,
+          startNumber,
+          endNumber,
+          startRowCode,
+          endRowCode
+        };
+        
+        setAllAvailableSeats(prev => {
+          const exists = prev.some(range => 
+            range.startRow === startRow && 
+            range.endRow === endRow && 
+            range.startNumber === startNumber && 
+            range.endNumber === endNumber
+          );
+          
+          if (!exists) {
+            return [...prev, currentRange];
+          }
+          return prev;
+        });
+        
+        // Show seat map
+        setShowSeatMap(true);
+        
+        // Auto-select all newly generated seats
+        const currentRangeSeats = [];
+        for (let rowCode = 65; rowCode <= endRowCode; rowCode++) {
+          const currentRow = String.fromCharCode(rowCode);
+          
+          let rowStart, rowEnd;
+          if (startRowCode === endRowCode) {
+            if (rowCode === startRowCode) {
+              rowStart = startNumber;
+              rowEnd = endNumber;
+            } else {
+              continue;
+            }
+          } else {
+            if (rowCode === startRowCode) {
+              rowStart = startNumber;
+              rowEnd = endNumber;
+            } else if (rowCode === endRowCode) {
+              rowStart = 1;
+              rowEnd = endNumber;
+            } else {
+              rowStart = 1;
+              rowEnd = endNumber;
+            }
+          }
+          
+          for (let i = rowStart; i <= rowEnd; i++) {
+            currentRangeSeats.push(`${currentRow}${i}`);
+          }
+        }
+        
+        // Add new seats to selected seats (avoid duplicates)
+        setFormData(prev => ({
+          ...prev,
+          seatStart: '',
+          seatEnd: '',
+          selectedSeats: [...new Set([...prev.selectedSeats, ...currentRangeSeats])]
+        }));
       }, 100);
       return;
     }
@@ -826,7 +922,7 @@ const QRGenerate = React.memo(() => {
       seatEnd: '',
       selectedSeats: [...new Set([...prev.selectedSeats, ...currentRangeSeats])]
     }));
-  }, [formData.seatStart, formData.seatEnd, toast]);
+  }, [formData.seatStart, formData.seatEnd]);
 
   // Delete specific row from seat map
   const handleDeleteRow = useCallback((rowToDelete) => {
@@ -1178,8 +1274,8 @@ const QRGenerate = React.memo(() => {
               </div>
             </form>
             
-            {/* QR Generation Loading Overlay */}
-            {generating && (
+            {/* QR Generation Loading Overlay - Rendered via Portal */}
+            {generating && ReactDOM.createPortal(
               <div className="qr-generation-overlay">
                 <div className="qr-generation-modal">
                   <div className="qr-generation-header">
@@ -1245,7 +1341,8 @@ const QRGenerate = React.memo(() => {
                     </div>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
             
             {/* Performance Monitoring Display */}

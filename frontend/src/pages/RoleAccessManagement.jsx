@@ -867,7 +867,7 @@ const RoleAccessManagement = () => {
               </div>
               
               <div className="modal-body">
-                <div className="edit-form">
+                <div className="edit-form role-access-modal-form">
                   <div className="form-group">
                     <label>Role</label>
                     <input 
@@ -880,29 +880,33 @@ const RoleAccessManagement = () => {
 
                   <div className="form-group">
                     <label>Page Permissions</label>
-                    <div className="permissions-grid" style={{maxHeight: '300px', overflowY: 'auto'}}>
+                    <div className="role-access-permissions-container">
                       {formData.permissions.length === 0 ? (
-                        <div style={{padding: '20px', textAlign: 'center', color: '#666'}}>
+                        <div className="role-access-empty-state">
                           <p>No page permissions available.</p>
-                          <p style={{fontSize: '12px', marginTop: '8px'}}>
+                          <p className="role-access-empty-hint">
                             Please ensure pages are active in Page Access Management.
                           </p>
                         </div>
                       ) : (
-                        formData.permissions.map((permission, index) => (
-                          <div key={permission.page} className="permission-item" style={{display: 'flex', alignItems: 'center', padding: '8px', borderBottom: '1px solid #eee'}}>
-                            <input
-                              type="checkbox"
-                              checked={permission.hasAccess}
-                              onChange={(e) => handlePermissionChange(index, e.target.checked)}
-                              style={{marginRight: '10px'}}
-                            />
-                            <div>
-                              <div style={{fontWeight: '500'}}>{permission.pageName}</div>
-                              <div style={{fontSize: '12px', color: '#666'}}>{permission.page}</div>
+                        <div className="role-access-permissions-grid">
+                          {formData.permissions.map((permission, index) => (
+                            <div key={permission.page} className={`role-access-permission-card ${permission.hasAccess ? 'granted' : 'denied'}`}>
+                              <div className="role-access-permission-name">{permission.pageName}</div>
+                              <label className="role-access-checkbox-wrapper">
+                                <input
+                                  type="checkbox"
+                                  checked={permission.hasAccess}
+                                  onChange={(e) => handlePermissionChange(index, e.target.checked)}
+                                  className="role-access-checkbox"
+                                />
+                                <span className="role-access-checkbox-label">
+                                  {permission.hasAccess ? 'Granted' : 'Denied'}
+                                </span>
+                              </label>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -943,7 +947,7 @@ const RoleAccessManagement = () => {
               </div>
               
               <div className="modal-body">
-                <div className="edit-form">
+                <div className="edit-form role-access-modal-form">
                   <div className="form-group">
                     <label>Role Name</label>
                     <input 
@@ -966,35 +970,19 @@ const RoleAccessManagement = () => {
 
                   <div className="form-group">
                     <label>Granted Permissions</label>
-                    <div className="permissions-list" style={{maxHeight: '300px', overflowY: 'auto'}}>
-                      {(selectedRolePermission?.permissions || []).map((permission) => (
-                        <div key={permission.page} className="permission-item" style={{
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          padding: '8px', 
-                          borderBottom: '1px solid #eee',
-                          backgroundColor: permission.hasAccess ? '#f0f9ff' : '#f9fafb'
-                        }}>
-                          <div style={{
-                            width: '20px',
-                            height: '20px',
-                            borderRadius: '50%',
-                            backgroundColor: permission.hasAccess ? '#10b981' : '#ef4444',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginRight: '10px'
-                          }}>
-                            <span style={{color: 'white', fontSize: '12px'}}>
-                              {permission.hasAccess ? '✓' : '✗'}
-                            </span>
+                    <div className="role-access-permissions-container">
+                      <div className="role-access-permissions-grid">
+                        {(selectedRolePermission?.permissions || []).map((permission) => (
+                          <div key={permission.page} className={`role-access-permission-card ${permission.hasAccess ? 'granted' : 'denied'}`}>
+                            <div className="role-access-permission-name">{permission.pageName}</div>
+                            <div className="role-access-permission-status">
+                              <span className={`role-access-status-badge ${permission.hasAccess ? 'status-granted' : 'status-denied'}`}>
+                                {permission.hasAccess ? '✓ Granted' : '✗ Denied'}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <div style={{fontWeight: '500'}}>{permission.pageName}</div>
-                            <div style={{fontSize: '12px', color: '#666'}}>{permission.page}</div>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -1054,7 +1042,7 @@ const RoleAccessManagement = () => {
 
       </AdminLayout>
 
-      {/* Custom CSS for modal width - matches TheaterList */}
+      {/* Custom CSS for modal width and Role Access Modal Forms */}
       <style dangerouslySetInnerHTML={{
         __html: `
           .modal-content {
@@ -1067,6 +1055,245 @@ const RoleAccessManagement = () => {
               width: 95% !important;
               max-width: none !important;
             }
+          }
+
+          /* Role Access Modal Form - Professional Corporate Design */
+          .role-access-modal-form {
+            padding: 0;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0 !important;
+          }
+
+          .role-access-modal-form .form-group {
+            margin-bottom: 24px;
+            width: 100% !important;
+            grid-column: 1 / -1 !important;
+          }
+
+          .role-access-modal-form .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          .role-access-permissions-container {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            max-height: 450px;
+            overflow-y: auto;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            padding: 20px;
+          }
+
+          .role-access-permissions-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+          }
+
+          .role-access-permission-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 10px;
+            background: #ffffff;
+            transition: all 0.2s ease;
+            min-height: 120px;
+            position: relative;
+          }
+
+          .role-access-permission-card:hover {
+            border-color: #8b5cf6;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+            transform: translateY(-2px);
+          }
+
+          .role-access-permission-card.granted {
+            border-color: #10b981;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+          }
+
+          .role-access-permission-card.granted:hover {
+            border-color: #059669;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+          }
+
+          .role-access-permission-card.denied {
+            border-color: #e5e7eb;
+            background: #ffffff;
+          }
+
+          .role-access-permission-card.denied:hover {
+            border-color: #d1d5db;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          }
+
+          .role-access-permission-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+            line-height: 1.5;
+            letter-spacing: -0.01em;
+            margin-bottom: 16px;
+            flex: 1;
+          }
+
+          /* Checkbox Wrapper for Edit Modal */
+          .role-access-checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            user-select: none;
+            padding: 0;
+            margin-top: auto;
+          }
+
+          .role-access-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #8b5cf6;
+            margin: 0;
+            border-radius: 4px;
+            border: 2px solid #d1d5db;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+          }
+
+          .role-access-checkbox:checked {
+            border-color: #8b5cf6;
+            background-color: #8b5cf6;
+          }
+
+          .role-access-checkbox-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #4b5563;
+            text-align: left;
+            flex: 1;
+            transition: all 0.15s ease;
+          }
+
+          .role-access-checkbox:checked ~ .role-access-checkbox-label {
+            color: #7c3aed;
+          }
+
+          /* Status Badge for View Modal */
+          .role-access-permission-status {
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+          }
+
+          .role-access-status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            width: 100%;
+            justify-content: center;
+            text-transform: uppercase;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+          }
+
+          .role-access-status-badge.status-granted {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+            border: 1px solid #10b981;
+          }
+
+          .role-access-status-badge.status-denied {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+            border: 1px solid #ef4444;
+          }
+
+          /* Responsive Grid */
+          @media (max-width: 1200px) {
+            .role-access-permissions-grid {
+              grid-template-columns: repeat(2, 1fr);
+            }
+          }
+
+          @media (max-width: 768px) {
+            .role-access-permissions-grid {
+              grid-template-columns: 1fr;
+            }
+          }
+
+          /* Empty State */
+          .role-access-empty-state {
+            padding: 60px 20px;
+            text-align: center;
+            color: #6b7280;
+          }
+
+          .role-access-empty-state p {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 500;
+          }
+
+          .role-access-empty-hint {
+            font-size: 13px;
+            margin-top: 12px;
+            color: #9ca3af;
+            font-weight: 400;
+          }
+
+          /* Scrollbar Styling - Professional */
+          .role-access-permissions-container::-webkit-scrollbar {
+            width: 10px;
+          }
+
+          .role-access-permissions-container::-webkit-scrollbar-track {
+            background: #f9fafb;
+            border-radius: 5px;
+          }
+
+          .role-access-permissions-container::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 5px;
+            border: 2px solid #f9fafb;
+          }
+
+          .role-access-permissions-container::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+          }
+
+          /* Form Control Styling */
+          .role-access-modal-form .form-control {
+            background: #ffffff;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 14px;
+            transition: all 0.15s ease;
+          }
+
+          .role-access-modal-form .form-control:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+          }
+
+          .role-access-modal-form .form-control[readonly] {
+            background: #f9fafb;
+            color: #374151;
+            cursor: not-allowed;
           }
         `
       }} />

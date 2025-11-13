@@ -196,7 +196,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
         </div>
         
         <div className="modal-body">
-          <form className="edit-form" onSubmit={handleSubmit}>
+          <div className="edit-form">
             <div className="form-group">
               <label>QR Code Name *</label>
                 {isReadOnly ? (
@@ -367,126 +367,71 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
 
                 return shouldShowSeatInfo;
               })() && (
-                <div className="form-group full-width">
-                  <label>Seat Information</label>
-                  <div className="seat-info-display" style={{
-                    padding: '15px',
-                    backgroundColor: '#f3f4f6',
-                    borderRadius: '8px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-                      <strong>QR Code Name:</strong> {formData.name || formData.parentQRName}
-                    </div>
-                    <div style={{ fontSize: '16px', color: '#1f2937', fontWeight: '600', marginBottom: '8px' }}>
-                      <strong>Seat Number:</strong> {formData.seatNumber || 'N/A'}
-                    </div>
-                    <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                      <strong>Seat Class:</strong> {formData.seatClass || 'N/A'}
-                    </div>
+              <div className="form-group full-width qr-seat-info-container">
+                <label>Seat Information</label>
+                <div className="qr-seat-info-display">
+                  <div className="qr-seat-info-item">
+                    <div className="qr-seat-info-label">QR Code Name</div>
+                    <div className="qr-seat-info-value">{formData.name || formData.parentQRName}</div>
+                  </div>
+                  <div className="qr-seat-info-item">
+                    <div className="qr-seat-info-label">Seat Number</div>
+                    <div className="qr-seat-info-value highlight">{formData.seatNumber || 'N/A'}</div>
+                  </div>
+                  <div className="qr-seat-info-item">
+                    <div className="qr-seat-info-label">Seat Class</div>
+                    <div className="qr-seat-info-value">{formData.seatClass || 'N/A'}</div>
+                  </div>
                     
-                    {/* Show QR Code Image for individual seat in view/edit mode */}
-                    {formData.isSeatRow && formData.qrImageUrl && (
-                      <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e5e7eb' }}>
-                        <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
-                          <strong>QR Code Image:</strong>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <DirectQRImage 
-                            src={formData.qrImageUrl} 
-                            alt={`QR Code for ${formData.seatNumber}`}
-                            style={{
-                              maxWidth: '200px',
-                              maxHeight: '200px',
-                              border: '2px solid #e5e7eb',
-                              borderRadius: '8px',
-                              padding: '8px',
-                              backgroundColor: 'white'
-                            }}
-                          />
+                  {/* Show QR Code Image for individual seat in view/edit mode */}
+                  {formData.isSeatRow && formData.qrImageUrl && (
+                    <div className="qr-seat-image-section">
+                      <div className="qr-seat-image-label">QR Code Image</div>
+                      <div className="qr-seat-image-container">
+                        <DirectQRImage 
+                          src={formData.qrImageUrl} 
+                          alt={`QR Code for ${formData.seatNumber}`}
+                          className="qr-seat-image"
+                        />
 
-                          <div style={{ display: 'none', color: '#ef4444', fontSize: '12px', marginTop: '8px' }}>
-                            QR code image not available
-                          </div>
+                        <div className="qr-seat-image-error">
+                          QR code image not available
                         </div>
-                        
-                        {/* Download Button for Seat QR Code */}
-                        <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-
-                              const link = document.createElement('a');
-                              link.href = formData.qrImageUrl;
-                              link.download = `${formData.seatClass || formData.name}_${formData.seatNumber}_QR.png`;
-                              link.target = '_blank';
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            }}
-                            style={{
-                              backgroundColor: '#8b5cf6',
-                              color: 'white',
-                              border: 'none',
-                              padding: '10px 20px',
-                              borderRadius: '6px',
-                              fontSize: '14px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              transition: 'all 0.2s',
-                              boxShadow: '0 2px 4px rgba(139, 92, 246, 0.3)'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#7c3aed';
-                              e.currentTarget.style.transform = 'translateY(-1px)';
-                              e.currentTarget.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.4)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = '#8b5cf6';
-                              e.currentTarget.style.transform = 'translateY(0)';
-                              e.currentTarget.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
-                            }}
-                          >
-                            <span>??</span>
-                            <span>Download QR Code</span>
-                          </button>
-                        </div>
-                        
-                        {/* QR Image Update in Edit Mode */}
-                        {mode === 'edit' && (
-                          <div style={{ marginTop: '12px' }}>
-                            <label style={{ 
-                              display: 'block', 
-                              fontSize: '13px', 
-                              color: '#6b7280', 
-                              marginBottom: '6px' 
-                            }}>
-                              Update QR Code Image URL:
-                            </label>
-                            {/* <input
-                              type="text"
-                              name="qrImageUrl"
-                              className="form-control"
-                              value={formData.qrImageUrl || ''}
-                              onChange={handleInputChange}
-                              placeholder="Enter new QR code image URL"
-                              style={{ fontSize: '13px' }}
-                            /> */}
-                            <p style={{ 
-                              fontSize: '11px', 
-                              color: '#9ca3af', 
-                              marginTop: '4px',
-                              marginBottom: '0'
-                            }}>
-                              Paste the new Google Cloud Storage URL for this seat's QR code
-                            </p>
-                          </div>
-                        )}
                       </div>
-                    )}
+                      
+                      {/* Download Button for Seat QR Code */}
+                      <div className="qr-seat-download-container">
+                        <button
+                          type="button"
+                          className="qr-seat-download-btn"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = formData.qrImageUrl;
+                            link.download = `${formData.seatClass || formData.name}_${formData.seatNumber}_QR.png`;
+                            link.target = '_blank';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                        >
+                          <span>📥</span>
+                          <span>Download QR Code</span>
+                        </button>
+                      </div>
+                      
+                      {/* QR Image Update in Edit Mode */}
+                      {mode === 'edit' && (
+                        <div className="qr-seat-update-section">
+                          <label className="qr-seat-update-label">
+                            Update QR Code Image URL:
+                          </label>
+                          <p className="qr-seat-update-note">
+                            Paste the new Google Cloud Storage URL for this seat's QR code
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   </div>
                 </div>
               )}
@@ -498,199 +443,107 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
 
                 return shouldShowSeatGrid;
               })() && (
-                <div className="form-group full-width" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                  <label style={{ fontSize: '16px', fontWeight: '600', marginBottom: '15px', display: 'block' }}>
-                    Seat Layout ({formData.seats.length} seats)
-                  </label>
-                  <div style={{
-                    padding: '20px',
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '12px',
-                    border: '1px solid #e5e7eb',
-                    width: '100%',
-                    maxWidth: '100%',
-                    boxSizing: 'border-box',
-                    overflow: 'visible'
-                  }}>
-                    {/* Purple Screen Header with Add Seat and Download All buttons */}
-                    <div style={{
-                      backgroundColor: '#8b5cf6',
-                      color: 'white',
-                      padding: '12px 16px',
-                      borderRadius: '8px',
-                      marginBottom: '20px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      position: 'relative',
-                      minWidth: 0
-                    }}>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px',
-                        flex: '0 1 auto',
-                        minWidth: 0,
-                        overflow: 'hidden',
-                        maxWidth: 'calc(100% - 250px)' // Reserve space for buttons
-                      }}>
-                        <span style={{ flexShrink: 0 }}>🎬</span>
-                        <span style={{ 
-                          whiteSpace: 'nowrap', 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis',
-                          display: 'block'
-                        }}>
-                          SCREEN - {formData.seatClass || formData.name}
-                        </span>
-                      </div>
-                      
-                      <div style={{ 
-                        display: 'flex', 
-                        gap: '8px',
-                        flex: '0 0 auto',
-                        flexShrink: 0,
-                        alignItems: 'center',
-                        marginLeft: 'auto'
-                      }}>
-                        {mode === 'view' && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const currentMaxSeat = Math.max(...formData.seats.map(s => {
-                                const match = s.seat.match(/\d+/);
-                                return match ? parseInt(match[0]) : 0;
-                              }));
-                              const nextSeatNumber = currentMaxSeat + 1;
-                              const newSeatName = `A${nextSeatNumber}`;
-                              
-                              // Create new seat data
-                              const newSeatData = {
-                                ...formData,
-                                isSeatRow: true,
-                                seatNumber: newSeatName,
-                                qrImageUrl: null,
-                                isActive: true,
-                                scanCount: 0,
-                                seatId: `new_${Date.now()}`,
-                                parentQRDetailId: formData._id,
-                                parentDocId: formData.parentDocId || formData._id,
-                                _id: `${formData._id}_new_${Date.now()}`,
-                                parentQRName: formData.name,
-                                seatClass: formData.seatClass,
-                                seats: formData.seats,
-                                isNewSeat: true
-                              };
-                              
-                              // Switch to edit mode for the new seat
-                              if (onSeatEdit) {
-                                onSeatEdit(newSeatData);
-                              }
-                            }}
-                            style={{
-                              backgroundColor: 'white',
-                              color: '#8b5cf6',
-                              border: 'none',
-                              padding: '8px 14px',
-                              borderRadius: '6px',
-                              fontSize: '13px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              transition: 'all 0.2s',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                              minWidth: 'fit-content'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#f3f4f6';
-                              e.currentTarget.style.transform = 'scale(1.05)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'white';
-                              e.currentTarget.style.transform = 'scale(1)';
-                            }}
-                          >
-                            <span>➕</span>
-                            <span>Add Seat</span>
-                          </button>
-                        )}
-                        
-                        {mode === 'view' && formData.seats.filter(s => s.qrCodeUrl).length > 0 && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
-                              try {
-                                const zip = new JSZip();
-                                const folder = zip.folder(`${formData.seatClass || formData.name}_QR_Codes`);
-                                
-                                const fetchPromises = seatsWithQR.map(async (seat) => {
-                                  try {
-                                    const response = await fetch(seat.qrCodeUrl);
-                                    const blob = await response.blob();
-                                    folder.file(`${seat.seat}_QR.png`, blob);
-                                  } catch (error) {
-                                    console.error(`Failed to fetch ${seat.seat}:`, error);
-                                  }
-                                });
-                                
-                                await Promise.all(fetchPromises);
-                                const zipBlob = await zip.generateAsync({ type: 'blob' });
-                                
-                                const link = document.createElement('a');
-                                link.href = URL.createObjectURL(zipBlob);
-                                link.download = `${formData.seatClass || formData.name}_QR_Codes.zip`;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                URL.revokeObjectURL(link.href);
-                                
-                                alert(`✅ Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
-                              } catch (error) {
-                                alert('❌ Failed to create ZIP file.');
-                              }
-                            }}
-                            style={{
-                              backgroundColor: 'white',
-                              color: '#8b5cf6',
-                              border: 'none',
-                              padding: '8px 14px',
-                              borderRadius: '6px',
-                              fontSize: '13px',
-                              fontWeight: '600',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              transition: 'all 0.2s',
-                              whiteSpace: 'nowrap',
-                              flexShrink: 0,
-                              minWidth: 'fit-content'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#f3f4f6';
-                              e.currentTarget.style.transform = 'scale(1.05)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'white';
-                              e.currentTarget.style.transform = 'scale(1)';
-                            }}
-                          >
-                            <span>📦</span>
-                            <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
-                          </button>
-                        )}
-                      </div>
+              <div className="form-group full-width qr-seat-layout-container">
+                <label style={{ fontSize: '16px', fontWeight: '600', marginBottom: '15px', display: 'block' }}>
+                  Seat Layout ({formData.seats.length} seats)
+                </label>
+                <div className="qr-seat-layout-wrapper">
+                  {/* Screen Header with Download All Button */}
+                  <div className="qr-seat-screen-header">
+                    <div className="qr-seat-screen-title">
+                      <span>🎬</span>
+                      <span>SCREEN - {formData.seatClass || formData.name}</span>
                     </div>
+                    
+                    <div className="qr-seat-screen-actions">
+                      {mode === 'view' && (
+                        <button
+                          type="button"
+                          className="qr-seat-action-btn"
+                          onClick={() => {
+                            const currentMaxSeat = Math.max(...formData.seats.map(s => {
+                              const match = s.seat.match(/\d+/);
+                              return match ? parseInt(match[0]) : 0;
+                            }));
+                            const nextSeatNumber = currentMaxSeat + 1;
+                            const newSeatName = `A${nextSeatNumber}`;
+                            
+                            // Create new seat data
+                            const newSeatData = {
+                              ...formData,
+                              isSeatRow: true,
+                              seatNumber: newSeatName,
+                              qrImageUrl: null,
+                              isActive: true,
+                              scanCount: 0,
+                              seatId: `new_${Date.now()}`,
+                              parentQRDetailId: formData._id,
+                              parentDocId: formData.parentDocId || formData._id,
+                              _id: `${formData._id}_new_${Date.now()}`,
+                              parentQRName: formData.name,
+                              seatClass: formData.seatClass,
+                              seats: formData.seats,
+                              isNewSeat: true
+                            };
+                            
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            // Switch to edit mode for the new seat
+                            if (onSeatEdit) {
+                              onSeatEdit(newSeatData);
+                            }
+                          }}
+                        >
+                          <span>➕</span>
+                          <span>Add Seat</span>
+                        </button>
+                      )}
+                      
+                      {mode === 'view' && formData.seats.filter(s => s.qrCodeUrl).length > 0 && (
+                        <button
+                          type="button"
+                          className="qr-seat-action-btn"
+                          onClick={async () => {
+                            const seatsWithQR = formData.seats.filter(s => s.qrCodeUrl);
+                            try {
+                              const zip = new JSZip();
+                              const folder = zip.folder(`${formData.seatClass || formData.name}_QR_Codes`);
+                              
+                              const fetchPromises = seatsWithQR.map(async (seat) => {
+                                try {
+                                  const response = await fetch(seat.qrCodeUrl);
+                                  const blob = await response.blob();
+                                  folder.file(`${seat.seat}_QR.png`, blob);
+                                } catch (error) {
+                                  console.error(`Failed to fetch ${seat.seat}:`, error);
+                                }
+                              });
+                              
+                              await Promise.all(fetchPromises);
+                              const zipBlob = await zip.generateAsync({ type: 'blob' });
+                              
+                              const link = document.createElement('a');
+                              link.href = URL.createObjectURL(zipBlob);
+                              link.download = `${formData.seatClass || formData.name}_QR_Codes.zip`;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              URL.revokeObjectURL(link.href);
+                              
+                              alert(`✅ Downloaded ${seatsWithQR.length} QR codes as ZIP file!`);
+                            } catch (error) {
+                              alert('❌ Failed to create ZIP file.');
+                            }
+                          }}
+                        >
+                          <span>📦</span>
+                          <span>Download All ({formData.seats.filter(s => s.qrCodeUrl).length})</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Seat Grid - Grouped by Row Letter */}
+                  <div className="qr-seat-grid-container">
                       {(() => {
                         const seatsByRow = {};
                         formData.seats.forEach(seat => {
@@ -700,18 +553,14 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                         });
 
                         return Object.keys(seatsByRow).sort().map(rowLetter => (
-                          <div key={rowLetter} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <div style={{
-                              minWidth: '30px',
-                              fontSize: '16px',
-                              fontWeight: '600',
-                              color: '#374151',
-                              textAlign: 'center'
-                            }}>
+                          <div key={rowLetter} className="qr-seat-row">
+                            {/* Row Label */}
+                            <div className="qr-seat-row-label">
                               {rowLetter}
                             </div>
 
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
+                            {/* Seat Buttons in this row */}
+                            <div className="qr-seat-row-seats">
                               {seatsByRow[rowLetter]
                                 .sort((a, b) => {
                                   const numA = parseInt(a.seat.match(/\d+/)?.[0] || '0');
@@ -721,21 +570,7 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                 .map((seat, index) => (
                                   <div
                                     key={seat._id || index}
-                                    style={{
-                                      backgroundColor: seat.isActive ? '#8b5cf6' : '#d1d5db',
-                                      color: 'white',
-                                      padding: '10px 16px',
-                                      borderRadius: '6px',
-                                      textAlign: 'center',
-                                      fontSize: '12px',
-                                      fontWeight: '600',
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s',
-                                      position: 'relative',
-                                      border: '2px solid transparent',
-                                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                      minWidth: '50px'
-                                    }}
+                                    className={`qr-seat-button ${!seat.isActive ? 'inactive' : ''}`}
                                     title={mode === 'view' ? `Left-click: Edit | Right-click: Download ${seat.seat}` : `Editing ${seat.seat}`}
                                     onClick={() => {
                                       // In view mode: Trigger seat edit callback
@@ -764,7 +599,6 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                       e.preventDefault(); // Prevent default context menu
                                       if (seat.qrCodeUrl && mode === 'view') {
                                         // Download QR code for this seat
-
                                         const link = document.createElement('a');
                                         link.href = seat.qrCodeUrl;
                                         link.download = `${formData.seatClass || formData.name}_${seat.seat}_QR.png`;
@@ -780,29 +614,10 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                                         }, 150);
                                       }
                                     }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.transform = 'scale(1.05)';
-                                      e.currentTarget.style.borderColor = '#6366f1';
-                                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.3)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.transform = 'scale(1)';
-                                      e.currentTarget.style.borderColor = 'transparent';
-                                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                                    }}
                                   >
                                     {seat.seat}
                                     {seat.qrCodeUrl && (
-                                      <div style={{
-                                        position: 'absolute',
-                                        top: '-4px',
-                                        right: '-4px',
-                                        width: '12px',
-                                        height: '12px',
-                                        backgroundColor: '#10b981',
-                                        borderRadius: '50%',
-                                        border: '2px solid white'
-                                      }} />
+                                      <div className="qr-seat-qr-indicator" title="QR code available" />
                                     )}
                                   </div>
                                 ))}
@@ -812,52 +627,36 @@ const CrudModal = React.memo(({ isOpen, qrCode, mode, theater, onClose, onSave, 
                       })()}
                     </div>
 
-                    {/* Legend */}
-                    <div style={{
-                      marginTop: '20px',
-                      paddingTop: '15px',
-                      borderTop: '1px solid #e5e7eb',
-                      display: 'flex',
-                      gap: '20px',
-                      fontSize: '12px',
-                      color: '#6b7280',
-                      flexWrap: 'wrap'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '20px', height: '20px', backgroundColor: '#8b5cf6', borderRadius: '4px' }}></div>
-                        <span>Active with QR</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '20px', height: '20px', backgroundColor: '#d1d5db', borderRadius: '4px' }}></div>
-                        <span>Inactive</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '50%' }}></div>
-                        <span>QR Code Available (click to view)</span>
-                      </div>
+                  {/* Legend */}
+                  <div className="qr-seat-legend">
+                    <div className="qr-seat-legend-item">
+                      <div className="qr-seat-legend-box"></div>
+                      <span>Active with QR</span>
                     </div>
+                    <div className="qr-seat-legend-item">
+                      <div className="qr-seat-legend-box inactive"></div>
+                      <span>Inactive</span>
+                    </div>
+                    <div className="qr-seat-legend-item">
+                      <div className="qr-seat-legend-dot"></div>
+                      <span>QR Code Available (click to view)</span>
+                    </div>
+                  </div>
 
-                    {/* Seat Count Summary */}
-                    <div style={{
-                      marginTop: '15px',
-                      padding: '12px',
-                      backgroundColor: '#f3f4f6',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      color: '#374151'
-                    }}>
-                      <div style={{ marginBottom: '8px' }}>
-                        <strong>Summary:</strong> {formData.seats.filter(s => s.isActive).length} active seats, 
-                        {' '}{formData.seats.filter(s => s.qrCodeUrl).length} with QR codes
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e5e7eb' }}>
+                  {/* Seat Count Summary */}
+                  <div className="qr-seat-summary">
+                    <div className="qr-seat-summary-text">
+                      <strong>Summary:</strong> {formData.seats.filter(s => s.isActive).length} active seats, 
+                      {' '}{formData.seats.filter(s => s.qrCodeUrl).length} with QR codes
+                    </div>
+                    <div className="qr-seat-quick-actions">
                         <strong>Quick Actions:</strong> Left-click to edit � Right-click to download
                       </div>
                     </div>
                   </div>
                 </div>
               )}
-          </form>
+          </div>
         </div>
 
         {/* Modal Footer - Complete CRUD Actions */}

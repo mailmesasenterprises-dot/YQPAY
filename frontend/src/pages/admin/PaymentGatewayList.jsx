@@ -445,7 +445,7 @@ const PaymentGatewayList = () => {
                           <td className="actions-cell">
                             <ActionButtons>
                               <ActionButton
-                                type="settings"
+                                type="view"
                                 onClick={() => handleConfigure(theater._id)}
                                 title="Configure Payment Gateway"
                               />

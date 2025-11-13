@@ -23,6 +23,8 @@ import { optimizedFetch } from '../../utils/apiOptimizer';
 import config from '../../config';
 import AdminLayout from '../../components/AdminLayout';
 import { useModal } from '../../contexts/ModalContext';
+import PageContainer from '../../components/PageContainer';
+import VerticalPageHeader from '../../components/VerticalPageHeader';
 import '../../styles/TheaterList.css';
 import '../../styles/QRManagementPage.css';
 import '../../styles/AddTheater.css';
@@ -495,24 +497,17 @@ const TheaterPaymentGatewaySettings = () => {
   return (
     <AdminLayout pageTitle="Payment Gateway Configuration" currentPage="payment-gateway">
       <div className="theater-list-container qr-management-page">
-        <div className="theater-main-container">
-          {/* Header Section */}
-          <div className="theater-list-header">
-            <div className="header-content">
-              <div className="title-group">
-                <h1>Payment Gateway Configuration</h1>
-              </div>
-            </div>
-            {theaterId && (
-              <button
-                onClick={() => navigate('/payment-gateway-list')}
-                className="add-theater-btn"
-              >
-                <ArrowBackIcon />
-                Back to List
-              </button>
-            )}
-          </div>
+        <PageContainer
+          hasHeader={false}
+          className="payment-gateway-settings-vertical"
+        >
+          {/* Global Vertical Header Component */}
+          <VerticalPageHeader
+            title={theaterInfo?.name?.toUpperCase() || 'Payment Gateway Configuration'}
+            backButtonText="Back to Payment Gateway List"
+            backButtonPath="/payment-gateway-list"
+            showBackButton={!!theaterId}
+          />
 
           <div className="theater-content">
             {/* Theater Selection - Only show if no theaterId in URL */}
@@ -572,40 +567,38 @@ const TheaterPaymentGatewaySettings = () => {
                 <p>Loading configuration...</p>
               </div>
             ) : selectedTheater ? (
-              <>
-                {/* Tab Navigation */}
-                <div className="qr-stats">
-                  <div 
-                    className={`stat-card ${tabValue === 0 ? 'active' : ''}`}
+              <div className="theater-user-settings-container">
+                {/* Left Sidebar - Gateway Selection */}
+                <div className="theater-user-settings-tabs">
+                  <button 
+                    className={`theater-user-settings-tab ${tabValue === 0 ? 'active' : ''}`}
                     onClick={() => setTabValue(0)}
                   >
-                    <div className="stat-icon" style={{ background: '#8b5cf6' }}>
-                      <span style={{ fontSize: '28px' }}>🏪</span>
+                    <span className="theater-user-tab-icon" style={{ fontSize: '20px' }}>🏪</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                      <span>Kiosk/POS Gateway</span>
+                      <span style={{ fontSize: '12px', opacity: 0.7, fontWeight: 400 }}>Counter & Point of Sale</span>
                     </div>
-                    <div className="stat-details">
-                      <div className="stat-label">Kiosk/POS Gateway</div>
-                      <div className="stat-number" style={{ fontSize: '14px', color: '#666' }}>Counter & Point of Sale</div>
-                    </div>
-                  </div>
+                  </button>
 
-                  <div 
-                    className={`stat-card ${tabValue === 1 ? 'active' : ''}`}
+                  <button 
+                    className={`theater-user-settings-tab ${tabValue === 1 ? 'active' : ''}`}
                     onClick={() => setTabValue(1)}
                   >
-                    <div className="stat-icon" style={{ background: '#059669' }}>
-                      <span style={{ fontSize: '28px' }}>🌐</span>
+                    <span className="theater-user-tab-icon" style={{ fontSize: '20px' }}>🌐</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                      <span>Online Gateway</span>
+                      <span style={{ fontSize: '12px', opacity: 0.7, fontWeight: 400 }}>QR Code & Mobile Orders</span>
                     </div>
-                    <div className="stat-details">
-                      <div className="stat-label">Online Gateway</div>
-                      <div className="stat-number" style={{ fontSize: '14px', color: '#666' }}>QR Code & Mobile Orders</div>
-                    </div>
-                  </div>
+                  </button>
                 </div>
 
-                {/* Tab Content */}
-                {tabValue === 0 && renderChannelConfig('kiosk', kioskConfig, setKioskConfig)}
-                {tabValue === 1 && renderChannelConfig('online', onlineConfig, setOnlineConfig)}
-              </>
+                {/* Right Content - Credentials */}
+                <div className="theater-user-settings-content">
+                  {tabValue === 0 && renderChannelConfig('kiosk', kioskConfig, setKioskConfig)}
+                  {tabValue === 1 && renderChannelConfig('online', onlineConfig, setOnlineConfig)}
+                </div>
+              </div>
             ) : (
               <div className="empty-state">
                 <div className="empty-icon">
@@ -616,7 +609,7 @@ const TheaterPaymentGatewaySettings = () => {
               </div>
             )}
           </div>
-        </div>
+        </PageContainer>
       </div>
     </AdminLayout>
   );

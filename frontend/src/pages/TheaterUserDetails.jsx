@@ -1232,8 +1232,7 @@ const TheaterUserDetails = () => {
                 </div>
                 
                 <div className="modal-body">
-                  <form onSubmit={(e) => e.preventDefault()}>
-                    <div className="edit-form">
+                  <div className="edit-form">
                       <div className="form-group">
                         <label>Theater</label>
                         <input 
@@ -1497,25 +1496,24 @@ const TheaterUserDetails = () => {
                       {createUserErrors.submit}
                     </div>
                   )}
-                  
-                  <div className="modal-actions">
-                    <button 
-                      type="button"
-                      className="cancel-btn" 
-                      onClick={closeCreateUserModal}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="button"
-                      className="btn-primary"
-                      onClick={handleCreateUser}
-                      disabled={loadingUsers}
-                    >
-                      {loadingUsers ? 'Creating...' : 'Create User'}
-                    </button>
-                  </div>
-                  </form>
+                </div>
+                
+                <div className="modal-actions">
+                  <button 
+                    type="button"
+                    className="cancel-btn" 
+                    onClick={closeCreateUserModal}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleCreateUser}
+                    disabled={loadingUsers}
+                  >
+                    {loadingUsers ? 'Creating...' : 'Create User'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1660,24 +1658,24 @@ const TheaterUserDetails = () => {
                       />
                     </div>
                   </div>
-                  
-                  <div className="modal-actions">
-                    <button 
-                      className="cancel-btn" 
-                      onClick={closeViewUserModal}
-                    >
-                      Close
-                    </button>
-                    <button 
-                      className="btn-primary"
-                      onClick={() => {
-                        closeViewUserModal();
-                        handleEditUser(viewUserData);
-                      }}
-                    >
-                      Edit User
-                    </button>
-                  </div>
+                </div>
+                
+                <div className="modal-actions">
+                  <button 
+                    className="cancel-btn" 
+                    onClick={closeViewUserModal}
+                  >
+                    Close
+                  </button>
+                  <button 
+                    className="btn-primary"
+                    onClick={() => {
+                      closeViewUserModal();
+                      handleEditUser(viewUserData);
+                    }}
+                  >
+                    Edit User
+                  </button>
                 </div>
               </div>
             </div>
@@ -1705,8 +1703,7 @@ const TheaterUserDetails = () => {
                 </div>
                 
                 <div className="modal-body">
-                  <form onSubmit={(e) => e.preventDefault()}>
-                    <div className="edit-form">
+                  <div className="edit-form">
                     <div className="form-group">
                       <label>Theater</label>
                       <input 
@@ -1944,25 +1941,24 @@ const TheaterUserDetails = () => {
                       {editUserErrors.submit}
                     </div>
                   )}
-                  
-                  <div className="modal-actions">
-                    <button 
-                      type="button"
-                      className="cancel-btn" 
-                      onClick={closeEditUserModal}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="button"
-                      className="btn-primary"
-                      onClick={handleUpdateUser}
-                      disabled={loadingUsers}
-                    >
-                      {loadingUsers ? 'Updating...' : 'Update User'}
-                    </button>
-                  </div>
-                  </form>
+                </div>
+                
+                <div className="modal-actions">
+                  <button 
+                    type="button"
+                    className="cancel-btn" 
+                    onClick={closeEditUserModal}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleUpdateUser}
+                    disabled={loadingUsers}
+                  >
+                    {loadingUsers ? 'Updating...' : 'Update User'}
+                  </button>
                 </div>
               </div>
             </div>

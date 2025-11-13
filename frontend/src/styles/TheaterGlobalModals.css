@@ -1407,3 +1407,464 @@
   font-size: 15px;
   line-height: 1.6;
 }
+
+/* =============================================
+   QR THEATER SEAT LAYOUT STYLES
+   Global design for seat layout section
+   ============================================= */
+
+/* Seat Layout Container */
+.qr-seat-layout-container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+  min-width: 0;
+}
+
+.qr-seat-layout-wrapper {
+  padding: 20px;
+  background-color: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+/* Screen Header */
+.qr-seat-screen-header {
+  background-color: #8b5cf6;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qr-seat-screen-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qr-seat-screen-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Action Buttons in Screen Header */
+.qr-seat-action-btn {
+  background-color: white;
+  color: #8b5cf6;
+  border: none;
+  padding: 8px 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: fit-content;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.qr-seat-action-btn:hover {
+  background-color: #f3f4f6;
+  transform: scale(1.05);
+}
+
+.qr-seat-action-btn:active {
+  transform: scale(1);
+}
+
+/* Seat Grid Container */
+.qr-seat-grid-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Seat Row */
+.qr-seat-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.qr-seat-row-label {
+  min-width: 30px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  text-align: center;
+}
+
+.qr-seat-row-seats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+/* Individual Seat Button */
+.qr-seat-button {
+  background-color: #8b5cf6;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  min-width: 50px;
+}
+
+.qr-seat-button.inactive {
+  background-color: #d1d5db;
+}
+
+.qr-seat-button:hover {
+  transform: scale(1.05);
+  border-color: #6366f1;
+  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+}
+
+.qr-seat-button:active {
+  transform: scale(0.95);
+}
+
+/* QR Code Indicator on Seat */
+.qr-seat-qr-indicator {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  background-color: #10b981;
+  border-radius: 50%;
+  border: 2px solid white;
+}
+
+/* Legend Section */
+.qr-seat-legend {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  color: #6b7280;
+  flex-wrap: wrap;
+}
+
+.qr-seat-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qr-seat-legend-box {
+  width: 20px;
+  height: 20px;
+  background-color: #8b5cf6;
+  border-radius: 4px;
+}
+
+.qr-seat-legend-box.inactive {
+  background-color: #d1d5db;
+}
+
+.qr-seat-legend-dot {
+  width: 12px;
+  height: 12px;
+  background-color: #10b981;
+  border-radius: 50%;
+}
+
+/* Summary Section */
+.qr-seat-summary {
+  margin-top: 15px;
+  padding: 12px;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.qr-seat-summary-text {
+  margin-bottom: 8px;
+}
+
+.qr-seat-summary-text strong {
+  font-weight: 600;
+}
+
+.qr-seat-quick-actions {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.qr-seat-quick-actions strong {
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .qr-seat-layout-wrapper {
+    padding: 16px;
+  }
+
+  .qr-seat-screen-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .qr-seat-screen-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .qr-seat-action-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .qr-seat-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .qr-seat-row-label {
+    margin-bottom: 8px;
+  }
+
+  .qr-seat-legend {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+/* =============================================
+   QR SEAT INFORMATION SECTION STYLES
+   Global design for seat information display in edit/view popup
+   ============================================= */
+
+/* Seat Information Container */
+.qr-seat-info-container {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Override form-group styles for QR seat sections */
+.qr-seat-info-container .qr-seat-image-section,
+.qr-seat-info-container .qr-seat-update-section {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.qr-seat-info-display {
+  padding: 20px;
+  background-color: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+/* Seat Information Items */
+.qr-seat-info-item {
+  flex: 1;
+  min-width: 150px;
+  margin-bottom: 0;
+}
+
+.qr-seat-info-label {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qr-seat-info-value {
+  font-size: 15px;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+.qr-seat-info-value.highlight {
+  font-size: 16px;
+  color: #8b5cf6;
+}
+
+/* QR Code Image Section */
+.qr-seat-image-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.qr-seat-image-label {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 12px;
+  font-weight: 600;
+  text-align: center;
+  width: 100%;
+  display: block;
+}
+
+.qr-seat-image-container {
+  text-align: center;
+  margin-bottom: 16px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-seat-image {
+  max-width: 200px;
+  max-height: 200px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+  background-color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: block;
+  margin: 0 auto;
+}
+
+.qr-seat-image-error {
+  display: none;
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+/* Download Button */
+.qr-seat-download-btn {
+  background-color: #8b5cf6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+  text-align: center;
+  margin: 0 auto;
+}
+
+.qr-seat-download-btn:hover {
+  background-color: #7c3aed;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(139, 92, 246, 0.4);
+}
+
+.qr-seat-download-btn:active {
+  transform: translateY(0);
+}
+
+.qr-seat-download-container {
+  text-align: center;
+  margin-top: 12px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* QR Image Update Section */
+.qr-seat-update-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.qr-seat-update-label {
+  display: block;
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  font-weight: 500;
+  text-align: center;
+  width: 100%;
+}
+
+.qr-seat-update-note {
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+  margin-top: 6px;
+  line-height: 1.4;
+  text-align: center;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .qr-seat-info-display {
+    padding: 16px;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .qr-seat-info-item {
+    min-width: 100%;
+  }
+
+  .qr-seat-image {
+    max-width: 150px;
+    max-height: 150px;
+  }
+
+  .qr-seat-download-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
