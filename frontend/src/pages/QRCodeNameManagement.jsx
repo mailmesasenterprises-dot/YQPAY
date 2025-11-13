@@ -434,27 +434,37 @@ const QRCodeNameManagement = () => {
 
   const handleSubmitQRCodeName = async (isEdit = false) => {
     try {
+      console.log('🔵 handleSubmitQRCodeName called, isEdit:', isEdit);
+      console.log('🔵 Current formData:', formData);
+      console.log('🔵 Theater ID:', theaterId);
+      
       const token = config.helpers.getAuthToken();
       if (!token) {
-        showError('Authentication required. Please login again.');
+        console.log('❌ No auth token found');
+        showError('Authentication required. Please login again.', { position: 'toast' });
         return;
       }
 
       // 🔄 CLIENT-SIDE VALIDATION: Validate required fields
       if (!formData.qrName || !formData.qrName.trim()) {
-        showError('QR Code Name is required');
+        console.log('❌ QR Code Name is empty');
+        showError('QR Code Name is required', { position: 'toast' });
         return;
       }
 
       if (!formData.seatClass || !formData.seatClass.trim()) {
-        showError('Seat Class is required');
+        console.log('❌ Seat Class is empty');
+        showError('Seat Class is required', { position: 'toast' });
         return;
       }
 
       if (!theaterId && !isEdit) {
-        showError('Theater ID is required for creating QR code names. Please navigate from the theater list.');
+        console.log('❌ Theater ID missing');
+        showError('Theater ID is required for creating QR code names. Please navigate from the theater list.', { position: 'toast' });
         return;
       }
+      
+      console.log('✅ Validation passed, proceeding with API call');
       
       const url = isEdit 
         ? `${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}` 
@@ -758,23 +768,25 @@ const QRCodeNameManagement = () => {
                 <div className="modal-body">
                   <div className="edit-form">
                     <div className="form-group">
-                      <label>QR Code Name</label>
+                      <label>QR Code Name <span style={{color: '#e53e3e'}}>*</span></label>
                       <input 
                         type="text" 
                         value={formData.qrName} 
                         onChange={(e) => handleInputChange('qrName', e.target.value)}
                         className="form-control"
                         placeholder="Enter QR code name"
+                        required
                       />
                     </div>
                     <div className="form-group">
-                      <label>Seat Class</label>
+                      <label>Seat Class <span style={{color: '#e53e3e'}}>*</span></label>
                       <input 
                         type="text"
                         value={formData.seatClass} 
                         onChange={(e) => handleInputChange('seatClass', e.target.value)}
                         className="form-control"
                         placeholder="Enter seat class (e.g., General, VIP, Premium, etc.)"
+                        required
                       />
                     </div>
                     <div className="form-group">
@@ -842,22 +854,24 @@ const QRCodeNameManagement = () => {
                 <div className="modal-body">
                   <div className="edit-form">
                     <div className="form-group">
-                      <label>QR Code Name</label>
+                      <label>QR Code Name <span style={{color: '#e53e3e'}}>*</span></label>
                       <input 
                         type="text" 
                         value={formData.qrName} 
                         onChange={(e) => handleInputChange('qrName', e.target.value)}
                         className="form-control"
+                        required
                       />
                     </div>
                     <div className="form-group">
-                      <label>Seat Class</label>
+                      <label>Seat Class <span style={{color: '#e53e3e'}}>*</span></label>
                       <input 
                         type="text"
                         value={formData.seatClass} 
                         onChange={(e) => handleInputChange('seatClass', e.target.value)}
                         className="form-control"
                         placeholder="Enter seat class (e.g., General, VIP, Premium, etc.)"
+                        required
                       />
                     </div>
                     <div className="form-group">
