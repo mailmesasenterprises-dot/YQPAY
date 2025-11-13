@@ -451,99 +451,89 @@ const ViewCart = () => {
             <p>Generated on ${new Date().toLocaleString('en-IN')}</p>
             ${orderNotes ? `<p style="margin-top: 10px; font-style: italic;">Notes: ${orderNotes}</p>` : ''}
           </div>
-          <script>
-            // Immediate auto-print - multiple triggers for reliability
-            (function() {
-              var printTriggered = false;
-              
-              function triggerPrint() {
-                if (printTriggered) return;
-                printTriggered = true;
-                
-                try {
-                  // Focus window immediately
-                  window.focus();
-                  
-                  // Multiple attempts to ensure print dialog opens
-                  setTimeout(function() {
-                    window.print();
-                  }, 50);
-                  
-                  // Backup trigger
-                  setTimeout(function() {
-                    window.focus();
-                    window.print();
-                  }, 100);
-                  
-                  // Close window after print dialog is dismissed
-                  window.addEventListener('afterprint', function() {
-                    setTimeout(function() {
-                      window.close();
-                    }, 100);
-                  }, { once: true });
-                  
-                } catch (error) {
-                  console.error('Print error:', error);
-                }
-              }
-              
-              // Trigger immediately if document is ready
-              if (document.readyState === 'complete' || document.readyState === 'interactive') {
-                triggerPrint();
-              }
-              
-              // Also listen for load event
-              window.addEventListener('load', function() {
-                triggerPrint();
-              }, { once: true });
-              
-              // DOMContentLoaded as backup
-              document.addEventListener('DOMContentLoaded', function() {
-                triggerPrint();
-              }, { once: true });
-              
-              // Final fallback - trigger after short delay
-              setTimeout(triggerPrint, 200);
-            })();
-          </script>
         </body>
         </html>
       `;
 
-      // Open in new window for printing - optimized for immediate print
-      console.log('🖨️ Opening print window...');
+      // Use hidden iframe for direct printing without showing PDF page
+      console.log('🖨️ Printing receipt directly...');
       
-      // Try to open window without size restrictions for better print behavior
-      const printWindow = window.open('', '_blank');
+      // Create a hidden iframe for printing
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      iframe.style.visibility = 'hidden';
       
-      if (!printWindow) {
-        console.error('❌ Failed to open print window. Popup might be blocked.');
-        alert('⚠️ Please allow popups to print receipts automatically.\n\nAlternatively, you can manually print this page.');
-        
-        // Fallback: try using current window
-        const currentWindow = window;
-        const originalContent = document.body.innerHTML;
-        document.body.innerHTML = receiptHTML.replace(/<script[\s\S]*?<\/script>/gi, '');
-        setTimeout(() => {
-          currentWindow.focus();
-          currentWindow.print();
-          // Restore content after a delay
-          setTimeout(() => {
-            document.body.innerHTML = originalContent;
-          }, 1000);
-        }, 300);
-        return;
-      }
-
-      // Write content to new window immediately
-      printWindow.document.open();
-      printWindow.document.write(receiptHTML);
-      printWindow.document.close();
+      document.body.appendChild(iframe);
       
-      // Focus the print window to ensure print dialog appears
-      printWindow.focus();
+      // Write content to iframe
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      iframeDoc.open();
+      iframeDoc.write(receiptHTML);
+      iframeDoc.close();
       
-      console.log('✅ Receipt loaded in print window, print dialog opening automatically...');
+      // Wait for iframe to load, then trigger print directly
+      const triggerPrint = () => {
+        try {
+          if (iframe.contentWindow) {
+            // Focus and print directly
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            
+            console.log('✅ Print dialog opened directly from hidden iframe');
+            
+            // Remove iframe after print dialog is dismissed
+            const removeIframe = () => {
+              setTimeout(() => {
+                if (iframe && iframe.parentNode) {
+                  iframe.parentNode.removeChild(iframe);
+                }
+              }, 500);
+            };
+            
+            // Listen for afterprint event
+            iframe.contentWindow.addEventListener('afterprint', removeIframe, { once: true });
+            
+            // Fallback: remove iframe after a delay
+            setTimeout(removeIframe, 5000);
+          }
+        } catch (error) {
+          console.error('❌ Print error:', error);
+          // Fallback: try window.open method
+          const printWindow = window.open('', '_blank');
+          if (printWindow) {
+            printWindow.document.open();
+            printWindow.document.write(receiptHTML);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+          } else {
+            alert('⚠️ Please allow popups to print receipts automatically.');
+          }
+          // Remove iframe on error
+          if (iframe && iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+          }
+        }
+      };
+      
+      // Wait for iframe to load
+      iframe.onload = () => {
+        setTimeout(triggerPrint, 100);
+      };
+      
+      // Fallback: trigger print even if onload doesn't fire
+      setTimeout(() => {
+        if (iframe.contentWindow && iframe.contentWindow.document.readyState === 'complete') {
+          triggerPrint();
+        }
+      }, 500);
       
     } catch (error) {
       console.error('❌ Auto-print error:', error);

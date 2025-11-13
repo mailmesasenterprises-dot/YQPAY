@@ -384,7 +384,6 @@ if (cacheMiddleware) {
 } else {
   app.use('/api/settings', settingsRoutes);
 }
-app.use('/api/sms', require('./routes/sms-test')); // SMS testing routes
 app.use('/api/chat', require('./routes/chat')); // Chat messaging routes
 app.use('/api/notifications', require('./routes/notifications')); // Real-time notifications
 app.use('/api/upload', uploadRoutes);

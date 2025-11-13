@@ -1,5 +1,0 @@
-[2025-10-09T20:23:55.521Z] 🚀 Starting Stock History Restructuring Migration
-[2025-10-09T20:23:55.523Z] ================================================
-[2025-10-09T20:23:55.524Z] 📊 PHASE 1: Analysis and Backup
-[2025-10-09T20:23:55.525Z] ----------------------------------------
-[2025-10-09T20:23:55.525Z] ❌ Migration failed: Phase1Analysis is not a constructor

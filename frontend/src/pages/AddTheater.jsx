@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { useToast } from '../contexts/ToastContext';
+import { useModal } from '../contexts/ModalContext';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { clearTheaterCache } from '../utils/cacheManager';
@@ -95,6 +96,7 @@ const HeaderButton = React.memo(() => {
 const AddTheater = React.memo(() => {
   const navigate = useNavigate();
   const toast = useToast();
+  const modal = useModal();
   const performanceMetrics = usePerformanceMonitoring('AddTheater');
   
   // Refs for performance optimization

@@ -1,7 +1,0 @@
-{
-  "uri": "mongodb://localhost:27017/theater_canteen_db",
-  "status": "connected",
-  "lastTested": "2025-09-15T11:30:34.901Z",
-  "databaseSize": 3594,
-  "collections": 7
-}

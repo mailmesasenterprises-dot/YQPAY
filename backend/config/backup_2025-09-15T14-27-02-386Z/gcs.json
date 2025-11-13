@@ -1,7 +1,0 @@
-{
-  "projectId": "fit-galaxy-472209-s4",
-  "keyFilename": "./config/gcs-service-account.json",
-  "bucketName": "theater-canteen-storage",
-  "region": "us-central1",
-  "updatedAt": "2025-09-15T14:08:01.807Z"
-}

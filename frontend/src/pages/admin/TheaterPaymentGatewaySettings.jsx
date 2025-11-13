@@ -28,6 +28,7 @@ import VerticalPageHeader from '../../components/VerticalPageHeader';
 import '../../styles/TheaterList.css';
 import '../../styles/QRManagementPage.css';
 import '../../styles/AddTheater.css';
+import '../../styles/TheaterUserDetails.css';
 
 const TheaterPaymentGatewaySettings = () => {
   const { theaterId } = useParams();
