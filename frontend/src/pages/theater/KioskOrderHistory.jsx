@@ -100,7 +100,7 @@ const KioskOrderHistory = () => {
   }, [fetchTheaterInfo]);
 
   // Fetch orders from backend
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (forceRefresh = false) => {
     try {
       // Cancel any ongoing request
       if (abortControllerRef.current) {
@@ -111,25 +111,37 @@ const KioskOrderHistory = () => {
       const signal = abortControllerRef.current.signal;
 
       // 🚀 CLEAR CACHE: Force fresh fetch to get updated filtered data
-      clearCachePattern(`/orders/theater/${theaterId}`);
-      console.log('🧹 Cache cleared for theater orders');
+      if (forceRefresh) {
+        clearCachePattern(`/orders/theater/${theaterId}`);
+        console.log('🔄 [KioskOrderHistory] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
 
       setLoading(true);
 
+      // Build URL with optional cache-busting parameter
+      const params = new URLSearchParams();
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+      }
+      const queryString = params.toString();
+      const url = `${config.api.baseUrl}/orders/theater/${theaterId}${queryString ? `?${queryString}` : ''}`;
+
       // Fetch ALL orders first, then filter on frontend for kiosk orders only
-      const response = await fetch(
-        `${config.api.baseUrl}/orders/theater/${theaterId}`,
-        {
-          signal,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...(localStorage.getItem('authToken') && {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-            })
-          }
+      const response = await fetch(url, {
+        signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          }),
+          ...(forceRefresh && {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          })
         }
-      );
+      });
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -236,7 +248,7 @@ const KioskOrderHistory = () => {
   // Load orders on component mount
   useEffect(() => {
     if (!theaterId) return;
-    fetchOrders();
+    fetchOrders(true);
   }, [fetchOrders]);
 
   // Format currency helper

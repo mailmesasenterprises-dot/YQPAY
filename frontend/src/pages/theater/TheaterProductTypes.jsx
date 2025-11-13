@@ -92,13 +92,14 @@ const TheaterProductTypes = React.memo(() => {
   }, [theaterId, userTheaterId, userType]);
 
   // 🚀 ULTRA-OPTIMIZED: Load product types data - <90ms with instant cache
-  const loadProductTypesData = useCallback(async (page = 1, limit = 10, search = '', skipCache = false) => {
+  const loadProductTypesData = useCallback(async (page = 1, limit = 10, search = '', skipCache = false, forceRefresh = false) => {
     if (!isMountedRef.current || !theaterId) {
       return;
     }
 
     // 🚀 INSTANT CACHE CHECK - Load from cache first (< 90ms)
-    if (!skipCache && page === 1 && !search) {
+    // Skip cache if force refresh is requested
+    if (!skipCache && !forceRefresh && page === 1 && !search) {
       const cacheKey = `theaterProductTypes_${theaterId}`;
       const cached = getCachedData(cacheKey, 300000); // 5-minute cache
       
@@ -164,17 +165,33 @@ const TheaterProductTypes = React.memo(() => {
         _t: Date.now()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterProductTypes] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       const baseUrl = `${config.api.baseUrl}/theater-product-types/${theaterId}?${params.toString()}`;
+
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
 
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+        headers
       });
 
       if (!response.ok) {
@@ -379,7 +396,7 @@ const TheaterProductTypes = React.memo(() => {
           toast.success('Product created successfully!');
         }
         if (loadProductTypesDataRef.current) {
-          loadProductTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true); // Refresh with skipCache
+          loadProductTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true, true); // Refresh with force refresh
         }
         
         // Reset form
@@ -424,7 +441,7 @@ const TheaterProductTypes = React.memo(() => {
         setShowDeleteModal(false);
           toast.success('Product deleted successfully!');
         if (loadProductTypesDataRef.current) {
-          loadProductTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true); // Refresh with skipCache
+          loadProductTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true, true); // Refresh with force refresh
         }
       } else {
         const errorData = await response.json();
@@ -517,7 +534,7 @@ const TheaterProductTypes = React.memo(() => {
     // Execute immediately - cache check happens first (< 90ms)
     (async () => {
       try {
-        await loadProductTypesDataRef.current(1, 10, '', false);
+        await loadProductTypesDataRef.current(1, 10, '', false, true);
         if (isMounted) {
           setInitialLoadDone(true);
           if (safetyTimer) clearTimeout(safetyTimer);

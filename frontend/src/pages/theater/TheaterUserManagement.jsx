@@ -221,12 +221,17 @@ const TheaterUserManagement = () => {
   }, [theaterId, selectedRole]);
 
   // Fetch users for the theater - OPTIMIZED: Use optimizedFetch with cache
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (forceRefresh = false) => {
     if (!theaterId) return;
 
     try {
       setLoadingUsers(true);
       
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        console.log('🔄 [TheaterUserManagement] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       const params = new URLSearchParams({
         theaterId: theaterId,
         page: '1',
@@ -234,13 +239,26 @@ const TheaterUserManagement = () => {
         isActive: 'true'
       });
 
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
-      const cacheKey = `theater_users_${theaterId}_page_1_limit_100_active`;
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+      }
+
+      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading (skip cache if force refresh)
+      const cacheKey = forceRefresh ? null : `theater_users_${theaterId}_page_1_limit_100_active`;
+      
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = getAuthHeaders();
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       const result = await optimizedFetch(
         `${config.api.baseUrl}/theater-users?${params.toString()}`,
         {
           method: 'GET',
-          headers: getAuthHeaders()
+          headers
         },
         cacheKey,
         120000 // 2-minute cache
@@ -283,7 +301,7 @@ const TheaterUserManagement = () => {
     Promise.allSettled([
       fetchTheaterDetails(),
       fetchAvailableRoles(),
-      fetchUsers()
+      fetchUsers(true)
     ]).then(() => {
       // All data loaded (from cache or API)
       setLoading(false);
@@ -423,7 +441,7 @@ const TheaterUserManagement = () => {
 
         setSuccessModal({ show: true, message: 'User created successfully!' });
         closeCrudModal();
-        fetchUsers();
+        fetchUsers(true);
       } else {
         const errorData = await response.json();
 
@@ -491,7 +509,7 @@ const TheaterUserManagement = () => {
         setEditConfirmModal({ show: false, userData: null });
         setSuccessModal({ show: true, message: 'User updated successfully!' });
         closeCrudModal();
-        fetchUsers();
+        fetchUsers(true);
       } else {
 
         // Show detailed error message
@@ -537,7 +555,7 @@ const TheaterUserManagement = () => {
 
         setSuccessModal({ show: true, message: 'User deleted successfully!' });
         setDeleteModal({ show: false, userId: null, userName: '' });
-        fetchUsers();
+        fetchUsers(true);
       } else {
         const errorData = await response.json();
 

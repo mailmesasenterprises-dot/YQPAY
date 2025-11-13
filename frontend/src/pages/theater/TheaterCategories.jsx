@@ -104,7 +104,7 @@ const TheaterCategories = React.memo(() => {
   // }, [theaterId, userTheaterId, userType, showError]);
 
   // 🚀 ULTRA-OPTIMIZED: Load categories data - Instant with memory cache
-  const loadCategoriesData = useCallback(async (page = 1, limit = 10, search = '', skipCache = false) => {
+  const loadCategoriesData = useCallback(async (page = 1, limit = 10, search = '', skipCache = false, forceRefresh = false) => {
     if (!isMountedRef.current || !theaterId) {
       return;
     }
@@ -112,7 +112,8 @@ const TheaterCategories = React.memo(() => {
     // 🚀 INSTANT MEMORY CACHE CHECK - Use sessionStorage for persistence
     const memoryCacheKey = `categories_${theaterId}_${page}_${limit}_${search}`;
     
-    if (!skipCache) {
+    // Skip cache if force refresh is requested
+    if (!skipCache && !forceRefresh) {
       try {
         const cached = sessionStorage.getItem(memoryCacheKey);
         if (cached) {
@@ -165,15 +166,30 @@ const TheaterCategories = React.memo(() => {
         _t: Date.now()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterCategories] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       const baseUrl = `${config.api.baseUrl}/theater-categories/${theaterId}?${params.toString()}`;
+
+      // � FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        'Content-Type': 'application/json'
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
 
       // 🚀 SIMPLE & RELIABLE: Regular fetch with proper error handling
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          'Content-Type': 'application/json'
-        }
+        headers
       });
 
       if (!response.ok) {
@@ -454,7 +470,8 @@ const TheaterCategories = React.memo(() => {
         // Use setTimeout with 0 delay to ensure it runs after state updates
         setTimeout(() => {
           if (loadCategoriesDataRef.current) {
-            loadCategoriesDataRef.current(currentPage, itemsPerPage, searchTerm, true);
+            // 🔄 FORCE REFRESH: Force refresh after create/update operation
+            loadCategoriesDataRef.current(currentPage, itemsPerPage, searchTerm, true, true);
           }
         }, 0);
       } else {
@@ -513,7 +530,8 @@ const TheaterCategories = React.memo(() => {
         // Use setTimeout with 0 delay to ensure it runs after state updates
         setTimeout(() => {
           if (loadCategoriesDataRef.current) {
-            loadCategoriesDataRef.current(currentPage, itemsPerPage, searchTerm, true);
+            // 🔄 FORCE REFRESH: Force refresh after delete operation
+            loadCategoriesDataRef.current(currentPage, itemsPerPage, searchTerm, true, true);
           }
         }, 0);
       } else {
@@ -613,7 +631,8 @@ const TheaterCategories = React.memo(() => {
     
     (async () => {
       try {
-        await loadFunction(1, 10, '', false);
+        // 🔄 FORCE REFRESH: Always force refresh on mount for fresh data
+        await loadFunction(1, 10, '', false, true);
         if (isMounted) {
           setInitialLoadDone(true);
           if (safetyTimer) clearTimeout(safetyTimer);

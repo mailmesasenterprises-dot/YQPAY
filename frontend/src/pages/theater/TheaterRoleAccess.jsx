@@ -137,7 +137,7 @@ const TheaterRoleAccess = () => {
   }, [theaterId]);
 
   // Load role permissions data
-  const loadRolePermissionsData = useCallback(async (page = 1, limit = 10, search = '') => {
+  const loadRolePermissionsData = useCallback(async (page = 1, limit = 10, search = '', forceRefresh = false) => {
 
     if (!isMountedRef.current || !theaterId) {
 
@@ -162,20 +162,36 @@ const TheaterRoleAccess = () => {
         _cacheBuster: Date.now()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterRoleAccess] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       const baseUrl = `${config.api.baseUrl}/roles?${params.toString()}`;
       
 
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Accept': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        }
+        headers
       });
       
 
@@ -227,7 +243,7 @@ const TheaterRoleAccess = () => {
   useEffect(() => {
     const init = async () => {
       await loadActivePages();
-      await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
+      await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm, true);
     };
     init();
   }, [loadActivePages, loadRolePermissionsData, currentPage, itemsPerPage]);
@@ -343,7 +359,7 @@ const TheaterRoleAccess = () => {
         const data = await response.json();
         
         // Reload the role permissions data to get the latest state from server
-        await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
+        await loadRolePermissionsData(currentPage, itemsPerPage, searchTerm, true);
         
         setShowEditModal(false);
           toast.success('Role updated successfully!');
@@ -382,7 +398,7 @@ const TheaterRoleAccess = () => {
         setShowDeleteModal(false);
           toast.success('Role deleted successfully!');
         showSuccess('Role deleted successfully');
-        loadRolePermissionsData(currentPage, itemsPerPage, searchTerm);
+        loadRolePermissionsData(currentPage, itemsPerPage, searchTerm, true);
         setSelectedRolePermission(null);
       } else {
         const errorData = await response.json();

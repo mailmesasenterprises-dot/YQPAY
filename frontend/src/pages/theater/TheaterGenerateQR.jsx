@@ -139,7 +139,7 @@ const TheaterGenerateQR = () => {
   useEffect(() => {
     loadDefaultLogo();
     loadTheaterLogo();
-    loadQRNames();
+    loadQRNames(true);
     
     return () => {
       if (abortControllerRef.current) {
@@ -212,20 +212,44 @@ const TheaterGenerateQR = () => {
   }
   }, [theaterId]);
 
-  const loadQRNames = useCallback(async () => {
+  const loadQRNames = useCallback(async (forceRefresh = false) => {
     if (!theaterId) return;
     
     try {
       setQrNamesLoading(true);
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        console.log('🔄 [TheaterGenerateQR] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       // Fetch available QR code names
-      const apiUrl = `${config.api.baseUrl}/qrcodenames?theaterId=${theaterId}&limit=100&_t=${Date.now()}`;
+      const params = new URLSearchParams({
+        theaterId: theaterId,
+        limit: '100',
+        _t: Date.now().toString()
+      });
+
+      if (forceRefresh) {
+        params.append('_force', Date.now().toString());
+      }
+
+      const apiUrl = `${config.api.baseUrl}/qrcodenames?${params.toString()}`;
       
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${token}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       const response = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers
       });
       
       if (!response.ok) {
@@ -239,12 +263,28 @@ const TheaterGenerateQR = () => {
         let existingQRNames = [];
         
         try {
-          const existingQRsResponse = await fetch(`${config.api.baseUrl}/single-qrcodes/theater/${theaterId}?_t=${Date.now()}`, {
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
+          const existingParams = new URLSearchParams({
+            _t: Date.now().toString()
+          });
+
+          if (forceRefresh) {
+            existingParams.append('_force', Date.now().toString());
+          }
+
+          const existingHeaders = {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          };
+
+          if (forceRefresh) {
+            existingHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+            existingHeaders['Pragma'] = 'no-cache';
+            existingHeaders['Expires'] = '0';
+          }
+
+          const existingQRsResponse = await fetch(`${config.api.baseUrl}/single-qrcodes/theater/${theaterId}?${existingParams.toString()}`, {
+            headers: existingHeaders
           });
           
           if (existingQRsResponse.ok) {
@@ -590,7 +630,7 @@ const TheaterGenerateQR = () => {
           
           // Reload QR names
           setTimeout(() => {
-            loadQRNames();
+            loadQRNames(true);
           }, 500);
           
           showSuccess(message);

@@ -146,13 +146,10 @@ const AddTheater = React.memo(() => {
     const token = config.helpers.getAuthToken();
     if (!token) {
 
-      modal.toast.error(
-        'Authentication Required',
-        'You must be logged in to add a theater. Please login first.',
-        () => navigate('/login')
-      );
+      toast.error('Authentication Required: You must be logged in to add a theater. Please login first.');
+      navigate('/login');
     }
-  }, [modal, navigate]);
+  }, [toast, navigate]);
   
   // Load saved form data on component mount
   useEffect(() => {

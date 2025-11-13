@@ -83,13 +83,14 @@ const TheaterKioskTypes = React.memo(() => {
   }, []);
 
   // 🚀 ULTRA-OPTIMIZED: Load kiosk types data - <90ms with instant cache
-  const loadKioskTypesData = useCallback(async (page = 1, limit = 10, search = '', skipCache = false) => {
+  const loadKioskTypesData = useCallback(async (page = 1, limit = 10, search = '', skipCache = false, forceRefresh = false) => {
     if (!isMountedRef.current || !theaterId) {
       return;
     }
 
     // 🚀 INSTANT CACHE CHECK - Load from cache first (< 90ms)
-    if (!skipCache && page === 1 && !search) {
+    // Skip cache if force refresh is requested
+    if (!skipCache && !forceRefresh && page === 1 && !search) {
       const cacheKey = `theaterKioskTypes_${theaterId}`;
       const cached = getCachedData(cacheKey, 300000); // 5-minute cache
       
@@ -155,6 +156,12 @@ const TheaterKioskTypes = React.memo(() => {
         _t: Date.now()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterKioskTypes] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       const authToken = localStorage.getItem('authToken');
       if (!authToken) {
         throw new Error('No authentication token found');
@@ -162,15 +169,25 @@ const TheaterKioskTypes = React.memo(() => {
 
       const baseUrl = `${config.api.baseUrl}/theater-kiosk-types/${theaterId}?${params}`;
 
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       const response = await fetch(baseUrl, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        },
+        headers,
         signal: abortControllerRef.current.signal
       });
 
@@ -396,7 +413,7 @@ const TheaterKioskTypes = React.memo(() => {
         
         // Reload kiosk types
         if (loadKioskTypesDataRef.current) {
-          loadKioskTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true);
+          loadKioskTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true, true);
         }
       } else {
         throw new Error(data.message || 'Failed to save kiosk type');
@@ -440,7 +457,7 @@ const TheaterKioskTypes = React.memo(() => {
           toast.success('Kiosk type deleted successfully!');
         setSelectedKioskType(null);
         if (loadKioskTypesDataRef.current) {
-          loadKioskTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true);
+          loadKioskTypesDataRef.current(currentPage, itemsPerPage, searchTerm, true, true);
         }
       } else {
         throw new Error(data.message || 'Failed to delete kiosk type');
@@ -536,7 +553,7 @@ const TheaterKioskTypes = React.memo(() => {
     
     (async () => {
       try {
-        await loadFunction(1, 10, '', false);
+        await loadFunction(1, 10, '', false, true);
         if (isMounted) {
           setInitialLoadDone(true);
           if (safetyTimer) clearTimeout(safetyTimer);

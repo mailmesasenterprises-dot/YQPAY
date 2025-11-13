@@ -138,7 +138,7 @@ const TheaterRoles = () => {
   }, [theaterId]);
 
   // Load roles data
-  const loadRolesData = useCallback(async (page = 1, limit = 10, search = '') => {
+  const loadRolesData = useCallback(async (page = 1, limit = 10, search = '', forceRefresh = false) => {
 
     if (!isMountedRef.current || !theaterId) {
 
@@ -164,6 +164,12 @@ const TheaterRoles = () => {
         _random: Math.random()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterRoles] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       // Add status filter
       if (filterStatus && filterStatus !== 'all') {
         params.append('isActive', filterStatus === 'active' ? 'true' : 'false');
@@ -174,15 +180,25 @@ const TheaterRoles = () => {
 
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Accept': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        }
+        headers
       });
       
 
@@ -248,7 +264,7 @@ const TheaterRoles = () => {
 
   // Initial load
   useEffect(() => {
-    loadRolesData(currentPage, itemsPerPage, debouncedSearchTerm);
+    loadRolesData(currentPage, itemsPerPage, debouncedSearchTerm, true);
   }, [loadRolesData, currentPage, itemsPerPage, debouncedSearchTerm, filterStatus]);
 
   // Removed duplicate debounced search effect (already added above)
@@ -341,7 +357,7 @@ const TheaterRoles = () => {
       });
 
       if (response.ok) {
-        await loadRolesData(currentPage, itemsPerPage, debouncedSearchTerm);
+        await loadRolesData(currentPage, itemsPerPage, debouncedSearchTerm, true);
       } else {
         const errorData = await response.json();
         showError(errorData.message || 'Failed to update role status');
@@ -384,7 +400,7 @@ const TheaterRoles = () => {
           setShowCreateModal(false);
           toast.success('Role created successfully!');
         }
-        loadRolesData(currentPage, itemsPerPage, searchTerm);
+        loadRolesData(currentPage, itemsPerPage, searchTerm, true);
         
         // Reset form
         setFormData({
@@ -415,7 +431,7 @@ const TheaterRoles = () => {
       if (response.ok) {
         setShowDeleteModal(false);
           toast.success('Role deleted successfully!');
-        loadRolesData(currentPage, itemsPerPage, searchTerm);
+        loadRolesData(currentPage, itemsPerPage, searchTerm, true);
       } else {
         const errorData = await response.json();
   }

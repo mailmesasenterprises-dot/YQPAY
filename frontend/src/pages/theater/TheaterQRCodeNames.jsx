@@ -106,7 +106,7 @@ const TheaterQRCodeNames = () => {
   }, [searchTerm]);
 
   // Load QR Code Name data
-  const loadQRCodeNameData = useCallback(async () => {
+  const loadQRCodeNameData = useCallback(async (forceRefresh = false) => {
     if (!isMountedRef.current || !theaterId) {
       return;
     }
@@ -129,19 +129,35 @@ const TheaterQRCodeNames = () => {
         _cacheBuster: Date.now()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterQRCodeNames] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       const baseUrl = `${config.api.baseUrl}/qrcodenames?${params.toString()}`;
       
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Accept': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        }
+        headers
       });
       
       if (!response.ok) {
@@ -184,7 +200,7 @@ const TheaterQRCodeNames = () => {
 
   // Initial load
   useEffect(() => {
-    loadQRCodeNameData();
+    loadQRCodeNameData(true);
   }, [loadQRCodeNameData]);
 
   // Cleanup effect
@@ -272,7 +288,7 @@ const TheaterQRCodeNames = () => {
         setShowDeleteModal(false);
           toast.success('Record deleted successfully!');
         showSuccess('QR Code Name deleted successfully!');
-        loadQRCodeNameData();
+        loadQRCodeNameData(true);
         setSelectedQRCodeName(null);
       } else {
         const errorData = await response.json();
@@ -327,7 +343,7 @@ const TheaterQRCodeNames = () => {
           setShowCreateModal(false);
           toast.success('QR Code Name created successfully!');
         }
-        loadQRCodeNameData();
+        loadQRCodeNameData(true);
         setFormData({
           qrName: '',
           seatClass: 'GENERAL',

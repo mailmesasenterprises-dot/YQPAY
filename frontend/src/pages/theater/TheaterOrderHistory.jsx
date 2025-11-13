@@ -139,7 +139,7 @@ const TheaterOrderHistory = React.memo(() => {
   }, [fetchTheaterInfo]);
 
   // 🚀 ULTRA-OPTIMIZED: Load orders data - <50ms with instant cache
-  const loadOrdersData = useCallback(async (page = 1, limit = 10, search = '', status = 'all', dateFilterParam = null, skipCache = false) => {
+  const loadOrdersData = useCallback(async (page = 1, limit = 10, search = '', status = 'all', dateFilterParam = null, skipCache = false, forceRefresh = false) => {
     const currentDateFilter = dateFilterParam || dateFilter;
     
     if (!isMountedRef.current || !theaterId) {
@@ -148,7 +148,8 @@ const TheaterOrderHistory = React.memo(() => {
 
     // 🚀 INSTANT CACHE CHECK - Load from cache first (< 50ms) - SYNCHRONOUS
     // Only cache for first page, no search, default status, and default date filter
-    if (!skipCache && page === 1 && !search && status === 'all' && currentDateFilter.type === 'date') {
+    // Skip cache if force refresh is requested
+    if (!skipCache && !forceRefresh && page === 1 && !search && status === 'all' && currentDateFilter.type === 'date') {
       const cacheKey = `theaterOrderHistory_${theaterId}_${currentDateFilter.selectedDate}`;
       try {
         const cached = getCachedData(cacheKey, 300000); // 5-minute cache
@@ -214,6 +215,12 @@ const TheaterOrderHistory = React.memo(() => {
         _t: Date.now()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterOrderHistory] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       // Add search parameter if provided
       if (search.trim()) {
         params.append('search', search.trim());
@@ -234,16 +241,25 @@ const TheaterOrderHistory = React.memo(() => {
 
       const baseUrl = `${config.api.baseUrl}/orders/theater-nested?${params.toString()}`;
       
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
 
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+        headers
       });
       
 
@@ -802,7 +818,7 @@ const TheaterOrderHistory = React.memo(() => {
           // Fetch fresh data in background (non-blocking)
           requestAnimationFrame(() => {
             if (loadOrdersDataRef.current) {
-              loadOrdersDataRef.current(1, 10, '', 'all', dateFilter, true);
+              loadOrdersDataRef.current(1, 10, '', 'all', dateFilter, true, true);
             }
           });
           
@@ -831,7 +847,7 @@ const TheaterOrderHistory = React.memo(() => {
     (async () => {
       try {
         if (loadOrdersDataRef.current) {
-          await loadOrdersDataRef.current(1, 10, '', 'all', dateFilter, false);
+          await loadOrdersDataRef.current(1, 10, '', 'all', dateFilter, false, true);
         } else {
           // Fallback direct API call if ref not set
           const params = new URLSearchParams({

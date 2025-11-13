@@ -833,7 +833,7 @@ const TheaterProductList = () => {
   }, []);
 
   // Fetch products from API
-  const fetchProducts = useCallback(async (page = 1, search = '', category = '', status = 'all', stock = 'all') => {
+  const fetchProducts = useCallback(async (page = 1, search = '', category = '', status = 'all', stock = 'all', forceRefresh = false) => {
     if (!isMountedRef.current || !theaterId) return;
 
     // Check if token exists
@@ -865,18 +865,34 @@ const TheaterProductList = () => {
         _random: Math.random()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterProductList] FORCE REFRESHING products from server (bypassing ALL caches)');
+      }
+
       const baseUrl = `${config.api.baseUrl}/theater-products/${theaterId}?${params.toString()}`;
       
 
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+        headers
       });
 
 
@@ -1127,8 +1143,8 @@ const TheaterProductList = () => {
       setError('');
       
       try {
-        // Load data sequentially to avoid race conditions
-        await fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter);
+        // 🔄 FORCE REFRESH: Always force refresh on mount for fresh data
+        await fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter, true);
         await fetchCategories();
         await fetchKioskTypes();
         await fetchProductTypes();
@@ -1436,6 +1452,8 @@ const TheaterProductList = () => {
             type: 'success'
           });
           console.log('✅ Product deleted successfully');
+          // 🔄 FORCE REFRESH: Force refresh after delete operation
+          fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter, true);
         },
         onError: (error, removedProduct) => {
           if (removedProduct) {
@@ -1540,8 +1558,8 @@ const TheaterProductList = () => {
 
       if (result.success) {
 
-        // Refresh products list
-        await fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter);
+        // 🔄 FORCE REFRESH: Force refresh after update operation
+        await fetchProducts(currentPage, searchTerm, selectedCategory, statusFilter, stockFilter, true);
         
         closeEditModal();
         

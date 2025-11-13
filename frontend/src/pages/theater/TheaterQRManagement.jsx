@@ -1200,7 +1200,7 @@ const TheaterQRManagement = () => {
   }, [theaterId]); // Removed 'theater' and 'showError' to prevent circular dependency
 
   // Load QR codes
-  const loadQRCodes = useCallback(async () => {
+  const loadQRCodes = useCallback(async (forceRefresh = false) => {
     if (!theaterId) return;
     
     try {
@@ -1218,17 +1218,38 @@ const TheaterQRManagement = () => {
       
       const token = localStorage.getItem('token') || localStorage.getItem('authToken');
       
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        console.log('🔄 [TheaterQRManagement] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
 
       // Use same endpoint as admin page with cache-busting timestamp
       const timestamp = Date.now();
-      console.log('🔗 Fetching QR codes from:', `${config.api.baseUrl}/single-qrcodes/theater/${theaterId}?_t=${timestamp}`);
+      const params = new URLSearchParams({
+        _t: timestamp.toString()
+      });
+
+      if (forceRefresh) {
+        params.append('_force', Date.now().toString());
+      }
+
+      console.log('🔗 Fetching QR codes from:', `${config.api.baseUrl}/single-qrcodes/theater/${theaterId}?${params.toString()}`);
       
-      const response = await fetch(`${config.api.baseUrl}/single-qrcodes/theater/${theaterId}?_t=${timestamp}`, {
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
+
+      const response = await fetch(`${config.api.baseUrl}/single-qrcodes/theater/${theaterId}?${params.toString()}`, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
+        headers
       });
       
       console.log('📥 QR Response status:', response.status);
@@ -1619,7 +1640,7 @@ const TheaterQRManagement = () => {
         showSuccess(`QR code ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
         
         // Reload to ensure data is in sync
-        await loadQRCodes();
+        await loadQRCodes(true);
       } else {
         throw new Error(data.message || 'Failed to update QR code status');
       }

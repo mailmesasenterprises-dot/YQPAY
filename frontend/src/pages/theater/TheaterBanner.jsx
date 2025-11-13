@@ -85,8 +85,8 @@ const TheaterBanner = () => {
   // }, [theaterId, userTheaterId, userType, showError]);
 
   // Load banners data with caching
-  const loadBannersData = useCallback(async (page = 1, limit = 10) => {
-    console.log('🔄 loadBannersData called:', { theaterId, page, limit, isMounted: isMountedRef.current });
+  const loadBannersData = useCallback(async (page = 1, limit = 10, forceRefresh = false) => {
+    console.log('🔄 loadBannersData called:', { theaterId, page, limit, forceRefresh, isMounted: isMountedRef.current });
     
     if (!isMountedRef.current || !theaterId) {
       console.warn('⚠️ Skipping load - isMounted:', isMountedRef.current, 'theaterId:', theaterId);
@@ -95,16 +95,18 @@ const TheaterBanner = () => {
 
     const cacheKey = `theaterBanners_${theaterId}_p${page}_l${limit}`;
     
-    // Check cache first
-    const cached = getCachedData(cacheKey, 120000); // 2-minute cache
-    if (cached && isMountedRef.current) {
-      console.log('⚡ [TheaterBanner] Loading from cache');
-      setBanners(cached.banners);
-      setTotalItems(cached.totalItems);
-      setTotalPages(cached.totalPages);
-      setCurrentPage(page);
-      setSummary(cached.summary);
-      setLoading(false);
+    // Check cache first (skip if force refresh)
+    if (!forceRefresh) {
+      const cached = getCachedData(cacheKey, 120000); // 2-minute cache
+      if (cached && isMountedRef.current) {
+        console.log('⚡ [TheaterBanner] Loading from cache');
+        setBanners(cached.banners);
+        setTotalItems(cached.totalItems);
+        setTotalPages(cached.totalPages);
+        setCurrentPage(page);
+        setSummary(cached.summary);
+        setLoading(false);
+      }
     }
 
     // Cancel previous request
@@ -115,7 +117,12 @@ const TheaterBanner = () => {
     abortControllerRef.current = new AbortController();
 
     try {
-      if (!cached) setLoading(true);
+      if (!forceRefresh) {
+        const cached = getCachedData(cacheKey, 120000);
+        if (!cached) setLoading(true);
+      } else {
+        setLoading(true);
+      }
 
       const params = new URLSearchParams({
         page: page,
@@ -123,16 +130,31 @@ const TheaterBanner = () => {
         _cacheBuster: Date.now()
       });
 
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+        console.log('🔄 [TheaterBanner] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
+
       const baseUrl = `${config.api.baseUrl}/theater-banners/${theaterId}?${params.toString()}`;
       console.log('📡 GET Request:', baseUrl);
       
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      } else {
+        headers['Cache-Control'] = 'no-cache';
+      }
 
       const response = await fetch(baseUrl, {
         signal: abortControllerRef.current.signal,
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        }
+        headers
       });
       
       console.log('📥 Response status:', response.status, response.statusText);
@@ -310,6 +332,8 @@ const TheaterBanner = () => {
             setShowEditModal(false);
           toast.success('Banner updated successfully!');
             console.log('✅ Banner updated successfully');
+            // Force refresh to get latest data
+            loadBannersData(currentPage, itemsPerPage, true);
           },
           onError: (error, previousState) => {
             if (previousState) {
@@ -343,6 +367,8 @@ const TheaterBanner = () => {
             setShowCreateModal(false);
           toast.success('Banner created successfully!');
             console.log('✅ Banner created successfully');
+            // Force refresh to get latest data
+            loadBannersData(currentPage, itemsPerPage, true);
           },
           onError: (error) => {
             setBanners(prev => prev.filter(b => !b._optimistic));
@@ -393,6 +419,8 @@ const TheaterBanner = () => {
           setShowDeleteModal(false);
           toast.success('Banner deleted successfully!');
           console.log('✅ Banner deleted successfully');
+          // Force refresh to get latest data
+          loadBannersData(currentPage, itemsPerPage, true);
         },
         onError: (error, removedBanner) => {
           if (removedBanner) {
@@ -462,7 +490,7 @@ const TheaterBanner = () => {
   // Initial load
   useEffect(() => {
     if (theaterId) {
-      loadBannersData(1, 10);
+      loadBannersData(1, 10, true);
     }
   }, [theaterId, loadBannersData]);
 

@@ -175,7 +175,7 @@ function TheaterSettings() {
     // If theaterId exists, fetch that theater's data
     if (effectiveTheaterId) {
 
-      fetchTheaterData(effectiveTheaterId);
+      fetchTheaterData(effectiveTheaterId, true);
     } else {
 
       setError('Theater ID not found. Please login again.');
@@ -198,23 +198,41 @@ function TheaterSettings() {
     }
   }, [theaterId, userTheaterId, userType, navigate, user]);
 
-  const fetchTheaterData = async (theaterIdToFetch) => {
+  const fetchTheaterData = async (theaterIdToFetch, forceRefresh = false) => {
     try {
       setLoading(true);
       setError('');
       
+      // 🔄 FORCE REFRESH: Add cache-busting timestamp when force refreshing
+      if (forceRefresh) {
+        console.log('🔄 [TheaterSettings] FORCE REFRESHING from server (bypassing ALL caches)');
+      }
 
       const token = localStorage.getItem('authToken');
-      const url = `${config.api.baseUrl}/theaters/${theaterIdToFetch}`;
       
+      const params = new URLSearchParams();
+      if (forceRefresh) {
+        params.append('_t', Date.now().toString());
+      }
+      
+      const url = `${config.api.baseUrl}/theaters/${theaterIdToFetch}${forceRefresh ? `?${params.toString()}` : ''}`;
+      
+      // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      if (forceRefresh) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        headers['Pragma'] = 'no-cache';
+        headers['Expires'] = '0';
+      }
 
       const data = await ultraFetch(url, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      }, {}, { cacheTTL: 60000 }).catch(error => { throw new Error('Request failed'); });
+        headers
+      }, {}, { cacheTTL: forceRefresh ? 0 : 60000 }).catch(error => { throw new Error('Request failed'); });
 
       // ✅ FIX: Backend returns data.data, not data.theater
       if (data.success && data.data) {
@@ -300,7 +318,7 @@ function TheaterSettings() {
       if (data.success) {
         alert('✅ Theater data saved successfully!');
         // Refresh the data
-        fetchTheaterData(theaterId);
+        fetchTheaterData(theaterId, true);
       } else {
         setError(data.message || 'Failed to save theater data');
       }
