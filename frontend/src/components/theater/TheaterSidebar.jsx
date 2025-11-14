@@ -155,11 +155,14 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
     { id: 'dashboard', icon: 'dashboard', label: 'Dashboard', path: effectiveTheaterId ? `/theater-dashboard/${effectiveTheaterId}` : '/theater-dashboard' },
     { id: 'add-product', icon: 'addproduct', label: 'Add Product', path: effectiveTheaterId ? `/theater-add-product/${effectiveTheaterId}` : '/theater-add-product' },
     { id: 'products', icon: 'products', label: 'Product Stock', path: effectiveTheaterId ? `/theater-products/${effectiveTheaterId}` : '/theater-products' },
+    { id: 'simple-products', icon: 'products', label: 'Simple Products', path: effectiveTheaterId ? `/simple-products/${effectiveTheaterId}` : '/simple-products' }, // ✅ Simple Product List
     { id: 'product-types', icon: 'productname', label: 'Product Type', path: effectiveTheaterId ? `/theater-product-types/${effectiveTheaterId}` : '/theater-product-types' },
     { id: 'categories', icon: 'categories', label: 'Categorie Type', path: effectiveTheaterId ? `/theater-categories/${effectiveTheaterId}` : '/theater-categories' },
     { id: 'kiosk-types', icon: 'categories', label: 'Kiosk Type', path: effectiveTheaterId ? `/theater-kiosk-types/${effectiveTheaterId}` : '/theater-kiosk-types' },
     { id: 'online-pos', icon: 'orderinterface', label: 'POS', path: effectiveTheaterId ? `/pos/${effectiveTheaterId}` : '/pos' },
-    { id: 'offline-pos', icon: 'orderinterface', label: '📶 Offline POS', path: effectiveTheaterId ? `/offline-pos/${effectiveTheaterId}` : '/offline-pos' }, // ✅ Offline POS
+    { id: 'professional-pos', icon: 'orderinterface', label: 'Professional POS', path: effectiveTheaterId ? `/theater-order-pos/${effectiveTheaterId}` : '/theater-order-pos' }, // ✅ Professional POS Interface
+    { id: 'offline-pos', icon: 'orderinterface', label: 'Offline POS', path: effectiveTheaterId ? `/offline-pos/${effectiveTheaterId}` : '/offline-pos' }, // ✅ Offline POS
+    { id: 'view-cart', icon: 'orders', label: 'View Cart', path: effectiveTheaterId ? `/view-cart/${effectiveTheaterId}` : '/view-cart' }, // ✅ View Cart
     { id: 'order-history', icon: 'orderhistory', label: 'Order History', path: effectiveTheaterId ? `/theater-order-history/${effectiveTheaterId}` : '/theater-order-history' },
     { id: 'online-order-history', icon: 'orderhistory', label: 'Online Orders', path: effectiveTheaterId ? `/online-order-history/${effectiveTheaterId}` : '/online-order-history' },
     { id: 'kiosk-order-history', icon: 'orderhistory', label: 'Kiosk Orders', path: effectiveTheaterId ? `/kiosk-order-history/${effectiveTheaterId}` : '/kiosk-order-history' },
@@ -171,7 +174,11 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
     { id: 'generate-qr', icon: 'qrcode', label: 'Generate QR', path: effectiveTheaterId ? `/theater-generate-qr/${effectiveTheaterId}` : '/theater-generate-qr' }, // ✅ Theater Generate QR
     { id: 'qr-management', icon: 'qrcode', label: 'QR Management', path: effectiveTheaterId ? `/theater-qr-management/${effectiveTheaterId}` : '/theater-qr-management' }, // ✅ Theater QR Management
     { id: 'theater-users', icon: 'users', label: 'Theater Users', path: effectiveTheaterId ? `/theater-user-management/${effectiveTheaterId}` : '/theater-user-management' }, // ✅ Theater User Management
-    { id: 'settings', icon: 'settings', label: 'Settings', path: effectiveTheaterId ? `/theater-settings/${effectiveTheaterId}` : '/theater-settings' }
+    // { id: 'stock', icon: 'categories', label: 'Stock Data', path: effectiveTheaterId ? `/theater-stock-management/${effectiveTheaterId}` : '/theater-stock-management' }, // ✅ Stock Management
+    { id: 'orders', icon: 'orders', label: 'Orders', path: effectiveTheaterId ? `/theater-orders/${effectiveTheaterId}` : '/theater-orders' }, // ✅ Orders
+    { id: 'reports', icon: 'reports', label: 'Reports', path: effectiveTheaterId ? `/theater-reports/${effectiveTheaterId}` : '/theater-reports' }, // ✅ Reports
+    { id: 'settings', icon: 'settings', label: 'Settings', path: effectiveTheaterId ? `/theater-settings/${effectiveTheaterId}` : '/theater-settings' },
+
   ];
 
   // Filter navigation items based on role permissions

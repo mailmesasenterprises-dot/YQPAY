@@ -11,9 +11,12 @@ const pageNameMapping = {
   'TheaterKioskTypes': 'kiosk-types',
   'TheaterProductTypes': 'product-types',
   'TheaterProductList': 'products',
+  'SimpleProductList': 'simple-products',
   'TheaterAddProductWithId': 'add-product',
   'OnlinePOSInterface': 'pos',
+  'ProfessionalPOSInterface': 'professional-pos',
   'OfflinePOSInterface': 'offline-pos',
+  'ViewCart': 'view-cart',
   'TheaterOrderHistory': 'order-history',
   'OnlineOrderHistory': 'online-order-history',
   'KioskOrderHistory': 'kiosk-order-history',
@@ -80,8 +83,11 @@ const getRouteFromPageId = (pageId, theaterId) => {
     'ReportGeneration': `/theater-reports/${theaterId}`,
     'reports': `/theater-reports/${theaterId}`,
     'SimpleProductList': `/simple-products/${theaterId}`,
+    'simple-products': `/simple-products/${theaterId}`,
     'ViewCart': `/view-cart/${theaterId}`,
-    'ProfessionalPOSInterface': `/theater-order-pos/${theaterId}`
+    'view-cart': `/view-cart/${theaterId}`,
+    'ProfessionalPOSInterface': `/theater-order-pos/${theaterId}`,
+    'professional-pos': `/theater-order-pos/${theaterId}`
   };
   
   return pageRouteMap[pageId] || null;

@@ -47,34 +47,51 @@ const TheaterLayout = ({ children, pageTitle = 'Theater Dashboard' }) => {
   // Determine current page from location
   const getCurrentPage = () => {
     const path = location.pathname;
+    // Dashboard
     if (path.includes('/theater-dashboard')) return 'dashboard';
-    if (path.includes('/theater-banner')) return 'banner';
+    
+    // Products
+    if (path.includes('/theater-add-product')) return 'add-product';
+    if (path.includes('/theater-stock-management')) return 'stock';
+    if (path.includes('/simple-products')) return 'simple-products';
+    if (path.includes('/theater-products')) return 'products';
+    if (path.includes('/theater-product-types')) return 'product-types';
+    
+    // Categories
+    if (path.includes('/theater-categories')) return 'categories';
+    if (path.includes('/theater-kiosk-types')) return 'kiosk-types';
+    
+    // POS
+    if (path.includes('/theater-order-pos')) return 'professional-pos';
+    if (path.includes('/offline-pos')) return 'offline-pos';
+    if (path.includes('/pos/')) return 'online-pos';
+    if (path.includes('/view-cart')) return 'view-cart';
+    
+    // Orders
+    if (path.includes('/theater-orders')) return 'orders';
     if (path.includes('/theater-order-history')) return 'order-history';
     if (path.includes('/online-order-history')) return 'online-order-history';
     if (path.includes('/kiosk-order-history')) return 'kiosk-order-history';
-    if (path.includes('/view-cart')) return 'online-pos'; // View Cart should highlight Online POS
-    if (path.includes('/pos/')) return 'online-pos';
-    if (path.includes('/offline-pos/')) return 'offline-pos';
-    if (path.includes('/theater/orders')) return 'orders';
-    if (path.includes('/theater-categories')) return 'categories';
-    if (path.includes('/theater-kiosk-types')) return 'kiosk-types';
-    if (path.includes('/theater-products')) return 'products';
-    if (path.includes('/theater-product-types')) return 'product-types';
-    if (path.includes('/theater-add-product')) return 'add-product';
-    if (path.includes('/theater-stock-management')) return 'products';
-    if (path.includes('/theater-messages')) return 'messages';
-    if (path.includes('/theater-roles')) return 'theater-roles';
-    if (path.includes('/theater-role-access')) return 'theater-role-access';
+    
+    // QR Management
     if (path.includes('/theater-qr-code-names')) return 'qr-code-names';
     if (path.includes('/theater-generate-qr')) return 'generate-qr';
     if (path.includes('/theater-qr-management')) return 'qr-management';
+    
+    // User Management
     if (path.includes('/theater-user-management')) return 'theater-users';
-    if (path.includes('/theater/qr-codes')) return 'qrcode';
-    if (path.includes('/theater/staff')) return 'users';
-    if (path.includes('/theater/sales')) return 'sales';
-    if (path.includes('/theater/messages')) return 'messages';
-    if (path.includes('/theater/analytics')) return 'reports';
+    if (path.includes('/theater-roles')) return 'theater-roles';
+    if (path.includes('/theater-role-access')) return 'theater-role-access';
+    
+    // Messages & Banner
+    if (path.includes('/theater-messages')) return 'messages';
+    if (path.includes('/theater-banner')) return 'banner';
+    
+    // Reports & Settings
+    if (path.includes('/theater-reports')) return 'reports';
     if (path.includes('/theater-settings')) return 'settings';
+    
+    // Fallback
     return 'dashboard';
   };
 
