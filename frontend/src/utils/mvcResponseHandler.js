@@ -145,18 +145,22 @@ export const handlePaginatedResponse = (response) => {
     console.warn('⚠️ [MVC Response Handler] No data field in paginated response:', result);
   }
 
+  // Normalize pagination to ensure both field name variations exist
+  const pagination = result.pagination || result.data?.pagination || {};
+  const normalizedPagination = {
+    current: pagination.current || pagination.page || 1,
+    limit: pagination.limit || pagination.perPage || 10,
+    total: pagination.total || pagination.totalItems || items.length,
+    totalItems: pagination.totalItems || pagination.total || items.length,
+    pages: pagination.pages || pagination.totalPages || Math.ceil((pagination.total || pagination.totalItems || items.length) / (pagination.limit || 10)),
+    totalPages: pagination.totalPages || pagination.pages || Math.ceil((pagination.total || pagination.totalItems || items.length) / (pagination.limit || 10)),
+    hasNext: pagination.hasNext !== undefined ? pagination.hasNext : false,
+    hasPrev: pagination.hasPrev !== undefined ? pagination.hasPrev : false
+  };
+
   return {
     items,
-    pagination: result.pagination || {
-      current: 1,
-      limit: 10,
-      total: 0,
-      totalItems: 0,
-      pages: 0,
-      totalPages: 0,
-      hasNext: false,
-      hasPrev: false
-    },
+    pagination: normalizedPagination,
     message: result.message || 'Success'
   };
 };

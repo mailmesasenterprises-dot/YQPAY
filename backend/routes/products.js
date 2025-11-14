@@ -62,11 +62,19 @@ router.get('/:theaterId', [
     const skip = (page - 1) * limit;
     const { categoryId, search, status, isActive, isFeatured, sortBy = 'name', sortOrder = 'asc' } = req.query;
 
+    console.log('📡 [Products API] Fetching products for theater:', theaterId);
+    console.log('📡 [Products API] Page:', page, 'Limit:', limit);
+
     // Try NEW array-based structure first (like categories)
     const productContainer = await mongoose.connection.db.collection('productlist').findOne({
       theater: new mongoose.Types.ObjectId(theaterId),
       productList: { $exists: true }
     });
+    
+    console.log('📦 [Products API] Product container found:', !!productContainer);
+    if (productContainer) {
+      console.log('📦 [Products API] Products in container:', productContainer.productList?.length || 0);
+    }
 
     let allProducts = [];
     
@@ -133,10 +141,38 @@ router.get('/:theaterId', [
     // Pagination
     const total = filtered.length;
     const paginatedProducts = filtered.slice(skip, skip + limit);
-    // ✅ Fetch real stock balances from MonthlyStock for each product
+    
+    // ✅ Fetch related data: stock, kioskType, productType for quantity
     const currentDate = new Date();
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
+    
+    // Get all unique kioskType IDs and productType IDs
+    const kioskTypeIds = [...new Set(paginatedProducts.map(p => p.kioskType).filter(Boolean))];
+    const productTypeIds = [...new Set(paginatedProducts.map(p => p.productTypeId).filter(Boolean))];
+    
+    // Fetch all kiosk types in one query
+    const KioskType = mongoose.model('KioskType');
+    const kioskTypesData = await KioskType.find({
+      _id: { $in: kioskTypeIds }
+    }).lean();
+    const kioskTypeMap = new Map(kioskTypesData.map(kt => [kt._id.toString(), kt]));
+    
+    // Fetch all product types to get quantity values
+    const ProductType = mongoose.model('ProductType');
+    const productTypeDocs = await ProductType.find({
+      theater: new mongoose.Types.ObjectId(theaterId),
+      'productTypeList._id': { $in: productTypeIds }
+    }).lean();
+    
+    // Build productType map
+    const productTypeMap = new Map();
+    productTypeDocs.forEach(doc => {
+      doc.productTypeList?.forEach(pt => {
+        productTypeMap.set(pt._id.toString(), pt);
+      });
+    });
+    
     const productsWithRealStock = await Promise.all(
       paginatedProducts.map(async (product) => {
         try {
@@ -150,12 +186,31 @@ router.get('/:theaterId', [
           // Only use closing balance from MonthlyStock. If no MonthlyStock record exists, stock is 0
           const realStock = monthlyDoc?.closingBalance ?? 0;
           
+          // Get kioskType data if exists
+          let kioskTypeData = null;
+          if (product.kioskType) {
+            kioskTypeData = kioskTypeMap.get(product.kioskType.toString());
+          }
+          
+          // Get quantity from productType if not directly stored
+          let quantity = product.quantity || '';
+          if (!quantity && product.productTypeId) {
+            const productTypeData = productTypeMap.get(product.productTypeId.toString());
+            if (productTypeData) {
+              quantity = productTypeData.quantity || '';
+            }
+          }
+          
           return {
             ...product,
             inventory: {
               ...product.inventory,
               currentStock: Math.max(0, realStock)  // Ensure non-negative
-            }
+            },
+            // Add populated kioskType data
+            kioskTypeData: kioskTypeData || null,
+            // Ensure quantity is available
+            quantity: quantity
           };
         } catch (err) {
           console.error(`  ⚠️ Error fetching stock for ${product.name}:`, err.message);
@@ -164,6 +219,18 @@ router.get('/:theaterId', [
         }
       })
     );
+    console.log('✅ [Products API] Returning', productsWithRealStock.length, 'products');
+    console.log('✅ [Products API] Total products:', total);
+    if (productsWithRealStock.length > 0) {
+      console.log('✅ [Products API] First product sample:', {
+        name: productsWithRealStock[0].name,
+        hasImages: !!productsWithRealStock[0].images?.length,
+        hasKioskType: !!productsWithRealStock[0].kioskType,
+        hasKioskTypeData: !!productsWithRealStock[0].kioskTypeData,
+        hasQuantity: !!productsWithRealStock[0].quantity
+      });
+    }
+    
     res.json({
       success: true,
       data: {
@@ -172,7 +239,9 @@ router.get('/:theaterId', [
           current: page,
           limit,
           total,
+          totalItems: total, // Add totalItems for frontend compatibility
           pages: Math.ceil(total / limit),
+          totalPages: Math.ceil(total / limit), // Add totalPages for frontend compatibility
           hasNext: page < Math.ceil(total / limit),
           hasPrev: page > 1
         }
@@ -487,8 +556,21 @@ router.put('/:theaterId/:productId', [
         const existingProduct = productContainer.productList.find(p => p._id.equals(productObjectId));
         const existingImages = existingProduct?.images || [];
         
+        // Create proper image object
+        const newImageObject = {
+          url: imageUrl,
+          filename: req.file.originalname,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          isMain: existingImages.length === 0 // First image is main
+        };
+        
         // Add new image to the beginning of the array
-        processedData.images = [imageUrl, ...existingImages];
+        processedData.images = [newImageObject, ...existingImages];
+        processedData.imageUrl = imageUrl;
+        processedData.image = imageUrl;
+        
+        console.log('✅ Product image updated:', imageUrl);
       } catch (uploadError) {
         console.error('❌ Image upload error:', uploadError);
         return res.status(500).json({
