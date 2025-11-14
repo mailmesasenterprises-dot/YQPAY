@@ -90,7 +90,10 @@ class TheaterController extends BaseController {
         instagram,
         twitter,
         youtube,
-        website
+        website,
+        gstNumber,
+        fssaiNumber,
+        uniqueNumber
       } = req.body;
 
       // Validate required fields
@@ -166,6 +169,9 @@ class TheaterController extends BaseController {
           youtube: youtube || null,
           website: website || null
         },
+        gstNumber: gstNumber ? gstNumber.toUpperCase().trim() : undefined,
+        fssaiNumber: fssaiNumber ? fssaiNumber.trim() : undefined,
+        uniqueNumber: uniqueNumber ? uniqueNumber.trim() : undefined,
         settings: {
           currency: 'INR',
           timezone: 'Asia/Kolkata',
@@ -340,6 +346,16 @@ class TheaterController extends BaseController {
           youtube: req.body.youtube || theater.socialMedia?.youtube || null,
           website: req.body.website || theater.socialMedia?.website || null
         };
+      }
+      // Update GST, FSSAI, and Unique numbers
+      if (req.body.gstNumber !== undefined) {
+        updateData.gstNumber = req.body.gstNumber ? req.body.gstNumber.toUpperCase().trim() : null;
+      }
+      if (req.body.fssaiNumber !== undefined) {
+        updateData.fssaiNumber = req.body.fssaiNumber ? req.body.fssaiNumber.trim() : null;
+      }
+      if (req.body.uniqueNumber !== undefined) {
+        updateData.uniqueNumber = req.body.uniqueNumber ? req.body.uniqueNumber.trim() : null;
       }
       if (req.body.paymentGateway) {
         updateData.paymentGateway = {

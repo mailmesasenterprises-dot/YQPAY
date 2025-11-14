@@ -122,7 +122,10 @@ const AddTheater = React.memo(() => {
     instagram: '',
     twitter: '',
     youtube: '',
-    website: ''
+    website: '',
+    gstNumber: '',
+    fssaiNumber: '',
+    uniqueNumber: ''
   });
 
   const [files, setFiles] = useState({
@@ -194,7 +197,9 @@ const AddTheater = React.memo(() => {
   const validationRules = useMemo(() => ({
     email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     phone: /^\d{10}$/,
-    pincode: /^\d{6}$/
+    pincode: /^\d{6}$/,
+    gstNumber: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
+    fssaiNumber: /^[0-9]{14}$/
   }), []);
 
   // Memoized form validation status
@@ -393,6 +398,20 @@ const AddTheater = React.memo(() => {
       newErrors.pincode = 'Please enter a valid 6-digit pincode';
     }
 
+    // GST Number validation (optional but must be valid if provided)
+    if (formData.gstNumber && formData.gstNumber.trim() !== '') {
+      if (!validationRules.gstNumber.test(formData.gstNumber.toUpperCase())) {
+        newErrors.gstNumber = 'Please enter a valid GST number (e.g., 22AAAAA0000A1Z5)';
+      }
+    }
+
+    // FSSAI Number validation (optional but must be valid if provided)
+    if (formData.fssaiNumber && formData.fssaiNumber.trim() !== '') {
+      if (!validationRules.fssaiNumber.test(formData.fssaiNumber)) {
+        newErrors.fssaiNumber = 'FSSAI number must be exactly 14 digits';
+      }
+    }
+
     // Date validation
     if (formData.agreementStartDate && formData.agreementEndDate) {
       const startDate = new Date(formData.agreementStartDate);
@@ -584,6 +603,11 @@ const AddTheater = React.memo(() => {
       if (formData.twitter) formDataToSend.append('twitter', formData.twitter);
       if (formData.youtube) formDataToSend.append('youtube', formData.youtube);
       if (formData.website) formDataToSend.append('website', formData.website);
+      
+      // Add business registration details
+      if (formData.gstNumber) formDataToSend.append('gstNumber', formData.gstNumber.toUpperCase());
+      if (formData.fssaiNumber) formDataToSend.append('fssaiNumber', formData.fssaiNumber);
+      if (formData.uniqueNumber) formDataToSend.append('uniqueNumber', formData.uniqueNumber);
       
       // Add files to FormData
 
@@ -916,6 +940,58 @@ const AddTheater = React.memo(() => {
                   required
                 />
                 {errors.pincode && <span className="error-message">{errors.pincode}</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Business Registration Details */}
+          <div className="form-section">
+            <h2>Business Registration Details</h2>
+            <div className="form-grid">
+              <div className="form-group">
+                <label htmlFor="gstNumber">GST Number</label>
+                <input
+                  type="text"
+                  id="gstNumber"
+                  name="gstNumber"
+                  value={formData.gstNumber}
+                  onChange={handleInputChange}
+                  className={errors.gstNumber ? 'error' : ''}
+                  placeholder="e.g., 22AAAAA0000A1Z5"
+                  maxLength="15"
+                  style={{ textTransform: 'uppercase' }}
+                />
+                {errors.gstNumber && <span className="error-message">{errors.gstNumber}</span>}
+                <small>Enter 15-character GST Identification Number (Optional)</small>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="fssaiNumber">FSSAI License Number</label>
+                <input
+                  type="text"
+                  id="fssaiNumber"
+                  name="fssaiNumber"
+                  value={formData.fssaiNumber}
+                  onChange={handleInputChange}
+                  className={errors.fssaiNumber ? 'error' : ''}
+                  placeholder="e.g., 12345678901234"
+                  maxLength="14"
+                />
+                {errors.fssaiNumber && <span className="error-message">{errors.fssaiNumber}</span>}
+                <small>Enter 14-digit FSSAI License Number (Optional)</small>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="uniqueNumber">Unique Identifier</label>
+                <input
+                  type="text"
+                  id="uniqueNumber"
+                  name="uniqueNumber"
+                  value={formData.uniqueNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter unique identifier"
+                />
+                <small>Any unique reference number for this theater (Optional)</small>
               </div>
             </div>
           </div>

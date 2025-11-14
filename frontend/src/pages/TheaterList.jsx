@@ -516,7 +516,10 @@ const TheaterList = React.memo(() => {
       address: theater.address?.street || '',
       city: theater.address?.city || '',
       state: theater.address?.state || '',
-      pincode: theater.address?.pincode || theater.address?.zipCode || ''
+      pincode: theater.address?.pincode || theater.address?.zipCode || '',
+      gstNumber: theater.gstNumber || '',
+      fssaiNumber: theater.fssaiNumber || '',
+      uniqueNumber: theater.uniqueNumber || ''
     });
     // Reset upload files when opening edit modal
     setUploadFiles({
@@ -672,6 +675,11 @@ const TheaterList = React.memo(() => {
       if (editFormData.city) formData.append('city', editFormData.city);
       if (editFormData.state) formData.append('state', editFormData.state);
       if (editFormData.pincode) formData.append('pincode', editFormData.pincode);
+      
+      // Add business registration fields
+      if (editFormData.gstNumber) formData.append('gstNumber', editFormData.gstNumber.toUpperCase());
+      if (editFormData.fssaiNumber) formData.append('fssaiNumber', editFormData.fssaiNumber);
+      if (editFormData.uniqueNumber) formData.append('uniqueNumber', editFormData.uniqueNumber);
       
       // Add any new files
       const fileTypes = Object.keys(uploadFiles);
@@ -1354,6 +1362,46 @@ const TheaterList = React.memo(() => {
                       <option value="Inactive">Inactive</option>
                     </select>
                   </div>
+                  {/* Business Registration Details */}
+                  {(viewModal.theater?.gstNumber || viewModal.theater?.fssaiNumber || viewModal.theater?.uniqueNumber) && (
+                    <>
+                      {viewModal.theater?.gstNumber && (
+                        <div className="form-group">
+                          <label>GST Number</label>
+                          <input 
+                            type="text" 
+                            value={viewModal.theater.gstNumber} 
+                            className="form-control"
+                            readOnly
+                            style={{ fontFamily: 'monospace', letterSpacing: '0.5px' }}
+                          />
+                        </div>
+                      )}
+                      {viewModal.theater?.fssaiNumber && (
+                        <div className="form-group">
+                          <label>FSSAI License Number</label>
+                          <input 
+                            type="text" 
+                            value={viewModal.theater.fssaiNumber} 
+                            className="form-control"
+                            readOnly
+                            style={{ fontFamily: 'monospace', letterSpacing: '0.5px' }}
+                          />
+                        </div>
+                      )}
+                      {viewModal.theater?.uniqueNumber && (
+                        <div className="form-group">
+                          <label>Unique Identifier</label>
+                          <input 
+                            type="text" 
+                            value={viewModal.theater.uniqueNumber} 
+                            className="form-control"
+                            readOnly
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
                   {viewModal.theater?.agreementDetails?.startDate && (
                     <div className="form-group">
                       <label>Agreement Start Date</label>
@@ -1733,7 +1781,7 @@ const TheaterList = React.memo(() => {
                     </div>
                   </div>
 
-                  <div className="form-grid" style={{marginBottom: '0'}}>
+                  <div className="form-grid" style={{marginBottom: '24px'}}>
                     <div className="form-group">
                       <label className="required">State</label>
                       <input 
@@ -1753,6 +1801,46 @@ const TheaterList = React.memo(() => {
                         className="form-control"
                         placeholder="Enter pincode"
                       />
+                    </div>
+                  </div>
+
+                  {/* Business Registration Details */}
+                  <div className="form-grid" style={{marginBottom: '0'}}>
+                    <div className="form-group">
+                      <label>GST Number</label>
+                      <input 
+                        type="text" 
+                        value={editFormData.gstNumber || ''} 
+                        onChange={(e) => handleEditFormChange('gstNumber', e.target.value.toUpperCase())}
+                        className="form-control"
+                        placeholder="e.g., 22AAAAA0000A1Z5"
+                        maxLength="15"
+                        style={{ textTransform: 'uppercase' }}
+                      />
+                      <small style={{ color: '#64748b', fontSize: '12px' }}>15-character GST Number (Optional)</small>
+                    </div>
+                    <div className="form-group">
+                      <label>FSSAI License Number</label>
+                      <input 
+                        type="text" 
+                        value={editFormData.fssaiNumber || ''} 
+                        onChange={(e) => handleEditFormChange('fssaiNumber', e.target.value.replace(/\D/g, ''))}
+                        className="form-control"
+                        placeholder="e.g., 12345678901234"
+                        maxLength="14"
+                      />
+                      <small style={{ color: '#64748b', fontSize: '12px' }}>14-digit FSSAI Number (Optional)</small>
+                    </div>
+                    <div className="form-group">
+                      <label>Unique Identifier</label>
+                      <input 
+                        type="text" 
+                        value={editFormData.uniqueNumber || ''} 
+                        onChange={(e) => handleEditFormChange('uniqueNumber', e.target.value)}
+                        className="form-control"
+                        placeholder="Enter unique identifier"
+                      />
+                      <small style={{ color: '#64748b', fontSize: '12px' }}>Any unique reference (Optional)</small>
                     </div>
                   </div>
                 </div>

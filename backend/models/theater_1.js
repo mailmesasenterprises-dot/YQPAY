@@ -78,6 +78,23 @@ const theaterSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now }
   }],
+  gstNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    match: [/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Please enter a valid GST number']
+  },
+  fssaiNumber: {
+    type: String,
+    trim: true,
+    match: [/^[0-9]{14}$/, 'FSSAI number must be 14 digits']
+  },
+  uniqueNumber: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true
+  },
   status: {
     type: String,
     enum: ['active', 'inactive', 'suspended'],

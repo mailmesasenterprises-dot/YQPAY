@@ -1836,21 +1836,6 @@ const TheaterProductList = () => {
               </div>
 
               <button 
-                className="submit-btn date-filter-btn"
-                onClick={() => setShowDateFilterModal(true)}
-                style={{
-                  backgroundColor: '#8B5CF6',
-                  padding: '10px 16px',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                <span className="btn-icon">📅</span>
-                {dateFilter.type === 'all' ? 'Current Date' : 
-                 dateFilter.type === 'date' ? `${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')}` :
-                 'Current Date'}
-              </button>
-
-              <button 
                 type="button"
                 className="submit-btn excel-download-btn"
                 onClick={(e) => {
@@ -1865,12 +1850,21 @@ const TheaterProductList = () => {
                   opacity: downloadingExcel || loading ? 0.6 : 1,
                   pointerEvents: downloadingExcel || loading ? 'none' : 'auto',
                   minWidth: '100px',
-                  padding: '10px 20px',
+                  padding: '8px 16px',
                   whiteSpace: 'nowrap'
                 }}
               >
                 <span className="btn-icon">{downloadingExcel ? '⏳' : '📊'}</span>
-                {downloadingExcel ? 'Downloading...' : 'Excel'}
+                {downloadingExcel ? 'Downloading...' : 'EXCEL'}
+              </button>
+              <button 
+                className="submit-btn date-filter-btn"
+                onClick={() => setShowDateFilterModal(true)}
+              >
+                <span className="btn-icon">📅</span>
+                {dateFilter.type === 'all' ? 'Date Filter' : 
+                 dateFilter.type === 'date' ? `TODAY (${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')})` :
+                 'Date Filter'}
               </button>
 
               <span className="results-count">

@@ -174,9 +174,9 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
     { id: 'generate-qr', icon: 'qrcode', label: 'Generate QR', path: effectiveTheaterId ? `/theater-generate-qr/${effectiveTheaterId}` : '/theater-generate-qr' }, // ✅ Theater Generate QR
     { id: 'qr-management', icon: 'qrcode', label: 'QR Management', path: effectiveTheaterId ? `/theater-qr-management/${effectiveTheaterId}` : '/theater-qr-management' }, // ✅ Theater QR Management
     { id: 'theater-users', icon: 'users', label: 'Theater Users', path: effectiveTheaterId ? `/theater-user-management/${effectiveTheaterId}` : '/theater-user-management' }, // ✅ Theater User Management
-    // { id: 'stock', icon: 'categories', label: 'Stock Data', path: effectiveTheaterId ? `/theater-stock-management/${effectiveTheaterId}` : '/theater-stock-management' }, // ✅ Stock Management
+    { id: 'stock', icon: 'categories', label: 'Stock Data', path: effectiveTheaterId ? `/theater-stock-management/${effectiveTheaterId}` : '/theater-stock-management' }, // ✅ Stock Management
     { id: 'orders', icon: 'orders', label: 'Orders', path: effectiveTheaterId ? `/theater-orders/${effectiveTheaterId}` : '/theater-orders' }, // ✅ Orders
-    { id: 'reports', icon: 'reports', label: 'Reports', path: effectiveTheaterId ? `/theater-reports/${effectiveTheaterId}` : '/theater-reports' }, // ✅ Reports
+    // { id: 'reports', icon: 'reports', label: 'Reports', path: effectiveTheaterId ? `/theater-reports/${effectiveTheaterId}` : '/theater-reports' }, // ✅ Reports
     { id: 'settings', icon: 'settings', label: 'Settings', path: effectiveTheaterId ? `/theater-settings/${effectiveTheaterId}` : '/theater-settings' },
 
   ];
@@ -215,18 +215,12 @@ const TheaterSidebar = ({ sidebarOpen, setSidebarOpen, sidebarCollapsed, current
       
       {/* Sidebar */}
       <aside className={`dashboard-sidebar ${sidebarCollapsed ? 'collapsed' : 'expanded'}`}>
-        <div className="sidebar-brand">
-          <div className="brand-icon" style={{ background: 'transparent' }}>
-            <img 
-              src="/images/logo.jpg" 
-              alt="Theater Logo" 
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
-          </div>
-          <div>
-            <div className="brand-text">Theater Admin</div>
-            <div className="brand-subtitle">{config.app.name}</div>
-          </div>
+        <div className="sidebar-brand" style={{ padding: 0 }}>
+          <img 
+            src="/images/logo.jpg" 
+            alt="Theater Logo" 
+            style={{ width: '220px', height: '88px', objectFit: 'cover', display: 'block' }}
+          />
         </div>
         
         <nav className="sidebar-nav">

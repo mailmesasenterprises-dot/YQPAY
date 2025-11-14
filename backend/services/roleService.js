@@ -156,19 +156,10 @@ class RoleService extends BaseService {
  * Theater Admin has full access to all theater management pages
  */
 function getDefaultTheaterAdminPermissions() {
-  return [
-    { page: 'Dashboard', pageName: 'Dashboard', hasAccess: true, route: '/dashboard' },
-    { page: 'Products', pageName: 'Products', hasAccess: true, route: '/theater/:theaterId/products' },
-    { page: 'Categories', pageName: 'Categories', hasAccess: true, route: '/theater/:theaterId/categories' },
-    { page: 'ProductTypes', pageName: 'Product Types', hasAccess: true, route: '/theater/:theaterId/product-types' },
-    { page: 'Orders', pageName: 'Orders', hasAccess: true, route: '/theater/:theaterId/orders' },
-    { page: 'POS', pageName: 'POS Interface', hasAccess: true, route: '/theater/:theaterId/pos' },
-    { page: 'Stock', pageName: 'Stock Management', hasAccess: true, route: '/theater/:theaterId/stock' },
-    { page: 'Settings', pageName: 'Settings', hasAccess: true, route: '/theater/:theaterId/settings' },
-    { page: 'Roles', pageName: 'Roles', hasAccess: true, route: '/theater/:theaterId/roles' },
-    { page: 'Users', pageName: 'Users', hasAccess: true, route: '/theater/:theaterId/users' },
-    { page: 'Reports', pageName: 'Reports', hasAccess: true, route: '/theater/:theaterId/reports' }
-  ];
+  // Theater Admin role should have NO default page access
+  // Access must be manually granted through Role Access Management page
+  // Only Theater and Kiosk roles get default access
+  return [];
 }
 
 /**
@@ -215,14 +206,14 @@ async function createDefaultTheaterAdminRole(theaterId, theaterName) {
     // Create the Theater Admin role data
     const roleData = {
       name: 'Theater Admin',
-      description: `Default admin role for ${theaterName}. This role provides full access to all theater management features. Cannot be deleted or edited.`,
+      description: `Default admin role for ${theaterName}. Page access must be manually granted through Role Access Management. Cannot be deleted or renamed.`,
       permissions: permissions,
       isGlobal: false,
       priority: 1, // Highest priority
       isActive: true,
       isDefault: true, // Mark as default role
       canDelete: false, // Cannot be deleted
-      canEdit: false // Cannot be edited
+      canEdit: false // Cannot be edited (name/description only, permissions can be updated)
     };
     
     // Add role to the nested array using the addRole method
@@ -549,7 +540,7 @@ async function createDefaultRoles(theaterId, theaterName) {
       const adminPermissions = getDefaultTheaterAdminPermissions();
       const adminRoleData = {
         name: 'Theater Admin',
-        description: `Default admin role for ${theaterName}. This role provides full access to all theater management features. Cannot be deleted or edited.`,
+        description: `Default admin role for ${theaterName}. Page access must be manually granted through Role Access Management. Cannot be deleted or renamed.`,
         permissions: adminPermissions,
         isGlobal: false,
         priority: 1,
