@@ -7,10 +7,16 @@
  */
 
 const mongoose = require('mongoose');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-// Connect to MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/yqpay';
+// Connect to MongoDB - require environment variable
+const MONGODB_URI = process.env.MONGODB_URI?.trim();
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI is not set in environment variables!');
+  console.error('   Please set MONGODB_URI in backend/.env file');
+  process.exit(1);
+}
 
 async function migrateDatabase() {
   try {

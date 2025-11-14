@@ -12,10 +12,21 @@ const Theater = require('../models/Theater');
 
 async function migratePageAccessToTheaterBased() {
   try {
-    // Connect to database
-    await mongoose.connect('mongodb://localhost:27017/theater_canteen_db', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
+    // Load environment variables
+    require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+    
+    // Connect to database - use environment variable or exit with error
+    const MONGODB_URI = process.env.MONGODB_URI?.trim();
+    if (!MONGODB_URI) {
+      console.error('❌ MONGODB_URI is not set in environment variables!');
+      console.error('   Please set MONGODB_URI in backend/.env file');
+      process.exit(1);
+    }
+    
+    await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 30000,
+      socketTimeoutMS: 120000,
+      connectTimeoutMS: 30000,
     });
     // Step 1: Get all global pages
     const globalPages = await PageAccess.find();

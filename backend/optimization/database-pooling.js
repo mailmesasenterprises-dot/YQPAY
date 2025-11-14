@@ -43,8 +43,18 @@ async function connectWithOptimizedPooling(uri) {
     // Note: We don't set bufferCommands: false globally as it prevents
     // queries from working if connection fails. Mongoose will handle buffering.
     
-    // Connect with MongoDB connection options only
-    await mongoose.connect(uri, optimizedConnectionOptions);
+    // ✅ FIX: Add connection timeout wrapper to prevent hanging
+    const connectionPromise = mongoose.connect(uri, optimizedConnectionOptions);
+    
+    // Add timeout wrapper (35 seconds - slightly longer than serverSelectionTimeoutMS)
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Connection timeout after 35 seconds - check network, IP whitelist, and connection string'));
+      }, 35000);
+    });
+    
+    // Race between connection and timeout
+    await Promise.race([connectionPromise, timeoutPromise]);
     
     // Monitor connection pool
     mongoose.connection.on('connected', () => {
@@ -57,6 +67,22 @@ async function connectWithOptimizedPooling(uri) {
 
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
+      console.error('Error name:', err.name);
+      console.error('Error message:', err.message);
+      
+      // Provide specific guidance based on error type
+      if (err.name === 'MongooseServerSelectionError' || err.message.includes('ENOTFOUND') || err.message.includes('getaddrinfo')) {
+        console.error('\n🔍 Troubleshooting steps:');
+        console.error('1. Check MONGODB_URI in backend/.env file');
+        console.error('2. Verify IP is whitelisted in MongoDB Atlas Network Access');
+        console.error('3. Check if cluster is running (not paused) in Atlas Dashboard');
+        console.error('4. Verify network connectivity and firewall settings');
+      } else if (err.message.includes('Authentication failed') || err.message.includes('bad auth')) {
+        console.error('\n🔍 Authentication issue:');
+        console.error('1. Check username and password in connection string');
+        console.error('2. Verify user exists in MongoDB Atlas Database Access');
+        console.error('3. Ensure password is URL-encoded if it has special characters');
+      }
       // Don't exit - let the reconnection logic handle it
     });
 

@@ -137,7 +137,8 @@ const TheaterQRCodeNames = () => {
 
       const baseUrl = `${config.api.baseUrl}/qrcodenames?${params.toString()}`;
       
-      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      // ✅ FIXED: Standardized to use 'authToken' as primary key
+      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
       
       // 🔄 FORCE REFRESH: Add no-cache headers when force refreshing
       const headers = {
@@ -270,7 +271,8 @@ const TheaterQRCodeNames = () => {
   // Handle delete
   const handleDeleteQRCodeName = async () => {
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      // ✅ FIXED: Standardized to use 'authToken' as primary key
+      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
       
       console.log('🗑️ [QRCodeNames] Deleting QR code name:', selectedQRCodeName._id);
       console.log('🗑️ [QRCodeNames] Theater ID:', theaterId);
@@ -322,7 +324,8 @@ const TheaterQRCodeNames = () => {
   // Handle save (create/update)
   const handleSaveQRCodeName = async (isEdit) => {
     try {
-      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      // ✅ FIXED: Standardized to use 'authToken' as primary key
+      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
       
       const url = isEdit 
         ? `${config.api.baseUrl}/qrcodenames/${selectedQRCodeName._id}`

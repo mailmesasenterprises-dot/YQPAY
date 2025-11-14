@@ -679,12 +679,26 @@ const OfflinePOSInterface = () => {
       return;
     }
 
-    // Prepare cart data with current order
+    // ✅ FIX: Optimize cart data to reduce size - only include essential fields
+    const optimizedItems = currentOrder.map(item => ({
+      _id: item._id,
+      name: item.name,
+      quantity: item.quantity,
+      sellingPrice: item.sellingPrice || item.pricing?.basePrice || item.pricing?.salePrice || 0,
+      discountPercentage: item.discountPercentage || item.pricing?.discountPercentage || 0,
+      taxRate: item.taxRate || item.pricing?.taxRate || 5,
+      gstType: item.gstType || item.pricing?.gstType || 'EXCLUDE',
+      // Don't include full product object, images, or other large fields
+    }));
+
+    // Prepare optimized cart data (without images to reduce size)
     const cartData = {
-      items: currentOrder,
+      items: optimizedItems,
       customerName: customerName.trim() || 'POS', // Default customer name
       notes: orderNotes.trim(),
-      images: orderImages,
+      // ✅ FIX: Don't include images in cart data - they're too large
+      // Images can be re-uploaded on ViewCart page if needed
+      images: [], // Remove images to prevent storage quota issues
       subtotal: orderTotals.subtotal,
       tax: orderTotals.tax,
       total: orderTotals.total,
@@ -694,30 +708,30 @@ const OfflinePOSInterface = () => {
     };
     
     try {
-      // Clear old cart data first to free up space
-      sessionStorage.removeItem('cartData');
-      
-      // Try to store in sessionStorage for ViewCart page
-      sessionStorage.setItem('cartData', JSON.stringify(cartData));
-      console.log('✅ Cart data saved to sessionStorage');
-      
-      // Navigate to view cart
-      window.location.href = `/view-cart/${theaterId}?source=offline-pos`;
+      // ✅ FIX: Use React Router navigate with state (preferred - doesn't use sessionStorage)
+      // This avoids sessionStorage quota issues
+      navigate(`/view-cart/${theaterId}?source=offline-pos`, {
+        state: cartData
+      });
+      console.log('✅ Navigating to cart with state data (optimized, no images)');
     } catch (error) {
-      console.error('❌ SessionStorage error:', error);
+      console.error('❌ Navigation error:', error);
       
-      // Fallback: try without images if storage quota exceeded
+      // Fallback: try sessionStorage (without images already)
       try {
-        const lightCartData = { ...cartData, images: [] };
-        sessionStorage.setItem('cartData', JSON.stringify(lightCartData));
-        console.log('⚠️ Using sessionStorage without images due to size');
+        // Clear old cart data first to free up space
+        sessionStorage.removeItem('cartData');
+        sessionStorage.setItem('cartData', JSON.stringify(cartData));
+        console.log('⚠️ Using sessionStorage fallback (optimized, no images)');
         window.location.href = `/view-cart/${theaterId}?source=offline-pos`;
       } catch (storageError) {
-        console.error('❌ SessionStorage failed even without images:', storageError);
-        alert('Unable to process order. Cart data too large. Please reduce order size.');
+        console.error('❌ SessionStorage failed:', storageError);
+        // Last resort: navigate without state, ViewCart will show empty cart
+        alert('Unable to save cart data. Please try again or reduce order size.');
+        window.location.href = `/view-cart/${theaterId}?source=offline-pos`;
       }
     }
-  }, [currentOrder, theaterId, customerName, orderNotes, orderImages, orderTotals]);
+  }, [currentOrder, theaterId, customerName, orderNotes, orderImages, orderTotals, navigate]);
 
   // Render loading state
   if (loading && products.length === 0) {

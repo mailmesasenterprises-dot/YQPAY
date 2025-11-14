@@ -135,57 +135,129 @@ TableSkeleton.displayName = 'TableSkeleton';
 
 // Simple Toggle Switch Component (based on Page Access Management pattern) - FIXED with progress state
 const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false }) => {
+  // Use local state that immediately updates on click, independent of parent
+  // Initialize with isLive prop, defaulting to false if undefined
+  const [localState, setLocalState] = useState(() => isLive ?? false);
+  const localStateRef = useRef(isLive ?? false);
+  const lastSyncedIsLiveRef = useRef(isLive ?? false);
+  const isUserActionRef = useRef(false);
+  const productIdRef = useRef(product._id);
 
+  // Update product ID ref if it changes
+  useEffect(() => {
+    productIdRef.current = product._id;
+  }, [product._id]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    localStateRef.current = localState;
+  }, [localState]);
+
+  // Sync from parent prop when it changes (but not during user actions)
+  useEffect(() => {
+    // Skip if product ID changed - will be handled by product change
+    if (productIdRef.current !== product._id) {
+      productIdRef.current = product._id;
+      // Reset state for new product
+      const newIsLive = isLive ?? false;
+      setLocalState(newIsLive);
+      localStateRef.current = newIsLive;
+      lastSyncedIsLiveRef.current = newIsLive;
+      isUserActionRef.current = false;
+      return;
+    }
+
+    // If this is a user action, wait for parent to catch up
+    if (isUserActionRef.current) {
+      // If parent state now matches our local state, the update succeeded
+      const currentIsLive = isLive ?? false;
+      if (currentIsLive === localStateRef.current) {
+        isUserActionRef.current = false;
+        lastSyncedIsLiveRef.current = currentIsLive;
+      }
+      // Otherwise, keep our local state (parent hasn't updated yet or there was an error)
+      return;
+    }
+    
+    // Not a user action - sync from parent if it changed
+    const currentIsLive = isLive ?? false;
+    if (lastSyncedIsLiveRef.current !== currentIsLive) {
+      setLocalState(currentIsLive);
+      localStateRef.current = currentIsLive;
+      lastSyncedIsLiveRef.current = currentIsLive;
+    }
+  }, [isLive, product._id]); // Sync when isLive or product changes
 
   const handleChange = useCallback((e) => {
-    const newValue = e.target.checked;
-
+    e.preventDefault();
+    e.stopPropagation();
     
-    if (!isToggling && onToggle) {
-
-      onToggle(product, newValue);
-    } else {
-  }
+    if (isToggling || !onToggle) {
+      return;
+    }
+    
+    // Mark this as a user action BEFORE updating state
+    isUserActionRef.current = true;
+    
+    // Get the new value
+    const newValue = e.target.checked;
+    
+    // Immediately update local state - this will make the UI update instantly
+    setLocalState(newValue);
+    localStateRef.current = newValue;
+    
+    // Call the parent handler
+    onToggle(product, newValue);
   }, [product, onToggle, isToggling]);
 
   return (
     <div className="access-status" style={{display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-      <label className="toggle-switch" style={{
-        position: 'relative',
-        display: 'inline-block',
-        width: '50px',
-        height: '24px',
-        opacity: isToggling ? 0.6 : 1, // Visual feedback when toggling
-        cursor: isToggling ? 'wait' : 'pointer'
-      }}>
+      <label 
+        className="toggle-switch" 
+        style={{
+          position: 'relative',
+          display: 'inline-block',
+          width: '50px',
+          height: '24px',
+          opacity: isToggling ? 0.6 : 1, // Visual feedback when toggling
+          cursor: isToggling ? 'wait' : 'pointer',
+          userSelect: 'none'
+        }}
+      >
         <input
           type="checkbox"
-          checked={isLive}
+          checked={localState}
           onChange={handleChange}
           disabled={isToggling} // Disable input when toggling
           style={{
+            position: 'absolute',
             opacity: 0,
-            width: 0,
-            height: 0
+            width: '100%',
+            height: '100%',
+            margin: 0,
+            padding: 0,
+            cursor: isToggling ? 'wait' : 'pointer',
+            zIndex: 2
           }}
         />
         <span className="slider" style={{
           position: 'absolute',
-          cursor: 'pointer',
+          cursor: isToggling ? 'wait' : 'pointer',
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: isLive ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+          backgroundColor: localState ? 'var(--primary-dark, #6D28D9)' : '#ccc',
           transition: '.4s',
-          borderRadius: '24px'
+          borderRadius: '24px',
+          pointerEvents: 'none' // Let clicks pass through to input
         }}>
           <span style={{
             position: 'absolute',
             content: '""',
             height: '18px',
             width: '18px',
-            left: isLive ? '26px' : '3px',
+            left: localState ? '26px' : '3px',
             bottom: '3px',
             backgroundColor: 'white',
             transition: '.4s',
@@ -217,16 +289,86 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
   };
 
   // Extract correct field values from database structure
-  // Image extraction - try multiple paths
-  const productImage = 
-    product.images?.[0]?.url ||           // New structure: images array with url
-    product.images?.[0]?.path ||          // Alternative: images array with path
-    product.images?.[0] ||                // If images array contains direct URLs
-    product.productImage?.url ||          // Old structure: productImage object with url
-    product.productImage?.path ||         // Old structure: productImage object with path
-    product.productImage ||               // Old structure: productImage direct URL
-    product.image ||                      // Alternative field name
-    null;
+  // Image extraction - try multiple paths (comprehensive check)
+  let productImageRaw = null;
+  
+  // Try images array first (new structure)
+  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    const firstImage = product.images[0];
+    if (typeof firstImage === 'string') {
+      productImageRaw = firstImage;
+    } else if (firstImage && typeof firstImage === 'object') {
+      productImageRaw = firstImage.url || firstImage.path || firstImage;
+    }
+  }
+  
+  // Try other possible fields
+  if (!productImageRaw) {
+    productImageRaw = 
+      product.productImage?.url ||          // Old structure: productImage object with url
+      product.productImage?.path ||         // Old structure: productImage object with path
+      (typeof product.productImage === 'string' ? product.productImage : null) || // Old structure: productImage direct URL
+      product.imageUrl ||                   // Alternative field name
+      product.image ||                      // Alternative field name
+      null;
+  }
+  
+  // Process image URL through cache and ensure it's a full URL
+  let productImage = null;
+  if (productImageRaw) {
+    let fullImageUrl = String(productImageRaw).trim();
+    
+    // Skip if empty
+    if (!fullImageUrl) {
+      productImage = null;
+    }
+    // If it's already a full URL (http/https), use it as is
+    else if (fullImageUrl.startsWith('http://') || fullImageUrl.startsWith('https://')) {
+      fullImageUrl = fullImageUrl;
+    }
+    // If it's a relative path, prepend base URL
+    else if (fullImageUrl.startsWith('/')) {
+      // Remove leading slash if baseUrl already ends with one
+      const baseUrl = config.api.baseUrl.endsWith('/') 
+        ? config.api.baseUrl.slice(0, -1) 
+        : config.api.baseUrl;
+      fullImageUrl = `${baseUrl}${fullImageUrl}`;
+    }
+    // If it doesn't start with /, it might be a relative path without leading slash
+    else {
+      const baseUrl = config.api.baseUrl.endsWith('/') 
+        ? config.api.baseUrl 
+        : `${config.api.baseUrl}/`;
+      fullImageUrl = `${baseUrl}${fullImageUrl}`;
+    }
+    
+    // Get cached image URL for instant loading
+    productImage = getImageSrc(fullImageUrl);
+    
+    // Debug logging for first product
+    if (index === 0) {
+      console.log('🖼️ Product Image Debug:', {
+        product: product.name,
+        imagesArray: product.images,
+        productImageField: product.productImage,
+        imageUrlField: product.imageUrl,
+        imageField: product.image,
+        extractedRaw: productImageRaw,
+        fullUrl: fullImageUrl,
+        cached: productImage
+      });
+    }
+  } else if (index === 0) {
+    // Debug: log when no image found
+    console.log('⚠️ No image found for product:', {
+      product: product.name,
+      productId: product._id,
+      images: product.images,
+      productImage: product.productImage,
+      imageUrl: product.imageUrl,
+      image: product.image
+    });
+  }
     
   const sellingPrice = product.pricing?.basePrice || product.sellingPrice || 0;
   // ✅ Use stock directly from product (backend now sends real MonthlyStock balance)
@@ -275,30 +417,40 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
 
       {/* Product Image */}
       <td>
-        <div className="category-image">
+        <div className="category-image" style={{ position: 'relative', width: '40px', height: '40px' }}>
           {productImage ? (
-            <img 
+            <InstantImage
               src={productImage}
               alt={product.name}
-              loading="eager"
-              decoding="async"
-              width="40"
-              height="40"
               style={{
                 width: '40px',
                 height: '40px',
                 borderRadius: '8px',
                 objectFit: 'cover',
                 border: '2px solid #e0e0e0',
-                imageRendering: 'auto'
+                imageRendering: 'auto',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                left: 0
               }}
               onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
+                console.warn('Image failed to load:', productImage, 'for product:', product.name);
+                if (e.target) {
+                  e.target.style.display = 'none';
+                }
+                const container = e.target?.parentElement;
+                if (container) {
+                  const placeholder = container.querySelector('.image-placeholder');
+                  if (placeholder) {
+                    placeholder.style.display = 'flex';
+                  }
+                }
               }}
             />
           ) : null}
           <div 
+            className="image-placeholder"
             style={{
               width: '40px',
               height: '40px',
@@ -307,7 +459,10 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
               display: productImage ? 'none' : 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px solid #e0e0e0'
+              border: '2px solid #e0e0e0',
+              position: 'absolute',
+              top: 0,
+              left: 0
             }}
           >
             <svg viewBox="0 0 24 24" fill="#ccc" style={{width: '24px', height: '24px'}}>
@@ -396,12 +551,31 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
 
       {/* Status Toggle */}
       <td>
-        <SimpleToggle 
-          product={product}
-          isLive={productToggleStates[product._id] || false}
-          onToggle={onToggle}
-          isToggling={toggleInProgress[product._id] || false}
-        />
+        {(() => {
+          // Compute toggle state: use productToggleStates if available, otherwise compute from product
+          const computedIsLive = productToggleStates[product._id] ?? (product.isActive && (product.isAvailable !== undefined ? product.isAvailable : true));
+          
+          // Debug log for first product
+          if (index === 0) {
+            console.log('🔘 Toggle Display Debug:', {
+              productName: product.name,
+              productId: product._id,
+              productToggleState: productToggleStates[product._id],
+              productIsActive: product.isActive,
+              productIsAvailable: product.isAvailable,
+              computedIsLive: computedIsLive
+            });
+          }
+          
+          return (
+            <SimpleToggle 
+              product={product}
+              isLive={computedIsLive}
+              onToggle={onToggle}
+              isToggling={toggleInProgress[product._id] || false}
+            />
+          );
+        })()}
       </td>
 
       {/* Actions */}
@@ -504,6 +678,7 @@ const TheaterProductList = () => {
   const [productToggleStates, setProductToggleStates] = useState({}); // Add toggle states tracking
   const [toggleInProgress, setToggleInProgress] = useState({}); // Track ongoing toggle operations
   const [networkStatus, setNetworkStatus] = useState({ isOnline: navigator.onLine, lastError: null }); // Network monitoring
+  const previousToggleStatesRef = useRef({}); // Store previous toggle states for error recovery
   // ✅ REMOVED: productStockBalances state - no longer needed since backend sends real stock
 
   const [loading, setLoading] = useState(!initialCachedProducts); // 🚀 Start false if cache exists
@@ -601,6 +776,13 @@ const TheaterProductList = () => {
     
     // PROTECTION: Use functional update to check toggle progress state
     let shouldProceed = true;
+    
+    // Get the previous toggle state from current state or ref
+    const previousToggleState = productToggleStates[product._id] || false;
+    
+    // Store it in ref for error recovery
+    previousToggleStatesRef.current[product._id] = previousToggleState;
+    
     setToggleInProgress(prev => {
       if (prev[product._id]) {
 
@@ -691,21 +873,44 @@ const TheaterProductList = () => {
 
               // STEP 3: Update from server response to ensure consistency
               if (data.product) {
-
-                setProducts(prevProducts => 
-                  prevProducts.map(p => 
-                    p._id === product._id 
-                      ? { ...p, ...data.product }
-                      : p
-                  )
-                );
+                // If isAvailable is explicitly set, use both; otherwise just use isActive
+                const serverIsAvailable = data.product.isAvailable !== undefined ? data.product.isAvailable : true;
+                const serverToggleState = data.product.isActive && serverIsAvailable;
                 
-                const newToggleState = data.product.isActive && data.product.isAvailable;
-
-                setProductToggleStates(prev => ({
-                  ...prev,
-                  [product._id]: newToggleState
-                }));
+                // Only update if server state matches what we expect (to prevent race conditions)
+                if (serverToggleState === newStatus) {
+                  setProducts(prevProducts => 
+                    prevProducts.map(p => 
+                      p._id === product._id 
+                        ? { ...p, ...data.product }
+                        : p
+                    )
+                  );
+                  
+                  setProductToggleStates(prev => ({
+                    ...prev,
+                    [product._id]: serverToggleState
+                  }));
+                } else {
+                  // Server returned different state - use server's value but log warning
+                  console.warn('Server returned different toggle state than expected', {
+                    expected: newStatus,
+                    received: serverToggleState
+                  });
+                  
+                  setProducts(prevProducts => 
+                    prevProducts.map(p => 
+                      p._id === product._id 
+                        ? { ...p, ...data.product }
+                        : p
+                    )
+                  );
+                  
+                  setProductToggleStates(prev => ({
+                    ...prev,
+                    [product._id]: serverToggleState
+                  }));
+                }
               }
               
               modal.alert({
@@ -772,18 +977,27 @@ const TheaterProductList = () => {
       }
     } catch (error) {
 
-      // STEP 4: Revert local state on error
+      // STEP 4: Revert local state on error - use previous state from before the toggle
+      const stateToRevert = previousToggleStatesRef.current[product._id] ?? (product.isActive && product.isAvailable);
+      
       setProductToggleStates(prev => ({
         ...prev,
-        [product._id]: product.isActive && product.isAvailable
+        [product._id]: stateToRevert
       }));
 
       setProducts(prevProducts => 
-        prevProducts.map(p => 
-          p._id === product._id 
-            ? { ...p, isActive: product.isActive, isAvailable: product.isAvailable }
-            : p
-        )
+        prevProducts.map(p => {
+          if (p._id === product._id) {
+            // Revert to previous state
+            const stateToRevert = previousToggleStatesRef.current[product._id] ?? (product.isActive && product.isAvailable);
+            return { 
+              ...p, 
+              isActive: stateToRevert, 
+              isAvailable: stateToRevert 
+            };
+          }
+          return p;
+        })
       );
 
       // Enhanced error messages for better user experience
@@ -902,9 +1116,23 @@ const TheaterProductList = () => {
         setProducts(products);
         
         // Initialize toggle states for all products
+        // Toggle is ON if isActive is true (isAvailable defaults to true if not specified)
         const toggleStates = {};
         products.forEach(product => {
-          toggleStates[product._id] = product.isActive && product.isAvailable;
+          // If isAvailable is explicitly set, use both; otherwise just use isActive
+          const isAvailable = product.isAvailable !== undefined ? product.isAvailable : true;
+          toggleStates[product._id] = product.isActive && isAvailable;
+          
+          // Debug log for first product
+          if (products.indexOf(product) === 0) {
+            console.log('🔘 Toggle State Initialization:', {
+              productName: product.name,
+              productId: product._id,
+              isActive: product.isActive,
+              isAvailable: product.isAvailable,
+              computedToggleState: toggleStates[product._id]
+            });
+          }
         });
         setProductToggleStates(toggleStates);
 

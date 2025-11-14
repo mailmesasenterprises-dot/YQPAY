@@ -7,7 +7,9 @@ const rateLimit = require('express-rate-limit');
 const morgan = require('morgan');
 const path = require('path');
 const os = require('os');
-require('dotenv').config();
+
+// Load environment variables - specify path explicitly to ensure .env is found
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 // ==============================================
 // ULTRA OPTIMIZATION IMPORTS
@@ -178,18 +180,93 @@ const MONGODB_URI = process.env.MONGODB_URI?.trim();
 if (!MONGODB_URI) {
   console.error('❌ MONGODB_URI is not set in environment variables!');
   console.error('   Please set MONGODB_URI in your .env file');
+  console.error('   Expected location: backend/.env');
+  console.error('   Format: MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/database_name');
   process.exit(1);
 }
+
+// Validate MongoDB URI format
+if (!MONGODB_URI.startsWith('mongodb://') && !MONGODB_URI.startsWith('mongodb+srv://')) {
+  console.error('❌ Invalid MONGODB_URI format!');
+  console.error('   Must start with mongodb:// or mongodb+srv://');
+  console.error('   Current value starts with:', MONGODB_URI.substring(0, 20));
+  process.exit(1);
+}
+
+// Check for common connection string issues
+if (MONGODB_URI.startsWith('mongodb+srv://')) {
+  console.log('ℹ️  Using MongoDB Atlas connection (mongodb+srv://)');
+  console.log('ℹ️  Ensure your IP is whitelisted in Atlas Network Access');
+  
+  // Check for multiple @ symbols (indicates password encoding issue)
+  const atCount = (MONGODB_URI.match(/@/g) || []).length;
+  if (atCount > 1) {
+    console.warn('⚠️  WARNING: Connection string contains multiple @ symbols.');
+    console.warn('   Password might need URL encoding if it contains special characters.');
+    console.warn('   Special characters (@, :, /, ?, #, [, ]) must be URL-encoded.');
+  }
+  
+  // Check if database name is included
+  if (!MONGODB_URI.includes('/') || MONGODB_URI.split('/').length < 4) {
+    console.warn('⚠️  WARNING: Connection string might be missing database name.');
+    console.warn('   Format should be: mongodb+srv://user:pass@cluster.mongodb.net/database_name');
+  }
+}
+
+// Log connection string info (without exposing password)
+const uriInfo = MONGODB_URI.replace(/:[^:@]+@/, ':****@');
+console.log('🔍 MongoDB URI loaded:', uriInfo.substring(0, 50) + '...');
 
 // Redis cache is DISABLED - removed to prevent caching issues
 // All routes will now return fresh data from database
 console.log('ℹ️  Redis cache is disabled - all API responses are fresh from database');
 
 // Connect to MongoDB with optimized pooling
+// IMPORTANT: Connection is asynchronous, but we don't block server startup
+// Routes will check connection status before using database
 if (connectWithOptimizedPooling) {
+  console.log('🔄 Attempting to connect to MongoDB Atlas...');
+  
+  // ✅ FIX: Add connection timeout monitor
+  const connectionStartTime = Date.now();
+  const connectionTimeout = 35000; // 35 seconds (slightly longer than serverSelectionTimeoutMS)
+  
+  const connectionTimeoutId = setTimeout(() => {
+    if (mongoose.connection.readyState === 2) {
+      console.error('❌ MongoDB connection timeout - stuck in connecting state');
+      console.error('   Connection has been attempting for more than 35 seconds');
+      console.error('   This usually indicates:');
+      console.error('   1. Network connectivity issues');
+      console.error('   2. IP not whitelisted in MongoDB Atlas');
+      console.error('   3. Incorrect connection string');
+      console.error('   4. MongoDB Atlas cluster is paused or down');
+      console.error('\n   Attempting to close and retry connection...');
+      
+      // Close the stuck connection
+      mongoose.connection.close().catch(() => {});
+      
+      // Retry after 5 seconds
+      setTimeout(() => {
+        console.log('🔄 Retrying MongoDB connection...');
+        connectWithOptimizedPooling(MONGODB_URI)
+          .then(() => {
+            console.log('✅ MongoDB connected on retry');
+          })
+          .catch((retryError) => {
+            console.error('❌ Retry also failed:', retryError.message);
+          });
+      }, 5000);
+    }
+  }, connectionTimeout);
+  
   connectWithOptimizedPooling(MONGODB_URI)
     .then(() => {
-      console.log('✅ MongoDB connected with optimized connection pooling');
+      clearTimeout(connectionTimeoutId);
+      const connectionDuration = Date.now() - connectionStartTime;
+      console.log(`✅ MongoDB connected with optimized connection pooling (took ${connectionDuration}ms)`);
+      console.log(`   Database: ${mongoose.connection.name}`);
+      console.log(`   Host: ${mongoose.connection.host}`);
+      console.log(`   Ready State: ${mongoose.connection.readyState}`);
       
       // Start expired stock scheduler after DB connection
       const { startExpiredStockScheduler } = require('./jobs/expiredStockScheduler');
@@ -205,11 +282,84 @@ if (connectWithOptimizedPooling) {
       }
     })
     .catch((error) => {
+      clearTimeout(connectionTimeoutId);
       console.error('❌ MongoDB connection error:', error);
-      console.log('Continuing without MongoDB - some features may not work');
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      
+      // Provide specific guidance based on error type
+      if (error.name === 'MongooseServerSelectionError' || error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+        console.error('\n🔍 Troubleshooting steps:');
+        console.error('1. Check MONGODB_URI in backend/.env file');
+        console.error('2. Verify IP is whitelisted in MongoDB Atlas Network Access');
+        console.error('   - Go to: Atlas Dashboard → Network Access → IP Access List');
+        console.error('   - Add your IP or use 0.0.0.0/0 for development (NOT for production!)');
+        console.error('3. Check if cluster is running (not paused) in Atlas Dashboard');
+        console.error('4. Verify network connectivity and firewall settings');
+        console.error('5. Check if connection string format is correct');
+      } else if (error.message.includes('Authentication failed') || error.message.includes('bad auth') || error.message.includes('user not found')) {
+        console.error('\n🔍 Authentication issue:');
+        console.error('1. Check username and password in connection string');
+        console.error('2. Verify user exists in MongoDB Atlas Database Access');
+        console.error('3. Ensure password doesn\'t have special characters (or is URL-encoded)');
+        console.error('4. Reset password in Atlas if needed');
+      } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+        console.error('\n🔍 Connection timeout:');
+        console.error('1. Check internet connectivity');
+        console.error('2. Verify MongoDB Atlas cluster is running');
+        console.error('3. Check firewall/VPN settings');
+        console.error('4. Verify IP whitelist in Atlas');
+      }
+      
+      console.log('\n⚠️  Continuing without MongoDB - some features may not work');
+      console.log('   Fix the connection issue and restart the server');
+      // Don't exit - let the server continue so user can see the error
     });
 } else {
   // Fallback to basic connection - Optimized for Atlas
+  console.log('🔄 Attempting to connect to MongoDB Atlas (basic mode)...');
+  
+  // ✅ FIX: Add connection timeout monitor
+  const connectionStartTime = Date.now();
+  const connectionTimeout = 35000; // 35 seconds (slightly longer than serverSelectionTimeoutMS)
+  
+  const connectionTimeoutId = setTimeout(() => {
+    if (mongoose.connection.readyState === 2) {
+      console.error('❌ MongoDB connection timeout - stuck in connecting state');
+      console.error('   Connection has been attempting for more than 35 seconds');
+      console.error('   This usually indicates:');
+      console.error('   1. Network connectivity issues');
+      console.error('   2. IP not whitelisted in MongoDB Atlas');
+      console.error('   3. Incorrect connection string');
+      console.error('   4. MongoDB Atlas cluster is paused or down');
+      console.error('\n   Attempting to close and retry connection...');
+      
+      // Close the stuck connection
+      mongoose.connection.close().catch(() => {});
+      
+      // Retry after 5 seconds
+      setTimeout(() => {
+        console.log('🔄 Retrying MongoDB connection...');
+        mongoose.connect(MONGODB_URI, {
+          serverSelectionTimeoutMS: 30000,
+          socketTimeoutMS: 120000,
+          connectTimeoutMS: 30000,
+          maxPoolSize: 100,
+          minPoolSize: 5,
+          retryWrites: true,
+          retryReads: true,
+          heartbeatFrequencyMS: 10000,
+        })
+        .then(() => {
+          console.log('✅ MongoDB connected on retry');
+        })
+        .catch((retryError) => {
+          console.error('❌ Retry also failed:', retryError.message);
+        });
+      }, 5000);
+    }
+  }, connectionTimeout);
+  
   mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 30000, // Increased for Atlas (was 5000)
     socketTimeoutMS: 120000, // Increased for Atlas (was 45000)
@@ -221,7 +371,12 @@ if (connectWithOptimizedPooling) {
     heartbeatFrequencyMS: 10000,
   })
   .then(() => {
-    console.log('✅ Connected to MongoDB (basic mode)');
+    clearTimeout(connectionTimeoutId);
+    const connectionDuration = Date.now() - connectionStartTime;
+    console.log(`✅ Connected to MongoDB (basic mode) (took ${connectionDuration}ms)`);
+    console.log(`   Database: ${mongoose.connection.name}`);
+    console.log(`   Host: ${mongoose.connection.host}`);
+    console.log(`   Ready State: ${mongoose.connection.readyState}`);
     
     // Start expired stock scheduler after DB connection
     const { startExpiredStockScheduler } = require('./jobs/expiredStockScheduler');
@@ -237,8 +392,37 @@ if (connectWithOptimizedPooling) {
     }
   })
   .catch((error) => {
+    clearTimeout(connectionTimeoutId);
     console.error('❌ MongoDB connection error:', error);
-    console.log('Continuing without MongoDB - some features may not work');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    
+    // Provide specific guidance based on error type
+    if (error.name === 'MongooseServerSelectionError' || error.message.includes('ENOTFOUND') || error.message.includes('getaddrinfo')) {
+      console.error('\n🔍 Troubleshooting steps:');
+      console.error('1. Check MONGODB_URI in backend/.env file');
+      console.error('2. Verify IP is whitelisted in MongoDB Atlas Network Access');
+      console.error('   - Go to: Atlas Dashboard → Network Access → IP Access List');
+      console.error('   - Add your IP or use 0.0.0.0/0 for development (NOT for production!)');
+      console.error('3. Check if cluster is running (not paused) in Atlas Dashboard');
+      console.error('4. Verify network connectivity and firewall settings');
+      console.error('5. Check if connection string format is correct');
+    } else if (error.message.includes('Authentication failed') || error.message.includes('bad auth') || error.message.includes('user not found')) {
+      console.error('\n🔍 Authentication issue:');
+      console.error('1. Check username and password in connection string');
+      console.error('2. Verify user exists in MongoDB Atlas Database Access');
+      console.error('3. Ensure password doesn\'t have special characters (or is URL-encoded)');
+      console.error('4. Reset password in Atlas if needed');
+    } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
+      console.error('\n🔍 Connection timeout:');
+      console.error('1. Check internet connectivity');
+      console.error('2. Verify MongoDB Atlas cluster is running');
+      console.error('3. Check firewall/VPN settings');
+      console.error('4. Verify IP whitelist in Atlas');
+    }
+    
+    console.log('\n⚠️  Continuing without MongoDB - some features may not work');
+    console.log('   Fix the connection issue and restart the server');
   });
 }
 
@@ -278,12 +462,22 @@ const reportsRoutes = require('./routes/reports'); // Reports route
 
 // Health check endpoint (with optimization status)
 app.get('/api/health', (req, res) => {
+  const connectionState = mongoose.connection.readyState;
+  const states = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+  
   const health = {
-    status: 'OK',
+    status: connectionState === 1 ? 'OK' : 'WARNING',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
     version: require('./package.json').version,
+    database: {
+      connected: connectionState === 1,
+      state: states[connectionState] || 'unknown',
+      readyState: connectionState,
+      name: connectionState === 1 ? mongoose.connection.name : null,
+      host: connectionState === 1 ? mongoose.connection.host : null
+    },
     optimizations: {
       redis: false, // Redis cache is disabled
       databasePooling: !!connectWithOptimizedPooling,
@@ -654,6 +848,23 @@ const HOST = process.env.SERVER_HOST || '0.0.0.0';
 app.listen(PORT, HOST, () => {
   console.log(`🚀 YQPayNow Server running on ${HOST}:${PORT}`);
   console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'Not configured'}`);
+  
+  // Show MongoDB connection status
+  const connectionState = mongoose.connection.readyState;
+  const states = { 0: '❌ Disconnected', 1: '✅ Connected', 2: '⏳ Connecting...', 3: '⏳ Disconnecting...' };
+  console.log(`📡 MongoDB Connection Status: ${states[connectionState] || 'Unknown'} (State: ${connectionState})`);
+  
+  if (connectionState === 1) {
+    console.log(`   Database: ${mongoose.connection.name}`);
+    console.log(`   Host: ${mongoose.connection.host}`);
+  } else if (connectionState === 0) {
+    console.log('   ⚠️  Server started, but MongoDB is not connected');
+    console.log('   Routes will wait for connection before processing database requests');
+    console.log('   Check connection logs above for errors');
+  } else if (connectionState === 2) {
+    console.log('   ⏳ MongoDB connection is still establishing...');
+    console.log('   Routes will wait for connection before processing database requests');
+  }
   console.log(`🔗 Base URL: ${process.env.BASE_URL || 'Not configured'}`);
   console.log(`🗄️  Database: ${process.env.MONGODB_URI ? 'Connected' : 'Not configured'}`);
 });

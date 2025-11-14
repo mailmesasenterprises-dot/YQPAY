@@ -53,14 +53,42 @@ export const useCachedFetch = (url, options = {}, cacheKey = null, cacheTTL = 12
       // Fetch fresh data
       if (!skipCache) setLoading(true);
       
+      // ✅ FIX: Ensure Authorization header is included for API requests
+      let headers = {
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      
+      // Add token if missing and this is an API request
+      if (url.includes('/api/') && !headers['Authorization'] && !headers['authorization']) {
+        // Use centralized token getter for consistency
+        let token = localStorage.getItem('authToken');
+        // Fallback: Check other possible keys
+        if (!token) {
+          token = localStorage.getItem('yqpaynow_token') || localStorage.getItem('token');
+          // If found in fallback, migrate to primary key
+          if (token) {
+            localStorage.setItem('authToken', token);
+          }
+        }
+        if (token) {
+          // ✅ FIX: Clean token to remove any formatting issues
+          const cleanToken = String(token).trim().replace(/^["']|["']$/g, '');
+          
+          // Validate token format (should have 3 parts separated by dots)
+          if (cleanToken && cleanToken.split('.').length === 3) {
+            headers['Authorization'] = `Bearer ${cleanToken}`;
+          } else {
+            console.warn('⚠️ [useCachedFetch] Invalid token format, skipping Authorization header');
+          }
+        }
+      }
+      
       // Skip withCaching.js auto-cache since we handle caching ourselves
       const response = await fetch(url, {
         ...options,
         _skipAutoCache: true, // Skip withCaching.js auto-cache (we handle caching)
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
+        headers
       });
 
       if (!response.ok) {

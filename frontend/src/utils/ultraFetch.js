@@ -172,8 +172,28 @@ export const ultraFetch = async (url, options = {}, cacheOptions = {}) => {
 
     // 3. Deduplicate concurrent requests
     const fetchFn = async () => {
+      // ✅ FIXED: Use centralized token getter for consistency
       // Add auth token if available
-      const authToken = localStorage.getItem('authToken');
+      let authToken = localStorage.getItem('authToken');
+      // Fallback: Check other possible keys
+      if (!authToken) {
+        authToken = localStorage.getItem('yqpaynow_token') || localStorage.getItem('token');
+        // If found in fallback, migrate to primary key
+        if (authToken) {
+          localStorage.setItem('authToken', authToken);
+        }
+      }
+      
+      // ✅ FIX: Clean token to remove any formatting issues
+      if (authToken) {
+        authToken = String(authToken).trim().replace(/^["']|["']$/g, '');
+        // Validate token format (should have 3 parts separated by dots)
+        if (authToken.split('.').length !== 3) {
+          console.warn('⚠️ [ultraFetch] Invalid token format, skipping Authorization header');
+          authToken = null;
+        }
+      }
+      
       const headers = {
         'Content-Type': 'application/json',
         ...options.headers

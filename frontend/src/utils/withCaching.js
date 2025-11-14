@@ -63,6 +63,35 @@ window.fetch = async function(...args) {
     // Skip if it's a known API endpoint that uses optimizedFetch
     (urlString.includes('/api/') && urlString.match(/\/api\/(theaters|roles|products|orders|theater-products|theater-stock|settings)/));
   
+  // ✅ FIX: Always inject token for API requests, even if skipping auto-cache
+  if (urlString.includes('/api/') && !options.headers?.['Authorization'] && !options.headers?.['authorization']) {
+    // Use centralized token getter for consistency
+    let token = localStorage.getItem('authToken');
+    // Fallback: Check other possible keys
+    if (!token) {
+      token = localStorage.getItem('yqpaynow_token') || localStorage.getItem('token');
+      // If found in fallback, migrate to primary key
+      if (token) {
+        localStorage.setItem('authToken', token);
+      }
+    }
+    if (token) {
+      // ✅ FIX: Clean token to remove any formatting issues
+      // Remove quotes, trim whitespace, ensure it's a valid string
+      const cleanToken = String(token).trim().replace(/^["']|["']$/g, '');
+      
+      // Validate token format (should have 3 parts separated by dots)
+      if (cleanToken && cleanToken.split('.').length === 3) {
+        options.headers = {
+          ...options.headers,
+          'Authorization': `Bearer ${cleanToken}`
+        };
+      } else {
+        console.warn('⚠️ [withCaching] Invalid token format, skipping Authorization header');
+      }
+    }
+  }
+  
   // Only cache GET requests that aren't already being handled by apiService
   if (!isCachingEnabled || method !== 'GET' || isApiServiceRequest) {
     return originalFetch.apply(this, args);
@@ -106,6 +135,36 @@ window.fetch = async function(...args) {
   // Create fetch promise and store it for deduplication
   const fetchPromise = (async () => {
     try {
+      // ✅ FIX: Ensure Authorization header is included for API requests
+      const urlString = url.toString();
+      if (urlString.includes('/api/') && !options.headers?.['Authorization'] && !options.headers?.['authorization']) {
+        // Use centralized token getter for consistency
+        let token = localStorage.getItem('authToken');
+        // Fallback: Check other possible keys
+        if (!token) {
+          token = localStorage.getItem('yqpaynow_token') || localStorage.getItem('token');
+          // If found in fallback, migrate to primary key
+          if (token) {
+            localStorage.setItem('authToken', token);
+          }
+        }
+        if (token) {
+          // ✅ FIX: Clean token to remove any formatting issues
+          // Remove quotes, trim whitespace, ensure it's a valid string
+          const cleanToken = String(token).trim().replace(/^["']|["']$/g, '');
+          
+          // Validate token format (should have 3 parts separated by dots)
+          if (cleanToken && cleanToken.split('.').length === 3) {
+            options.headers = {
+              ...options.headers,
+              'Authorization': `Bearer ${cleanToken}`
+            };
+          } else {
+            console.warn('⚠️ [withCaching] Invalid token format, skipping Authorization header');
+          }
+        }
+      }
+      
       // Fetch fresh data
       const fetchStart = performance.now();
       const response = await originalFetch.apply(this, args);

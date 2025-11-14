@@ -191,17 +191,67 @@ config.helpers = {
   isFeatureEnabled: (feature) => config.features[feature] || false,
   
   // Get authentication token from storage
-  // COMPATIBILITY FIX: Check both 'authToken' (legacy) and 'yqpaynow_token' (new standard)
+  // ✅ FIXED: Standardized on 'authToken' key for consistency
+  // Checks multiple keys for backward compatibility, but 'authToken' is primary
   getAuthToken: () => {
-    return localStorage.getItem('authToken') || localStorage.getItem(config.auth.tokenKey) || localStorage.getItem('token');
+    // Primary key: 'authToken' (used by AuthContext, apiService, withCaching)
+    let primaryToken = localStorage.getItem('authToken');
+    if (primaryToken) {
+      // ✅ FIX: Clean token format
+      primaryToken = String(primaryToken).trim().replace(/^["']|["']$/g, '');
+      // Validate format (should have 3 parts)
+      if (primaryToken.split('.').length === 3) {
+        return primaryToken;
+      }
+    }
+    
+    // Fallback: Check other possible keys for migration
+    let fallbackToken = localStorage.getItem(config.auth.tokenKey) || localStorage.getItem('token');
+    if (fallbackToken) {
+      // ✅ FIX: Clean token format
+      fallbackToken = String(fallbackToken).trim().replace(/^["']|["']$/g, '');
+      // Validate format before migrating
+      if (fallbackToken.split('.').length === 3) {
+        // Migrate to primary key for consistency
+        localStorage.setItem('authToken', fallbackToken);
+        return fallbackToken;
+      }
+    }
+    
+    return null;
   },
   
   // Set authentication token in storage
-  setAuthToken: (token) => localStorage.setItem(config.auth.tokenKey, token),
+  // ✅ FIXED: Always use 'authToken' as primary key for consistency
+  setAuthToken: (token) => {
+    // ✅ FIX: Clean token before storing (remove quotes, trim whitespace)
+    const cleanToken = String(token).trim().replace(/^["']|["']$/g, '');
+    
+    // Validate token format (should have 3 parts separated by dots)
+    if (cleanToken.split('.').length !== 3) {
+      console.error('❌ [config] Invalid token format, not storing');
+      return;
+    }
+    
+    // Store in primary key
+    localStorage.setItem('authToken', cleanToken);
+    // Also store in config key for backward compatibility (if different)
+    if (config.auth.tokenKey !== 'authToken') {
+      localStorage.setItem(config.auth.tokenKey, cleanToken);
+    }
+  },
   
   // Remove authentication token from storage
+  // ✅ FIXED: Remove from all possible token keys
   removeAuthToken: () => {
-    localStorage.removeItem(config.auth.tokenKey);
+    // Remove from primary key
+    localStorage.removeItem('authToken');
+    // Remove from config key (if different)
+    if (config.auth.tokenKey !== 'authToken') {
+      localStorage.removeItem(config.auth.tokenKey);
+    }
+    // Remove from legacy keys
+    localStorage.removeItem('token');
     localStorage.removeItem(config.auth.refreshTokenKey);
     localStorage.removeItem(config.auth.userKey);
   },

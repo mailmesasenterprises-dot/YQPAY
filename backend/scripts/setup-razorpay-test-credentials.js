@@ -21,7 +21,7 @@ const RAZORPAY_TEST_CREDENTIALS = {
 };
 
 // Connect to MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/yqpaynow';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,

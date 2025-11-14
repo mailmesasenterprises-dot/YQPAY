@@ -2,29 +2,83 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
+// Page name mapping (CamelCase to lowercase)
+const pageNameMapping = {
+  // CamelCase (used in routes) → lowercase (used in database)
+  'TheaterDashboardWithId': 'dashboard',
+  'TheaterSettingsWithId': 'settings',
+  'TheaterCategories': 'categories',
+  'TheaterKioskTypes': 'kiosk-types',
+  'TheaterProductTypes': 'product-types',
+  'TheaterProductList': 'products',
+  'TheaterAddProductWithId': 'add-product',
+  'OnlinePOSInterface': 'pos',
+  'OfflinePOSInterface': 'offline-pos',
+  'TheaterOrderHistory': 'order-history',
+  'OnlineOrderHistory': 'online-order-history',
+  'KioskOrderHistory': 'kiosk-order-history',
+  'TheaterRoles': 'theater-roles',
+  'TheaterRoleAccess': 'theater-role-access',
+  'TheaterQRCodeNames': 'qr-code-names',
+  'TheaterGenerateQR': 'generate-qr',
+  'TheaterQRManagement': 'qr-management',
+  'TheaterUserManagement': 'theater-users',
+  'TheaterBanner': 'banner',
+  'TheaterMessages': 'messages',
+  'StockManagement': 'stock',
+  'OrderManagement': 'orders',
+  'ReportGeneration': 'reports'
+};
+
 // Helper function to get route from page ID
 const getRouteFromPageId = (pageId, theaterId) => {
   const pageRouteMap = {
     'TheaterDashboardWithId': `/theater-dashboard/${theaterId}`,
+    'dashboard': `/theater-dashboard/${theaterId}`,
     'TheaterSettingsWithId': `/theater-settings/${theaterId}`,
+    'settings': `/theater-settings/${theaterId}`,
     'TheaterCategories': `/theater-categories/${theaterId}`,
+    'categories': `/theater-categories/${theaterId}`,
     'TheaterKioskTypes': `/theater-kiosk-types/${theaterId}`,
+    'kiosk-types': `/theater-kiosk-types/${theaterId}`,
     'TheaterProductTypes': `/theater-product-types/${theaterId}`,
+    'product-types': `/theater-product-types/${theaterId}`,
     'TheaterProductList': `/theater-products/${theaterId}`,
+    'products': `/theater-products/${theaterId}`,
     'OnlinePOSInterface': `/pos/${theaterId}`,
-    'OfflinePOSInterface': `/offline-pos/${theaterId}`, // Fixed: Use correct route
+    'pos': `/pos/${theaterId}`,
+    'OfflinePOSInterface': `/offline-pos/${theaterId}`,
+    'offline-pos': `/offline-pos/${theaterId}`,
     'TheaterOrderHistory': `/theater-order-history/${theaterId}`,
-    'OnlineOrderHistory': `/online-order-history/${theaterId}`, // Fixed: Use correct route
+    'order-history': `/theater-order-history/${theaterId}`,
+    'OnlineOrderHistory': `/online-order-history/${theaterId}`,
+    'online-order-history': `/online-order-history/${theaterId}`,
+    'KioskOrderHistory': `/kiosk-order-history/${theaterId}`,
+    'kiosk-order-history': `/kiosk-order-history/${theaterId}`,
     'TheaterAddProductWithId': `/theater-add-product/${theaterId}`,
+    'add-product': `/theater-add-product/${theaterId}`,
     'TheaterRoles': `/theater-roles/${theaterId}`,
+    'theater-roles': `/theater-roles/${theaterId}`,
     'TheaterRoleAccess': `/theater-role-access/${theaterId}`,
+    'theater-role-access': `/theater-role-access/${theaterId}`,
     'TheaterQRCodeNames': `/theater-qr-code-names/${theaterId}`,
+    'qr-code-names': `/theater-qr-code-names/${theaterId}`,
     'TheaterGenerateQR': `/theater-generate-qr/${theaterId}`,
+    'generate-qr': `/theater-generate-qr/${theaterId}`,
     'TheaterQRManagement': `/theater-qr-management/${theaterId}`,
+    'qr-management': `/theater-qr-management/${theaterId}`,
     'TheaterUserManagement': `/theater-user-management/${theaterId}`,
-    'TheaterBanner': `/theater-banner/${theaterId}`, // Added missing mapping
-    'TheaterMessages': `/theater-messages/${theaterId}`, // Added missing mapping
+    'theater-users': `/theater-user-management/${theaterId}`,
+    'TheaterBanner': `/theater-banner/${theaterId}`,
+    'banner': `/theater-banner/${theaterId}`,
+    'TheaterMessages': `/theater-messages/${theaterId}`,
+    'messages': `/theater-messages/${theaterId}`,
     'StockManagement': `/theater-stock-management/${theaterId}`,
+    'stock': `/theater-stock-management/${theaterId}`,
+    'OrderManagement': `/theater-orders/${theaterId}`,
+    'orders': `/theater-orders/${theaterId}`,
+    'ReportGeneration': `/theater-reports/${theaterId}`,
+    'reports': `/theater-reports/${theaterId}`,
     'SimpleProductList': `/simple-products/${theaterId}`,
     'ViewCart': `/view-cart/${theaterId}`,
     'ProfessionalPOSInterface': `/theater-order-pos/${theaterId}`
@@ -105,19 +159,23 @@ const RoleBasedRoute = ({ children, allowedRoles, requiredPermissions = [] }) =>
     if (userType === 'super_admin') {
       hasRequiredPermissions = true;
     }
-    // For theater users, check role-based permissions from rolePermissions array
-    else if (userType === 'theater_user' && rolePermissions && rolePermissions.length > 0) {
+    // For theater users AND theater admins, check role-based permissions from rolePermissions array
+    else if ((userType === 'theater_user' || userType === 'theater_admin') && rolePermissions && rolePermissions.length > 0) {
       // rolePermissions is an array like: [{ role: {...}, permissions: [...] }]
       const userPermissions = rolePermissions[0]?.permissions || [];
 
       hasRequiredPermissions = requiredPermissions.every(permission => {
-        const hasAccess = userPermissions.some(p => p.page === permission && p.hasAccess === true);
+        // Convert CamelCase permission to lowercase for comparison
+        const lowercasePermission = pageNameMapping[permission] || permission.toLowerCase();
+        
+        // Check if user has access to this page (support both naming conventions)
+        const hasAccess = userPermissions.some(p => {
+          const pageName = p.page.toLowerCase();
+          return (pageName === lowercasePermission || p.page === permission) && p.hasAccess === true;
+        });
+        
         return hasAccess;
       });
-    }
-    // For theater admins, grant all permissions (they have full access)
-    else if (userType === 'theater_admin') {
-      hasRequiredPermissions = true;
     }
     // Legacy fallback for user.permissions
     else if (user?.permissions) {
@@ -127,19 +185,77 @@ const RoleBasedRoute = ({ children, allowedRoles, requiredPermissions = [] }) =>
     }
     
     if (!hasRequiredPermissions) {
-      // Redirect theater users to their first accessible page (not hardcoded dashboard)
-      if (userType === 'theater_user' && theaterId) {
-        const firstAccessibleRoute = getFirstAccessibleRoute(rolePermissions, theaterId);
-        if (firstAccessibleRoute) {
-          return <Navigate to={firstAccessibleRoute} replace />;
-        } else {
-          return <Navigate to="/login" replace />;
-        }
-      }
-      if (userType === 'theater_admin' && theaterId) {
-        return <Navigate to={`/theater-dashboard/${theaterId}`} replace />;
-      }
-      return <Navigate to="/dashboard" replace />;
+      // Show access denied page with first accessible page link
+      const firstAccessibleRoute = (userType === 'theater_user' || userType === 'theater_admin') && theaterId
+        ? getFirstAccessibleRoute(rolePermissions, theaterId)
+        : null;
+      
+      return (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          padding: '20px'
+        }}>
+          <div style={{ 
+            background: 'white', 
+            padding: '40px', 
+            borderRadius: '12px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+            textAlign: 'center',
+            maxWidth: '500px',
+            width: '100%'
+          }}>
+            <div style={{ fontSize: '60px', marginBottom: '20px' }}>🚫</div>
+            <h2 style={{ color: '#dc3545', marginBottom: '15px', fontSize: '24px' }}>Access Denied</h2>
+            <p style={{ color: '#666', marginBottom: '25px', lineHeight: '1.6' }}>
+              You don't have permission to access this page. Please contact your administrator if you believe this is an error.
+            </p>
+            {firstAccessibleRoute ? (
+              <button 
+                onClick={() => window.location.href = firstAccessibleRoute}
+                style={{
+                  background: '#667eea',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 30px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  marginRight: '10px',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseOver={(e) => e.target.style.background = '#5568d3'}
+                onMouseOut={(e) => e.target.style.background = '#667eea'}
+              >
+                Go to Dashboard
+              </button>
+            ) : (
+              <button 
+                onClick={() => window.location.href = '/login'}
+                style={{
+                  background: '#667eea',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 30px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  transition: 'all 0.3s ease'
+                }}
+                onMouseOver={(e) => e.target.style.background = '#5568d3'}
+                onMouseOut={(e) => e.target.style.background = '#667eea'}
+              >
+                Back to Login
+              </button>
+            )}
+          </div>
+        </div>
+      );
     }
   }
 

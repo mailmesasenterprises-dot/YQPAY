@@ -40,13 +40,40 @@ class TheaterService extends BaseService {
     }
 
     console.log('🔍 [TheaterService] Query filter:', JSON.stringify(filter));
-    const result = await this.findAll(filter, {
+    
+    // ✅ FIX: Check database connection before querying
+    // Allow queries if connected (1) or connecting (2) - Mongoose buffers commands while connecting
+    const mongoose = require('mongoose');
+    const readyState = mongoose.connection.readyState;
+    
+    // Only block if disconnected (0) or disconnecting (3)
+    if (readyState === 0 || readyState === 3) {
+      const states = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+      throw new Error(`Database not connected. Current state: ${states[readyState] || 'unknown'} (${readyState}). Please wait for connection to establish.`);
+    }
+    
+    // Log if still connecting (for debugging)
+    if (readyState === 2) {
+      console.log('⚠️ [TheaterService] Database is still connecting, but Mongoose will buffer the query');
+    }
+    
+    // Query with timeout (BaseService already has timeout, but we add extra safety)
+    const queryPromise = this.findAll(filter, {
       page: parseInt(page),
       limit: parseInt(limit),
       sort: { createdAt: 1 },
       select: '-password -__v',
       lean: true
     });
+    
+    // Add 20 second timeout (increased from 10) - MongoDB Atlas can be slow on first query
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Database query timeout - request took longer than 20 seconds. This may indicate slow database connection or network issues.'));
+      }, 20000);
+    });
+    
+    const result = await Promise.race([queryPromise, timeoutPromise]);
     const duration = Date.now() - startTime;
     console.log(`✅ [TheaterService] Query completed in ${duration}ms`);
     return result;

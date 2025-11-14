@@ -28,7 +28,7 @@ const config = {
 
   // Database
   database: {
-    uri: process.env.MONGODB_URI?.trim() || 'mongodb://localhost:27017/yqpaynow',
+    uri: process.env.MONGODB_URI?.trim(),
   },
 
   // JWT

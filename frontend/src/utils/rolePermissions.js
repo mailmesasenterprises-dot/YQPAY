@@ -46,27 +46,52 @@ export const filterNavigationByPermissions = (navigationItems = [], rolePermissi
   const filteredItems = navigationItems.filter(item => {
     // Map navigation item IDs to page keys that are stored in the database
     const pageMapping = {
-      'dashboard': 'TheaterDashboardWithId',
-      'online-pos': 'OnlinePOSInterface',
-      'offline-pos': 'OfflinePOSInterface', // ✅ Offline POS
-      'order-history': 'TheaterOrderHistory',
-      'online-order-history': 'OnlineOrderHistory', // ✅ Online Orders (QR Code orders only)
-      'kiosk-order-history': 'KioskOrderHistory', // ✅ Kiosk Orders (POS orders only)
-      'staff-order-history': 'StaffOrderHistory', // Staff can see only their own orders
-      'products': 'TheaterProductList',
-      'add-product': 'TheaterAddProductWithId', 
-      'categories': 'TheaterCategories',
-      'kiosk-types': 'TheaterKioskTypes',
-      'product-types': 'TheaterProductTypes',
-      'messages': 'TheaterMessages', // ✅ Messages (Chat with Super Admin)
-      'banner': 'TheaterBanner', // ✅ Theater Banner
-      'theater-roles': 'TheaterRoles', // ✅ Theater Roles Management
-      'theater-role-access': 'TheaterRoleAccess', // ✅ Theater Role Access Management
-      'qr-code-names': 'TheaterQRCodeNames', // ✅ Theater QR Code Names
-      'generate-qr': 'TheaterGenerateQR', // ✅ Theater Generate QR
-      'qr-management': 'TheaterQRManagement', // ✅ Theater QR Management
-      'theater-users': 'TheaterUserManagement', // ✅ Theater User Management
-      'settings': 'TheaterSettingsWithId'
+      // Match database page names (lowercase simple names)
+      'dashboard': 'dashboard',
+      'products': 'products',
+      'add-product': 'add-product',
+      'categories': 'categories',
+      'product-types': 'product-types',
+      'kiosk-types': 'kiosk-types',
+      'online-pos': 'pos',
+      'offline-pos': 'offline-pos',
+      'order-history': 'order-history',
+      'online-order-history': 'online-order-history',
+      'kiosk-order-history': 'kiosk-order-history',
+      'qr-management': 'qr-management',
+      'qr-code-names': 'qr-code-names',
+      'generate-qr': 'generate-qr',
+      'settings': 'settings',
+      'stock': 'stock',
+      'orders': 'orders',
+      'reports': 'reports',
+      'messages': 'messages',
+      'banner': 'banner',
+      'theater-roles': 'theater-roles',
+      'theater-role-access': 'theater-role-access',
+      'theater-users': 'theater-users',
+      // Also support CamelCase names for backward compatibility
+      'TheaterDashboardWithId': 'dashboard',
+      'OnlinePOSInterface': 'pos',
+      'OfflinePOSInterface': 'offline-pos',
+      'TheaterOrderHistory': 'order-history',
+      'OnlineOrderHistory': 'online-order-history',
+      'KioskOrderHistory': 'kiosk-order-history',
+      'StaffOrderHistory': 'staff-order-history',
+      'TheaterProductList': 'products',
+      'TheaterAddProductWithId': 'add-product',
+      'TheaterCategories': 'categories',
+      'TheaterKioskTypes': 'kiosk-types',
+      'TheaterProductTypes': 'product-types',
+      'TheaterMessages': 'messages',
+      'TheaterBanner': 'banner',
+      'TheaterRoles': 'theater-roles',
+      'TheaterRoleAccess': 'theater-role-access',
+      'TheaterQRCodeNames': 'qr-code-names',
+      'TheaterGenerateQR': 'generate-qr',
+      'TheaterQRManagement': 'qr-management',
+      'TheaterUserManagement': 'theater-users',
+      'TheaterSettingsWithId': 'settings'
     };
 
     const pageKey = pageMapping[item.id];

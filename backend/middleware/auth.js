@@ -5,14 +5,42 @@ const mongoose = require('mongoose');
 const authenticateToken = (req, res, next) => {
   console.log('🔐 [AUTH] authenticateToken called for:', req.method, req.path);
   
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  // Check multiple possible header formats (Express normalizes to lowercase)
+  const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+  let token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  
+  // ✅ FIX: Clean token to handle malformed tokens (remove quotes, trim whitespace)
+  if (token) {
+    token = String(token).trim().replace(/^["']|["']$/g, '');
+    
+    // Validate token format (should have 3 parts separated by dots)
+    if (token.split('.').length !== 3) {
+      console.log('❌ [AUTH] Invalid token format:', {
+        parts: token.split('.').length,
+        length: token.length,
+        preview: token.substring(0, 20) + '...'
+      });
+      return res.status(401).json({ 
+        error: 'Invalid token format',
+        code: 'TOKEN_MALFORMED',
+        message: 'Token format is invalid. Please login again.'
+      });
+    }
+  }
 
   if (!token) {
     console.log('❌ [AUTH] No token provided');
+    console.log('   Request headers:', {
+      'authorization': req.headers['authorization'],
+      'Authorization': req.headers['Authorization'],
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent']?.substring(0, 50)
+    });
+    console.log('   Request origin:', req.headers['origin'] || req.headers['referer'] || 'unknown');
     return res.status(401).json({ 
       error: 'Access token required',
-      code: 'TOKEN_MISSING'
+      code: 'TOKEN_MISSING',
+      message: 'Please login to access this resource'
     });
   }
 
@@ -27,23 +55,56 @@ const authenticateToken = (req, res, next) => {
     
     console.log('✅ [AUTH] Token verified, user:', decoded.userId, 'type:', decoded.userType);
     
-    // ✅ NEW: Check if user's theater is active (for theater users only)
-    if (decoded.userType === 'theater_user' || decoded.userType === 'theater_admin') {
+    // ✅ FIX: Check if user's theater is active (for theater users only, skip for super_admin)
+    // Super admin should not be blocked by theater status
+    if ((decoded.userType === 'theater_user' || decoded.userType === 'theater_admin') && 
+        decoded.userType !== 'super_admin' && decoded.role !== 'super_admin') {
       try {
         const Theater = require('../models/Theater');
-        const theater = await Theater.findById(decoded.theaterId || decoded.theater);
+        const theaterId = decoded.theaterId || decoded.theater;
         
-        if (!theater || !theater.isActive) {
-          console.log('❌ [AUTH] Theater deactivated');
-          return res.status(403).json({
-            error: 'Your theater account has been deactivated',
-            code: 'THEATER_DEACTIVATED'
+        if (!theaterId) {
+          console.log('⚠️ [AUTH] Theater user has no theaterId in token:', {
+            userId: decoded.userId,
+            userType: decoded.userType,
+            role: decoded.role
           });
+          // Don't block - let the request continue, other middleware will handle it
+        } else {
+          const theater = await Theater.findById(theaterId).lean();
+          
+          if (!theater) {
+            console.log('❌ [AUTH] Theater not found:', theaterId);
+            return res.status(403).json({
+              error: 'Theater not found',
+              code: 'THEATER_NOT_FOUND',
+              message: 'Your theater account could not be found. Please contact support.'
+            });
+          }
+          
+          if (!theater.isActive) {
+            console.log('❌ [AUTH] Theater deactivated:', {
+              theaterId: theaterId,
+              theaterName: theater.name,
+              isActive: theater.isActive
+            });
+            return res.status(403).json({
+              error: 'Your theater account has been deactivated',
+              code: 'THEATER_DEACTIVATED',
+              message: 'Your theater account has been deactivated. Please contact support to reactivate.'
+            });
+          }
+          console.log('✅ [AUTH] Theater active:', theater.name);
         }
-        console.log('✅ [AUTH] Theater active');
       } catch (error) {
         console.log('⚠️ [AUTH] Error checking theater status:', error.message);
-        // Continue with auth - don't block on database errors
+        console.log('   Error details:', {
+          error: error.name,
+          message: error.message,
+          theaterId: decoded.theaterId || decoded.theater
+        });
+        // Continue with auth - don't block on database errors (connection issues, etc.)
+        // This allows the request to proceed even if we can't verify theater status
       }
     }
     

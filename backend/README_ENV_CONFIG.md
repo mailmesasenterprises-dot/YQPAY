@@ -38,7 +38,7 @@ NODE_ENV=development
 PORT=8080
 FRONTEND_URL=http://localhost:3000
 BASE_URL=http://localhost:3000
-MONGODB_URI=mongodb://localhost:27017/yqpaynow
+<!-- MONGODB_URI=mongodb://localhost:27017/yqpaynow -->
 ```
 
 ### Production Setup

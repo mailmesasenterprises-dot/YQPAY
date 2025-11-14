@@ -1,291 +1,75 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import TheaterLayout from '../../components/theater/TheaterLayout';
 import ErrorBoundary from '../../components/ErrorBoundary';
-import { getCachedData, setCachedData } from '../../utils/cacheUtils';
-import { SkeletonDashboard } from '../../components/SkeletonLoader';
-import config from '../../config';
 import '../../styles/TheaterAdminDashboard.css';
-import { useDeepMemo, useComputed } from '../../utils/ultraPerformance';
-import { ultraFetch } from '../../utils/ultraFetch';
 
-
-
-// 🚀 OPTIMIZED: Memoized component to prevent unnecessary re-renders
-const TheaterDashboard = React.memo(() => {
+// Static Theater Dashboard with Fixed Data
+const TheaterDashboard = () => {
   const { theaterId } = useParams();
   const navigate = useNavigate();
-  const { user, theaterId: userTheaterId, userType } = useAuth();
-  
-  const [stats, setStats] = useState({
-    totalOrders: 0,
-    todayRevenue: 0,
-    activeProducts: 0,
-    totalCustomers: 0
-  });
-  const [recentOrders, setRecentOrders] = useState([]);
-  const [orderStatusCounts, setOrderStatusCounts] = useState({
-    overdue: 0,
-    pending: 0,
-    inProgress: 0,
-    completed: 0,
-    cancelled: 0
-  });
-  const [revenue, setRevenue] = useState({
-    total: 0,
-    yearly: 0,
-    monthly: 0,
-    lastYear: 0
-  });
-  const [trends, setTrends] = useState({
-    last7Days: [],
-    topProducts: []
-  });
-  const [theaterInfo, setTheaterInfo] = useState({});
-  const [loading, setLoading] = useState(false); // 🚀 OPTIMIZED: Start with false, check cache first
-  const [error, setError] = useState('');
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const lastLoadKeyRef = useRef('');
-  const fetchDashboardDataRef = useRef(null);
 
-  // 🚀 OPTIMIZED: Memoized fetch function
-  const fetchDashboardData = useCallback(async (theaterIdToFetch, skipCache = false) => {
-    const cacheKey = `theaterDashboard_${theaterIdToFetch}`;
-    
-    // 🚀 INSTANT SYNCHRONOUS CACHE CHECK - MUST happen before any async operations
-    if (!skipCache) {
-      try {
-        const cached = getCachedData(cacheKey, 60000); // 1-minute cache
-        if (cached) {
-        // Cached data exists - load INSTANTLY (< 50ms) - SYNCHRONOUS
-        if (cached.stats) setStats(cached.stats);
-        if (cached.recentOrders) setRecentOrders(cached.recentOrders);
-        if (cached.theaterInfo) setTheaterInfo(cached.theaterInfo);
-        if (cached.orderStatusCounts) setOrderStatusCounts(cached.orderStatusCounts);
-        if (cached.revenue) setRevenue(cached.revenue);
-        if (cached.trends) setTrends(cached.trends);
-        setLoading(false); // CRITICAL: Set false immediately
-        setInitialLoadDone(true);
-        lastLoadKeyRef.current = theaterIdToFetch;
-        
-        // Fetch fresh data in background (non-blocking)
-        requestAnimationFrame(() => {
-          if (fetchDashboardDataRef.current) {
-            fetchDashboardDataRef.current(theaterIdToFetch);
-          }
-        });
-        
-          return; // EXIT EARLY - cache loaded, no API call needed
-        }
-      } catch (e) {
-        // Cache check failed, continue with API call
-      }
-    }
-    
-    // No cache or expired - fetch from API
-    setLoading(true);
-    
-    try {
-      setError('');
-      const token = localStorage.getItem('authToken');
-      
-      const response = await fetch(`${config.api.baseUrl}/theater-dashboard/${theaterIdToFetch}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+  // Static data - no API calls
+  const stats = {
+    totalOrders: 156,
+    todayOrders: 12,
+    todayRevenue: 4850.00,
+    monthlyRevenue: 125000.00,
+    yearlyRevenue: 1250000.00,
+    activeProducts: 48,
+    totalCustomers: 892
+  };
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data');
-      }
+  const orderStatusCounts = {
+    overdue: 2,
+    pending: 8,
+    inProgress: 5,
+    completed: 132,
+    cancelled: 9
+  };
 
-      const data = await response.json();
-      
-      if (data.success) {
-        const newStats = {
-          totalOrders: data.stats.totalOrders || 0,
-          todayOrders: data.stats.todayOrders || 0,
-          todayRevenue: data.stats.todayRevenue || 0,
-          monthlyRevenue: data.stats.monthlyRevenue || 0,
-          yearlyRevenue: data.stats.yearlyRevenue || 0,
-          totalRevenue: data.stats.totalRevenue || 0,
-          activeProducts: data.stats.activeProducts || 0,
-          totalCustomers: data.stats.totalCustomers || 0,
-          averageOrderValue: data.stats.averageOrderValue || 0
-        };
-        
-        const newOrderStatusCounts = {
-          overdue: 0,
-          pending: data.stats.orderStatusCounts?.pending || 0,
-          inProgress: (data.stats.orderStatusCounts?.preparing || 0) + (data.stats.orderStatusCounts?.ready || 0),
-          completed: (data.stats.orderStatusCounts?.completed || 0) + (data.stats.orderStatusCounts?.served || 0),
-          cancelled: data.stats.orderStatusCounts?.cancelled || 0
-        };
-        
-        const newRevenue = {
-          total: data.stats.totalRevenue || 0,
-          yearly: data.stats.yearlyRevenue || 0,
-          monthly: data.stats.monthlyRevenue || 0,
-          lastYear: 0
-        };
-        
-        const newTrends = {
-          last7Days: data.trends?.last7Days || [],
-          topProducts: data.trends?.topProducts || []
-        };
-        
-        // 🚀 OPTIMIZED: Batched state updates
-        setStats(newStats);
-        setRecentOrders(data.recentOrders || []);
-        setOrderStatusCounts(newOrderStatusCounts);
-        setRevenue(newRevenue);
-        setTrends(newTrends);
-        setTheaterInfo(data.theater || {});
-        
-        // Cache the fresh data
-        setCachedData(cacheKey, {
-          stats: newStats,
-          recentOrders: data.recentOrders || [],
-          theaterInfo: data.theater || {},
-          orderStatusCounts: newOrderStatusCounts,
-          revenue: newRevenue,
-          trends: newTrends
-        });
-      } else {
-        setError(data.message || 'Failed to load dashboard data');
-      }
-    } catch (error) {
-      console.error('💥 [TheaterDashboard] Error:', error);
-      setError('Unable to load dashboard data. Please try again.');
-    } finally {
-      setLoading(false);
-      setInitialLoadDone(true);
-      lastLoadKeyRef.current = theaterIdToFetch;
-    }
-  }, []);
+  const revenue = {
+    total: 1250000.00,
+    yearly: 1250000.00,
+    monthly: 125000.00
+  };
 
-  // Store ref for stable access
-  useEffect(() => {
-    fetchDashboardDataRef.current = fetchDashboardData;
-  }, [fetchDashboardData]);
+  const recentOrders = [
+    { id: 1, orderNumber: 'ORD-2025-001', customerName: 'Rajesh Kumar', amount: 850.00, status: 'completed' },
+    { id: 2, orderNumber: 'ORD-2025-002', customerName: 'Priya Sharma', amount: 450.00, status: 'pending' },
+    { id: 3, orderNumber: 'ORD-2025-003', customerName: 'Amit Patel', amount: 1200.00, status: 'inProgress' },
+    { id: 4, orderNumber: 'ORD-2025-004', customerName: 'Sneha Reddy', amount: 350.00, status: 'completed' },
+    { id: 5, orderNumber: 'ORD-2025-005', customerName: 'Vikram Singh', amount: 920.00, status: 'pending' }
+  ];
 
-  // 🚀 OPTIMIZED: Initial load with instant cache check
-  useEffect(() => {
-    // Reset on theaterId change
-    setInitialLoadDone(false);
-    setLoading(false); // Start with false, check cache first
-    setError(null);
-    lastLoadKeyRef.current = '';
-    
-    // TEMPORARY: For existing sessions without theater ID, try to get it from user data
-    let effectiveTheaterId = theaterId || userTheaterId;
-    
-    if (!effectiveTheaterId && user) {
-      if (user.assignedTheater) {
-        effectiveTheaterId = user.assignedTheater._id || user.assignedTheater;
-      } else if (user.theater) {
-        effectiveTheaterId = user.theater._id || user.theater;
-      }
-    }
-    
-    // Security check
-    if (userType === 'theater-admin' && userTheaterId && theaterId !== userTheaterId) {
-      navigate(`/theater/dashboard/${userTheaterId}`);
-      return;
-    }
+  const trends = {
+    last7Days: [
+      { date: '2025-01-08', revenue: 15000 },
+      { date: '2025-01-09', revenue: 18000 },
+      { date: '2025-01-10', revenue: 16500 },
+      { date: '2025-01-11', revenue: 21000 },
+      { date: '2025-01-12', revenue: 19000 },
+      { date: '2025-01-13', revenue: 23000 },
+      { date: '2025-01-14', revenue: 20500 }
+    ],
+    topProducts: [
+      { name: 'Popcorn (Large)', quantity: 145, revenue: 43500 },
+      { name: 'Coca-Cola (Medium)', quantity: 230, revenue: 34500 },
+      { name: 'Nachos with Cheese', quantity: 98, revenue: 29400 },
+      { name: 'Combo Pack', quantity: 76, revenue: 45600 },
+      { name: 'Hot Dog', quantity: 67, revenue: 20100 }
+    ]
+  };
 
-    if (!theaterId && effectiveTheaterId) {
-      navigate(`/theater/dashboard/${effectiveTheaterId}`);
-      return;
-    }
+  const theaterInfo = {
+    name: 'YQ PAY NOW'
+  };
 
-    if (effectiveTheaterId) {
-      const loadKey = effectiveTheaterId;
-      if (lastLoadKeyRef.current === loadKey && initialLoadDone) {
-        return;
-      }
-      lastLoadKeyRef.current = loadKey;
-      
-      // Immediate execution with cache check
-      (async () => {
-        try {
-          await fetchDashboardData(effectiveTheaterId);
-        } catch (error) {
-          console.error('❌ Load error:', error);
-          setLoading(false);
-        }
-      })();
-    } else {
-      setError('Theater ID not found. Please login again.');
-      setLoading(false);
-    }
-  }, [theaterId, userTheaterId, userType, navigate, user, fetchDashboardData, initialLoadDone]);
-
-  // Check for expiring agreement and show notification to theater admin
-  const { warning } = useToast();
-
-  React.useEffect(() => {
-    const effectiveTheaterId = theaterId || userTheaterId;
-    if (!effectiveTheaterId) return;
-
-    const checkAgreementStatus = async () => {
-      try {
-        const token = localStorage.getItem('authToken');
-        const response = await fetch(`${config.api.baseUrl}/theaters/${effectiveTheaterId}/agreement-status`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success && result.data.hasAgreement) {
-            if (result.data.isExpiring) {
-              warning(
-                `Your agreement expires in ${result.data.daysUntilExpiration} day(s). Please contact support to renew.`,
-                8000
-              );
-            } else if (result.data.isExpired) {
-              warning(
-                'Your agreement has expired. Please contact support immediately to renew.',
-                10000
-              );
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking agreement status:', error);
-      }
-    };
-
-    // Check immediately and then every 5 minutes
-    checkAgreementStatus();
-    const interval = setInterval(checkAgreementStatus, 300000); // 5 minutes
-    
-    return () => clearInterval(interval);
-  }, [theaterId, userTheaterId, warning]);
-
-  // 🚀 INSTANT: Always show content - use skeleton if loading
-  const hasData = stats.totalOrders > 0 || recentOrders.length > 0 || theaterInfo.name;
-  
   return (
     <ErrorBoundary>
       <TheaterLayout pageTitle="Theater Dashboard" currentPage="dashboard">
         <div className="tadmin-wrapper">
-          {!hasData && loading ? (
-            <SkeletonDashboard />
-          ) : error ? (
-            <div className="tadmin-error">
-              <div className="tadmin-error-icon">⚠️</div>
-              <h3>Error Loading Dashboard</h3>
-              <p>{error}</p>
-            </div>
-          ) : (
-            <>
+          <>
               {/* Hero Banner */}
               <div className="tadmin-hero-banner">
                 <div className="tadmin-hero-content">
@@ -590,13 +374,10 @@ const TheaterDashboard = React.memo(() => {
                 )}
               </div>
             </>
-          )}
         </div>
       </TheaterLayout>
     </ErrorBoundary>
   );
-});
-
-TheaterDashboard.displayName = 'TheaterDashboard';
+};
 
 export default TheaterDashboard;

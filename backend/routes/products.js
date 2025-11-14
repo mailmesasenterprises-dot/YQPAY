@@ -196,6 +196,7 @@ router.get('/:theaterId', [
 router.post('/:theaterId', [
   authenticateToken,
   requireTheaterAccess,
+  upload.single('productImage'), // Handle file upload
   body('name').notEmpty().trim().withMessage('Product name is required'),
   body('categoryId').isMongoId().withMessage('Valid category ID is required'),
   body('pricing.basePrice').isFloat({ min: 0 }).withMessage('Base price must be a positive number')
@@ -257,6 +258,8 @@ router.post('/:theaterId', [
         unit: req.body.inventory?.unit || 'piece'
       },
       images: req.body.images || [],
+      imageUrl: null,
+      image: null,
       specifications: req.body.specifications || {
         ingredients: [],
         dimensions: { unit: 'cm' },
@@ -274,6 +277,39 @@ router.post('/:theaterId', [
       createdAt: new Date(),
       updatedAt: new Date()
     };
+
+    // Handle image upload if provided
+    if (req.file) {
+      try {
+        const productName = req.body.name || 'product';
+        const folder = `products/${theaterId}/${productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const imageUrl = await uploadFile(
+          req.file.buffer,
+          req.file.originalname,
+          folder,
+          req.file.mimetype
+        );
+        
+        // Set image fields
+        newProduct.images = [{
+          url: imageUrl,
+          filename: req.file.originalname,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          isMain: true
+        }];
+        newProduct.imageUrl = imageUrl;
+        newProduct.image = imageUrl;
+        
+        console.log('✅ Product image uploaded:', imageUrl);
+      } catch (uploadError) {
+        console.error('❌ Image upload error:', uploadError);
+        return res.status(500).json({
+          error: 'Failed to upload image',
+          message: uploadError.message
+        });
+      }
+    }
 
     // Get or create product container for this theater
     let productContainer = await db.collection('productlist').findOne({

@@ -32,9 +32,28 @@ class BaseService {
     
     if (lean) query.lean();
 
+    // ✅ FIX: Add timeout wrapper to prevent hanging
+    // Increased timeouts for slow connections (MongoDB Atlas can be slow on first query)
+    const queryTimeout = 15000; // 15 seconds (increased from 5)
+    const countTimeout = 10000; // 10 seconds (increased from 3)
+    
+    const queryWithTimeout = Promise.race([
+      query.maxTimeMS(queryTimeout).exec(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`Query timeout after ${queryTimeout/1000} seconds - database may be slow or connection unstable`)), queryTimeout)
+      )
+    ]);
+    
+    const countWithTimeout = Promise.race([
+      this.model.countDocuments(filter).maxTimeMS(countTimeout).exec(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`Count timeout after ${countTimeout/1000} seconds - database may be slow or connection unstable`)), countTimeout)
+      )
+    ]);
+
     const [data, total] = await Promise.all([
-      query.maxTimeMS(5000),
-      this.model.countDocuments(filter).maxTimeMS(3000)
+      queryWithTimeout,
+      countWithTimeout
     ]);
 
     const totalPages = Math.ceil(total / limit);
@@ -70,7 +89,8 @@ class BaseService {
     if (populate) query.populate(populate);
     if (lean) query.lean();
 
-    return query.maxTimeMS(5000);
+    // ✅ FIX: Increased timeout for slow connections
+    return query.maxTimeMS(15000);
   }
 
   /**
@@ -89,7 +109,8 @@ class BaseService {
     if (populate) query.populate(populate);
     if (lean) query.lean();
 
-    return query.maxTimeMS(5000);
+    // ✅ FIX: Increased timeout for slow connections
+    return query.maxTimeMS(15000);
   }
 
   /**
@@ -127,7 +148,8 @@ class BaseService {
    * Count documents
    */
   async count(filter = {}) {
-    return this.model.countDocuments(filter).maxTimeMS(3000);
+    // ✅ FIX: Increased timeout for slow connections
+    return this.model.countDocuments(filter).maxTimeMS(10000);
   }
 
   /**

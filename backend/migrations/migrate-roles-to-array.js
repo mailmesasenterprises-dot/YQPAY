@@ -56,8 +56,15 @@ const roleNewSchema = new mongoose.Schema({
   }
 }, { timestamps: true, collection: 'roles' });
 
-// Connect to MongoDB
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/theater_canteen_db';
+// Connect to MongoDB - require environment variable
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+const MONGODB_URI = process.env.MONGODB_URI?.trim();
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI is not set in environment variables!');
+  console.error('   Please set MONGODB_URI in backend/.env file');
+  process.exit(1);
+}
 
 async function migrateRoles() {
   try {

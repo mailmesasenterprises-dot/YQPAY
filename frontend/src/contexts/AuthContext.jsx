@@ -134,7 +134,16 @@ export const AuthProvider = React.memo(({ children }) => {
 
   // 🚀 OPTIMIZED: Memoized login function
   const login = useCallback((userData, token, type = 'super_admin', userTheaterId = null, userRolePermissions = []) => {
-    localStorage.setItem('authToken', token);
+    // ✅ FIX: Clean token before storing (remove quotes, trim whitespace)
+    const cleanToken = String(token).trim().replace(/^["']|["']$/g, '');
+    
+    // Validate token format (should have 3 parts separated by dots)
+    if (cleanToken.split('.').length !== 3) {
+      console.error('❌ [AuthContext] Invalid token format, login failed');
+      return;
+    }
+    
+    localStorage.setItem('authToken', cleanToken);
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('userType', type);
     

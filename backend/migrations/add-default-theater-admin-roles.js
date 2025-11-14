@@ -14,8 +14,13 @@ const Theater = require('../models/Theater');
 const Role = require('../models/Role');
 const roleService = require('../services/roleService');
 
-// Database connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/YQPAY';
+// Database connection - require environment variable
+const MONGODB_URI = process.env.MONGODB_URI?.trim();
+if (!MONGODB_URI) {
+  console.error('❌ MONGODB_URI is not set in environment variables!');
+  console.error('   Please set MONGODB_URI in backend/.env file');
+  process.exit(1);
+}
 async function addDefaultRolesToExistingTheaters() {
   try {
     // Connect to database

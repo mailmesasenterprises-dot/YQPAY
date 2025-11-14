@@ -22,8 +22,32 @@ class ApiService {
   }
 
   // Get auth token from localStorage
+  // ✅ FIXED: Check multiple keys for backward compatibility and clean token format
   getAuthToken() {
-    return localStorage.getItem('authToken');
+    // Primary key: 'authToken'
+    let token = localStorage.getItem('authToken');
+    // Fallback: Check other possible keys
+    if (!token) {
+      token = localStorage.getItem('yqpaynow_token') || localStorage.getItem('token');
+      // If found in fallback, migrate to primary key
+      if (token) {
+        localStorage.setItem('authToken', token);
+      }
+    }
+    
+    // ✅ FIX: Clean token to remove any formatting issues
+    if (token) {
+      // Remove quotes, trim whitespace, ensure it's a valid string
+      token = String(token).trim().replace(/^["']|["']$/g, '');
+      
+      // Validate token format (should have 3 parts separated by dots)
+      if (token.split('.').length !== 3) {
+        console.warn('⚠️ [apiService] Invalid token format detected');
+        return null;
+      }
+    }
+    
+    return token;
   }
 
   // Get auth headers

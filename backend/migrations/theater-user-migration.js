@@ -360,9 +360,19 @@ if (require.main === module) {
 
   async function run() {
     try {
-      // Connect to MongoDB
+      // Connect to MongoDB - require environment variable
       if (!mongoose.connection.readyState) {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/your-database');
+        const MONGODB_URI = process.env.MONGODB_URI?.trim();
+        if (!MONGODB_URI) {
+          console.error('❌ MONGODB_URI is not set in environment variables!');
+          console.error('   Please set MONGODB_URI in backend/.env file');
+          process.exit(1);
+        }
+        await mongoose.connect(MONGODB_URI, {
+          serverSelectionTimeoutMS: 30000,
+          socketTimeoutMS: 120000,
+          connectTimeoutMS: 30000,
+        });
       }
 
       switch (command) {

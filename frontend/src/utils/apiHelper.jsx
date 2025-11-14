@@ -126,9 +126,11 @@ export const getApiUrl = (endpoint) => {
 
 /**
  * Get authentication headers with token
+ * ✅ FIXED: Uses centralized token getter for consistency
  * @returns {Object} - Headers object with authorization
  */
 export const getAuthHeaders = () => {
+  // Use centralized getter which handles multiple key fallbacks
   const token = config.helpers.getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 };

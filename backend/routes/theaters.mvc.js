@@ -32,6 +32,7 @@ router.get('/:theaterId/agreement-status',
 
 // GET /api/theaters
 router.get('/', 
+  authenticateToken, // ✅ FIX: Require authentication
   theaterValidator.getAll, 
   validate, 
   BaseController.asyncHandler(TheaterController.getAll)

@@ -19,6 +19,14 @@ class DashboardService extends BaseService {
    * Get super admin stats
    */
   async getSuperAdminStats() {
+    // Check database connection first
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      const states = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+      console.error(`❌ [DashboardService] MongoDB not connected! State: ${states[mongoose.connection.readyState] || 'unknown'} (${mongoose.connection.readyState})`);
+      throw new Error(`Database not connected. Current state: ${states[mongoose.connection.readyState] || 'unknown'}`);
+    }
+    
     const now = new Date();
     const startOfToday = new Date(now.setHours(0, 0, 0, 0));
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -156,6 +164,14 @@ class DashboardService extends BaseService {
    * Get quick stats
    */
   async getQuickStats() {
+    // Check database connection first
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      const states = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+      console.error(`❌ [DashboardService] MongoDB not connected! State: ${states[mongoose.connection.readyState] || 'unknown'} (${mongoose.connection.readyState})`);
+      throw new Error(`Database not connected. Current state: ${states[mongoose.connection.readyState] || 'unknown'}`);
+    }
+    
     const now = new Date();
     const startOfToday = new Date(now.setHours(0, 0, 0, 0));
 
