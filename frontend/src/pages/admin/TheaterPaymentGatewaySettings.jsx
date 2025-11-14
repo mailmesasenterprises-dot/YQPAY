@@ -122,19 +122,23 @@ const TheaterPaymentGatewaySettings = () => {
         console.log('Loading Online Config:', theater.paymentGateway.online);
         
         if (theater.paymentGateway.kiosk) {
-          setKioskConfig({
+          const newKiosk = {
             razorpay: theater.paymentGateway.kiosk.razorpay || { enabled: false, keyId: '', keySecret: '' },
             phonepe: theater.paymentGateway.kiosk.phonepe || { enabled: false, merchantId: '', saltKey: '', saltIndex: '' },
             paytm: theater.paymentGateway.kiosk.paytm || { enabled: false, merchantId: '', merchantKey: '' }
-          });
+          };
+          console.log('Setting Kiosk Config to:', newKiosk);
+          setKioskConfig(newKiosk);
         }
         
         if (theater.paymentGateway.online) {
-          setOnlineConfig({
+          const newOnline = {
             razorpay: theater.paymentGateway.online.razorpay || { enabled: false, keyId: '', keySecret: '' },
             phonepe: theater.paymentGateway.online.phonepe || { enabled: false, merchantId: '', saltKey: '', saltIndex: '' },
             paytm: theater.paymentGateway.online.paytm || { enabled: false, merchantId: '', merchantKey: '' }
-          });
+          };
+          console.log('Setting Online Config to:', newOnline);
+          setOnlineConfig(newOnline);
         }
       } else {
         console.log('No payment gateway data found in theater');
@@ -177,7 +181,12 @@ const TheaterPaymentGatewaySettings = () => {
         return;
       }
       
-      await axios.put(`/api/theaters/${selectedTheater}`, {
+      console.log('Saving payment gateway config:', {
+        kiosk: kioskConfig,
+        online: onlineConfig
+      });
+      
+      const response = await axios.put(`${config.api.baseUrl}/theaters/${selectedTheater}`, {
         paymentGateway: {
           kiosk: kioskConfig,
           online: onlineConfig
@@ -188,10 +197,23 @@ const TheaterPaymentGatewaySettings = () => {
         }
       });
 
+      console.log('Save response:', response.data);
+
+      // Clear cache to force refetch with new data
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cacheKey = `payment_gateway_settings_theater_${selectedTheater}`;
+        localStorage.removeItem(cacheKey);
+        localStorage.removeItem('payment_gateway_settings_theaters');
+        localStorage.removeItem('payment_gateway_theaters');
+      }
+
+      // Refetch the updated configuration
+      await fetchTheaterConfig(selectedTheater);
+
       modal?.showSuccess?.('Payment gateway configuration saved successfully!');
     } catch (error) {
       console.error('Error saving configuration:', error);
-      modal?.showError?.('Failed to save configuration');
+      modal?.showError?.(error.response?.data?.message || 'Failed to save configuration');
     } finally {
       setSaving(false);
     }

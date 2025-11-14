@@ -68,52 +68,58 @@ const RoleAccessManagement = () => {
   // Load active pages from pageaccesses collection database for specific theater
   const loadActivePages = useCallback(async () => {
     if (!theaterId) {
-
+      console.log('⚠️ [loadActivePages] No theaterId provided');
       setActivePages([]);
       return [];
     }
     
     try {
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
-      const data = await optimizedFetch(
-        `${config.api.baseUrl}/page-access?theaterId=${theaterId}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            // Add auth token if it exists
-            ...(localStorage.getItem('authToken') && {
-              'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-            })
-          }
+      console.log('🔄 [loadActivePages] Fetching pages for theater:', theaterId);
+      
+      // ✅ FIX: Use fresh fetch with cache-busting to get latest page list
+      const cacheBuster = `_t=${Date.now()}`;
+      const url = `${config.api.baseUrl}/page-access?theaterId=${theaterId}&${cacheBuster}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
         },
-        `page_access_theater_${theaterId}`,
-        120000 // 2-minute cache
-      );
-      if (data) {
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to fetch pages`);
+      }
+      
+      const data = await response.json();
+      
+      console.log('🔄 [loadActivePages] Response received:', data);
 
-        // ✅ NEW: Backend returns data.data.pageAccessList (array-based structure per theater)
-        if (data.success && data.data && data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
-          const pages = data.data.pageAccessList
-            .filter(pageAccess => pageAccess.isActive !== false) // Only show active pages
-            .map(pageAccess => ({
-              page: pageAccess.page,
-              pageName: pageAccess.pageName,
-              description: pageAccess.description || `Access to ${pageAccess.pageName}`,
-              route: pageAccess.route
-            }));
+      // ✅ NEW: Backend returns data.data.pageAccessList (array-based structure per theater)
+      if (data.success && data.data && data.data.pageAccessList && Array.isArray(data.data.pageAccessList)) {
+        const pages = data.data.pageAccessList
+          .filter(pageAccess => pageAccess.isActive !== false) // Only show active pages
+          .map(pageAccess => ({
+            page: pageAccess.page,
+            pageName: pageAccess.pageName,
+            description: pageAccess.description || `Access to ${pageAccess.pageName}`,
+            route: pageAccess.route
+          }));
 
-          setActivePages(pages);
-          return pages;
-        } else {
-
-          setActivePages([]);
-          return [];
-        }
+        console.log('✅ [loadActivePages] Loaded', pages.length, 'active pages');
+        setActivePages(pages);
+        return pages;
       } else {
-        throw new Error(`HTTP ${response.status}: Failed to fetch pages from database`);
+        console.warn('⚠️ [loadActivePages] No page access list found in response');
+        setActivePages([]);
+        return [];
       }
     } catch (error) {
-
+      console.error('❌ [loadActivePages] Error loading pages:', error);
       setActivePages([]);
       return [];
     }
@@ -348,15 +354,30 @@ const RoleAccessManagement = () => {
     setShowViewModal(true);
   };
 
-  const editRolePermission = (role) => {
+  const editRolePermission = async (role) => {
     console.log('🔵 [editRolePermission] Called with role:', role);
-    console.log('🔵 [editRolePermission] Active pages:', activePages);
+    
+    // ✅ FIX: Reload active pages to get the latest list (in case pages were deleted)
+    console.log('🔄 [editRolePermission] Reloading active pages to get fresh data...');
+    const freshPages = await loadActivePages();
+    console.log('🔵 [editRolePermission] Fresh active pages:', freshPages);
     
     setSelectedRolePermission(role);
     
-    // Prepare form data with all active pages (even if empty)
-    const permissions = activePages.map(page => {
-      const existingPermission = (role.permissions || []).find(p => p.page === page.page);
+    // ✅ FIX: Only include permissions for pages that still exist in active pages
+    const activePageIds = new Set(freshPages.map(p => p.page));
+    const savedPermissions = role.permissions || [];
+    
+    console.log('🔵 [editRolePermission] Active page IDs:', Array.from(activePageIds));
+    console.log('🔵 [editRolePermission] Saved permissions:', savedPermissions);
+    
+    // Filter out deleted pages from saved permissions
+    const validSavedPermissions = savedPermissions.filter(p => activePageIds.has(p.page));
+    console.log('✅ [editRolePermission] Valid saved permissions (deleted pages removed):', validSavedPermissions);
+    
+    // Prepare form data with all active pages (include saved state only for existing pages)
+    const permissions = freshPages.map(page => {
+      const existingPermission = validSavedPermissions.find(p => p.page === page.page);
       return {
         page: page.page,
         pageName: page.pageName,
@@ -364,7 +385,7 @@ const RoleAccessManagement = () => {
       };
     });
     
-    console.log('🔵 [editRolePermission] Prepared permissions:', permissions);
+    console.log('🔵 [editRolePermission] Final prepared permissions:', permissions);
 
     setFormData({
       roleId: role._id,
@@ -380,15 +401,19 @@ const RoleAccessManagement = () => {
     setShowDeleteModal(true);
   };
 
-  const handleCreateNewRolePermission = () => {
+  const handleCreateNewRolePermission = async () => {
+    // ✅ FIX: Reload active pages to get the latest list
+    console.log('🔄 [handleCreateNewRolePermission] Reloading active pages...');
+    const freshPages = await loadActivePages();
+    
     // Check if there are active pages available from database
-    if (activePages.length === 0) {
+    if (freshPages.length === 0) {
       toast.error('No active pages available for role access management. Please activate pages in Page Access Management first.');
       return;
     }
     
     // Reset form for new role permission
-    const defaultPermissions = activePages.map(page => ({
+    const defaultPermissions = freshPages.map(page => ({
       page: page.page,
       pageName: page.pageName,
       hasAccess: false

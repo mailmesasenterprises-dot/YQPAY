@@ -26,33 +26,127 @@ const LoginPage = () => {
 
   // Helper function to get route from page ID
   const getRouteFromPageId = (pageId, theaterId) => {
+    // ✅ BULLETPROOF COMPREHENSIVE PAGE ROUTE MAPPING
+    // Generated from App.jsx and pageExtractor.js - covers ALL possible formats
     const pageRouteMap = {
+      // ==================== LOWERCASE-HYPHEN FORMAT ====================
+      'dashboard': `/theater-dashboard/${theaterId}`,
+      'products': `/theater-products/${theaterId}`,
+      'simple-products': `/simple-products/${theaterId}`,
+      'add-product': `/theater-add-product/${theaterId}`,
+      'categories': `/theater-categories/${theaterId}`,
+      'product-types': `/theater-product-types/${theaterId}`,
+      'kiosk-types': `/theater-kiosk-types/${theaterId}`,
+      'pos': `/pos/${theaterId}`,
+      'professional-pos': `/theater-order-pos/${theaterId}`,
+      'offline-pos': `/offline-pos/${theaterId}`,
+      'view-cart': `/view-cart/${theaterId}`,
+      'order-history': `/theater-order-history/${theaterId}`,
+      'online-order-history': `/online-order-history/${theaterId}`,
+      'kiosk-order-history': `/kiosk-order-history/${theaterId}`,
+      'orders': `/theater-orders/${theaterId}`,
+      'qr-management': `/theater-qr-management/${theaterId}`,
+      'qr-code-names': `/theater-qr-code-names/${theaterId}`,
+      'generate-qr': `/theater-generate-qr/${theaterId}`,
+      'settings': `/theater-settings/${theaterId}`,
+      'stock': `/theater-stock-management/${theaterId}`,
+      'reports': `/theater-reports/${theaterId}`,
+      'messages': `/theater-messages/${theaterId}`,
+      'banner': `/theater-banner/${theaterId}`,
+      'theater-roles': `/theater-roles/${theaterId}`,
+      'theater-role-access': `/theater-role-access/${theaterId}`,
+      'theater-users': `/theater-user-management/${theaterId}`,
+      'payment-gateway': `/payment-gateway-settings/${theaterId}`,
+      
+      // ==================== EXACT CAMELCASE FROM PAGEEXTRACTOR.JS ====================
+      // Super Admin Pages
+      'Dashboard': `/dashboard`,
+      'Settings': `/settings`,
+      'AddTheater': `/add-theater`,
+      'TheaterList': `/theaters`,
+      'TheaterUserManagement': `/theater-users`,
+      'TheaterUserDetails': `/theater-users/${theaterId}`,
+      'RoleCreate': `/roles`,
+      'RoleAccessManagement': `/role-access`,
+      'PageAccessManagement': `/page-access`,
+      'QRGenerate': `/qr-generate`,
+      'QRManagement': `/qr-management`,
+      'TheaterQRDetail': `/qr-theater/${theaterId}`,
+      'QRScanner': `/qr-scanner`,
+      'ModalDemo': `/modal-demo`,
+      'TheaterAdminList': `/theater-admin`,
+      'TheaterAdminManagement': `/theater-admin-management`,
+      'Messages': `/messages`,
+      'TransactionList': `/transactions`,
+      'TransactionDetail': `/transactions/${theaterId}`,
+      'PaymentGatewayList': `/payment-gateway`,
+      'CachingDemo': `/caching-demo`,
+      'AuthDebugPage': `/auth-debug`,
+      
+      // Theater Admin Pages (with :theaterId parameter)
       'TheaterDashboardWithId': `/theater-dashboard/${theaterId}`,
+      'TheaterDashboard': `/theater-dashboard/${theaterId}`,
       'TheaterSettingsWithId': `/theater-settings/${theaterId}`,
+      'TheaterSettings': `/theater-settings/${theaterId}`,
       'TheaterCategories': `/theater-categories/${theaterId}`,
       'TheaterKioskTypes': `/theater-kiosk-types/${theaterId}`,
       'TheaterProductTypes': `/theater-product-types/${theaterId}`,
       'TheaterProductList': `/theater-products/${theaterId}`,
-      'OnlinePOSInterface': `/pos/${theaterId}`,
-      'OfflinePOSInterface': `/offline-pos/${theaterId}`, // Fixed: Use correct route
       'TheaterOrderHistory': `/theater-order-history/${theaterId}`,
-      'OnlineOrderHistory': `/online-order-history/${theaterId}`, // Fixed: Use correct route
+      'OnlineOrderHistory': `/online-order-history/${theaterId}`,
+      'KioskOrderHistory': `/kiosk-order-history/${theaterId}`,
+      'StaffOrderHistory': `/staff-order-history/${theaterId}`,
       'TheaterAddProductWithId': `/theater-add-product/${theaterId}`,
+      'AddProduct': `/theater-add-product/${theaterId}`,
       'TheaterRoles': `/theater-roles/${theaterId}`,
       'TheaterRoleAccess': `/theater-role-access/${theaterId}`,
       'TheaterQRCodeNames': `/theater-qr-code-names/${theaterId}`,
       'TheaterGenerateQR': `/theater-generate-qr/${theaterId}`,
       'TheaterQRManagement': `/theater-qr-management/${theaterId}`,
-      'TheaterUserManagement': `/theater-user-management/${theaterId}`,
-      'TheaterBanner': `/theater-banner/${theaterId}`, // Added missing mapping
-      'TheaterMessages': `/theater-messages/${theaterId}`, // Added missing mapping
+      'TheaterUserManagementPage': `/theater-user-management/${theaterId}`,
+      'TheaterBanner': `/theater-banner/${theaterId}`,
+      'TheaterMessages': `/theater-messages/${theaterId}`,
+      'TheaterReports': `/theater-reports/${theaterId}`,
+      'TheaterPaymentGatewaySettings': `/payment-gateway-settings/${theaterId}`,
+      
+      // POS & Cart Pages
+      'OnlinePOSInterface': `/pos/${theaterId}`,
+      'OfflinePOSInterface': `/offline-pos/${theaterId}`,
+      'ProfessionalPOSInterface': `/theater-order-pos/${theaterId}`,
+      'ViewCart': `/view-cart/${theaterId}`,
+      'KioskCheckout': `/kiosk-checkout/${theaterId}`,
+      'KioskPayment': `/kiosk-payment/${theaterId}`,
+      'KioskViewCart': `/kiosk-view-cart/${theaterId}`,
+      
+      // Stock & Product Management
       'StockManagement': `/theater-stock-management/${theaterId}`,
       'SimpleProductList': `/simple-products/${theaterId}`,
-      'ViewCart': `/view-cart/${theaterId}`,
-      'ProfessionalPOSInterface': `/theater-order-pos/${theaterId}`
+      
+      // Customer Pages
+      'CustomerLanding': `/customer`,
+      'CustomerHome': `/customer/home`,
+      'CustomerCart': `/customer/cart`,
+      'CustomerOrderHistory': `/customer/orders`,
+      'CustomerOrderDetails': `/customer/orders/${theaterId}`,
+      'CustomerFavorites': `/customer/favorites`,
+      'CustomerHelpSupport': `/customer/help`,
+      'CustomerCheckout': `/customer/checkout`,
+      'CustomerPhoneEntry': `/customer/phone`,
+      'CustomerOTPVerification': `/customer/verify`,
+      'CustomerPayment': `/customer/payment`,
+      'CustomerOrderSuccess': `/customer/success`,
+      'QRServiceUnavailable': `/qr-unavailable`
     };
     
-    return pageRouteMap[pageId] || null;
+    const route = pageRouteMap[pageId];
+    
+    if (!route) {
+      console.error(`❌ [getRouteFromPageId] No route found for pageId: "${pageId}"`);
+      console.error(`❌ [getRouteFromPageId] Searched in ${Object.keys(pageRouteMap).length} mappings`);
+      console.error('❌ [getRouteFromPageId] Available page IDs:', Object.keys(pageRouteMap).slice(0, 20).join(', '), '...');
+    }
+    
+    return route || null;
   };
 
   // Set browser tab title
@@ -218,19 +312,24 @@ const LoginPage = () => {
               return;
             } else {
               console.error('❌ [PIN] No valid route found for page:', firstPage);
-              setErrors({ pin: 'Navigation error. Contact administrator.' });
+              console.error('❌ [PIN] Page ID received:', firstPage.page);
+              console.error('❌ [PIN] Available permissions:', accessiblePages);
+              setErrors({ pin: `Navigation error: Cannot find route for page "${firstPage.page}". Contact administrator.` });
               return;
             }
           } else {
             // ❌ NO accessible pages - show error, don't login
             console.error('❌ [PIN] No accessible pages found');
-            setErrors({ pin: 'Your account has no page access. Contact administrator.' });
+            console.error('❌ [PIN] Role permissions:', rolePermissions);
+            console.error('❌ [PIN] All permissions:', rolePermissions[0]?.permissions);
+            setErrors({ pin: 'Your role has no page access enabled. Contact administrator to grant page permissions.' });
             return;
           }
         } else {
           // ❌ NO permissions defined - show error, don't login
           console.error('❌ [PIN] No role permissions found or invalid structure');
-          setErrors({ pin: 'No role permissions found. Contact administrator.' });
+          console.error('❌ [PIN] Received data:', { rolePermissions, userType, theaterId });
+          setErrors({ pin: 'Role permissions not configured. Contact administrator to set up role permissions.' });
           return;
         }
       } else {
@@ -338,21 +437,26 @@ const LoginPage = () => {
                 navigate(firstRoute);
               } else {
                 console.error('❌ [Login] No valid route found for page:', firstPage);
-                setErrors({ password: 'Navigation error. Contact administrator.' });
+                console.error('❌ [Login] Page ID received:', firstPage.page);
+                console.error('❌ [Login] Available permissions:', accessiblePages);
+                setErrors({ password: `Navigation error: Cannot find route for page "${firstPage.page}". Contact administrator.` });
                 setIsLoading(false);
                 return;
               }
             } else {
               // ❌ NO accessible pages - show error, don't navigate
               console.error('❌ [Login] No accessible pages found');
-              setErrors({ password: 'Your account has no page access. Contact administrator.' });
+              console.error('❌ [Login] Role permissions:', rolePermissions);
+              console.error('❌ [Login] All permissions:', rolePermissions[0]?.permissions);
+              setErrors({ password: 'Your role has no page access enabled. Contact administrator to grant page permissions.' });
               setIsLoading(false);
               return;
             }
           } else {
             // ❌ NO permissions defined - show error, don't navigate
             console.error('❌ [Login] No role permissions found or invalid structure');
-            setErrors({ password: 'No role permissions found. Contact administrator.' });
+            console.error('❌ [Login] Received data:', { rolePermissions, userType, theaterId });
+            setErrors({ password: 'Role permissions not configured. Contact administrator to set up role permissions.' });
             setIsLoading(false);
             return;
           }

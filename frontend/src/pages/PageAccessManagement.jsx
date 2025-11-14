@@ -94,26 +94,38 @@ const PageAccessManagement = () => {
   // Load existing page access states from database
   const loadExistingPageAccess = useCallback(async () => {
     try {
+      console.log('🔄 [loadExistingPageAccess] Starting to load page access...');
       // ✅ FIX: Add authentication token
       const token = config.helpers.getAuthToken();
       
-      // ✅ FIX: Fetch theater-specific page access data
+      // ✅ FIX: Fetch theater-specific page access data with cache-busting timestamp
+      const cacheBuster = `_t=${Date.now()}`;
       const url = theaterId 
-        ? `${config.api.baseUrl}/page-access?theaterId=${theaterId}&limit=1000`
-        : `${config.api.baseUrl}/page-access?limit=1000`;
+        ? `${config.api.baseUrl}/page-access?theaterId=${theaterId}&limit=1000&${cacheBuster}`
+        : `${config.api.baseUrl}/page-access?limit=1000&${cacheBuster}`;
       
-      // 🚀 PERFORMANCE: Use optimizedFetch for instant cache loading
-      const cacheKey = `page_access_${theaterId || 'all'}_limit_1000`;
-      const data = await optimizedFetch(
-        url,
-        {
-          headers: {
-            ...token ? { 'Authorization': `Bearer ${token}` } : {}
-          }
+      console.log('🔄 [loadExistingPageAccess] Fetching from:', url);
+      
+      // ✅ FIX: Use regular fetch WITHOUT cache to always get fresh data
+      // This prevents stale data from showing after toggle operations
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...token ? { 'Authorization': `Bearer ${token}` } : {}
         },
-        cacheKey,
-        120000 // 2-minute cache
-      );
+        cache: 'no-store', // Force fresh fetch, don't use cached data
+        credentials: 'same-origin'
+      });
+      
+      console.log('🔄 [loadExistingPageAccess] Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to fetch page access`);
+      }
+      
+      const data = await response.json();
+      console.log('🔄 [loadExistingPageAccess] Received data:', JSON.stringify(data, null, 2));
       
 
       if (data) {
@@ -133,11 +145,14 @@ const PageAccessManagement = () => {
 
           const toggleStates = {};
           
+          console.log('🔄 [loadExistingPageAccess] Building toggle states from', existingPages.length, 'pages');
+          
           existingPages.forEach(pageAccess => {
-
+            console.log(`  📄 Page: ${pageAccess.page} -> isActive: ${pageAccess.isActive}`);
             toggleStates[pageAccess.page] = pageAccess.isActive;
           });
           
+          console.log('🔄 [loadExistingPageAccess] Final toggleStates:', JSON.stringify(toggleStates, null, 2));
           setPageToggleStates(toggleStates);
 
           // Update summary counts
@@ -154,9 +169,11 @@ const PageAccessManagement = () => {
         }
       }
     } catch (error) {
-
-      // If backend is not available, initialize with empty states
-      setPageToggleStates({});
+      console.error('❌ [loadExistingPageAccess] Error loading page access:', error);
+      console.error('❌ [loadExistingPageAccess] Error details:', error.message, error.stack);
+      // If backend is not available, DON'T clear existing states
+      // setPageToggleStates({}); // REMOVED: This was clearing the states on error
+      console.warn('⚠️ [loadExistingPageAccess] Keeping existing toggle states due to error');
       return false; // Failed to load
     }
     return false;
@@ -291,6 +308,21 @@ const PageAccessManagement = () => {
               ...prev,
               [page.page]: true
             }));
+            
+            // ✅ FIX: Clear cache after successful toggle
+            const cacheKey = `page_access_${theaterId || 'all'}_limit_1000`;
+            try {
+              if (typeof caches !== 'undefined') {
+                caches.delete(cacheKey);
+              }
+            } catch (e) {
+              console.log('Cache clear skipped:', e.message);
+            }
+            
+            // ✅ FIX: Reload data after successful toggle to confirm state
+            console.log('✅ [handlePageToggleChange] Reloading page access data...');
+            await loadExistingPageAccess();
+            
             showSuccess(`Page "${page.pageName}" access enabled and saved to database`);
           } else {
             throw new Error(data.message || 'Failed to save page access');
@@ -364,6 +396,21 @@ const PageAccessManagement = () => {
             ...prev,
             [page.page]: false
           }));
+          
+          // ✅ FIX: Clear cache after successful delete
+          const cacheKey = `page_access_${theaterId || 'all'}_limit_1000`;
+          try {
+            if (typeof caches !== 'undefined') {
+              caches.delete(cacheKey);
+            }
+          } catch (e) {
+            console.log('Cache clear skipped:', e.message);
+          }
+          
+          // ✅ FIX: Reload data after successful delete to confirm state
+          console.log('✅ [handlePageToggleChange] Reloading page access data after delete...');
+          await loadExistingPageAccess();
+          
           showSuccess(`Page "${page.pageName}" access disabled and removed from database`);
         } else if (response.status === 401) {
           throw new Error('Unauthorized: Please login as super admin');
@@ -804,7 +851,11 @@ const PageAccessManagement = () => {
                         }}>
                           <input
                             type="checkbox"
-                            checked={pageToggleStates[page.page] || false}
+                            checked={(() => {
+                              const isChecked = pageToggleStates[page.page] || false;
+                              // console.log(`🔘 [Render] ${page.pageName} (${page.page}): ${isChecked}`);
+                              return isChecked;
+                            })()}
                             onChange={(e) => handlePageToggleChange(page, e.target.checked)}
                             style={{
                               opacity: 0,

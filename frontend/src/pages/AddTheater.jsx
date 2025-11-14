@@ -604,10 +604,24 @@ const AddTheater = React.memo(() => {
       if (formData.youtube) formDataToSend.append('youtube', formData.youtube);
       if (formData.website) formDataToSend.append('website', formData.website);
       
-      // Add business registration details
-      if (formData.gstNumber) formDataToSend.append('gstNumber', formData.gstNumber.toUpperCase());
-      if (formData.fssaiNumber) formDataToSend.append('fssaiNumber', formData.fssaiNumber);
-      if (formData.uniqueNumber) formDataToSend.append('uniqueNumber', formData.uniqueNumber);
+      // Add business registration details (only if valid)
+      if (formData.gstNumber && formData.gstNumber.trim() !== '') {
+        const gstUpper = formData.gstNumber.toUpperCase().trim();
+        // Only send if it matches GST format or is empty
+        if (validationRules.gstNumber.test(gstUpper)) {
+          formDataToSend.append('gstNumber', gstUpper);
+        }
+      }
+      if (formData.fssaiNumber && formData.fssaiNumber.trim() !== '') {
+        const fssai = formData.fssaiNumber.trim();
+        // Only send if it matches FSSAI format
+        if (validationRules.fssaiNumber.test(fssai)) {
+          formDataToSend.append('fssaiNumber', fssai);
+        }
+      }
+      if (formData.uniqueNumber && formData.uniqueNumber.trim() !== '') {
+        formDataToSend.append('uniqueNumber', formData.uniqueNumber.trim());
+      }
       
       // Add files to FormData
 
@@ -634,7 +648,12 @@ const AddTheater = React.memo(() => {
 
 
       if (!response.ok) {
-        const errorData = await response.json();
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: 'Failed to create theater' };
+        }
         
         // Handle authentication error specifically
         if (response.status === 401 || response.status === 403) {
@@ -651,6 +670,12 @@ const AddTheater = React.memo(() => {
           
           navigate('/login');
           throw new Error('Unauthorized - Please login');
+        }
+        
+        // Handle validation errors
+        if (response.status === 400 || response.status === 500) {
+          const errorMsg = errorData.message || errorData.error || 'Validation failed';
+          throw new Error(errorMsg);
         }
         
         throw new Error(errorData.message || errorData.error || 'Failed to create theater');
@@ -679,7 +704,10 @@ const AddTheater = React.memo(() => {
         instagram: '',
         twitter: '',
         youtube: '',
-        website: ''
+        website: '',
+        gstNumber: '',
+        fssaiNumber: '',
+        uniqueNumber: ''
       });
       setFiles({
         theaterPhoto: null,
@@ -708,13 +736,14 @@ const AddTheater = React.memo(() => {
 
       navigate('/theaters', { replace: true });
   } catch (error) {
+      console.error('Theater creation error:', error);
       if (error.name === 'AbortError') {
         return;
       }
       
       modal.alert({
-        title: 'Error',
-        message: error.message || 'Failed to add theater. Please try again.',
+        title: 'Failed to Create Theater',
+        message: error.message || 'Failed to add theater. Please check all fields and try again.',
         type: 'error',
         position: 'toast' // Use toast position
       });

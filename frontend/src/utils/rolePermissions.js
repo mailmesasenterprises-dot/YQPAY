@@ -11,9 +11,11 @@
  */
 export const hasPageAccess = (rolePermissions = [], pageKey) => {
   if (!rolePermissions || !Array.isArray(rolePermissions) || rolePermissions.length === 0) {
-
     return false;
   }
+
+  // Normalize pageKey for comparison (case-insensitive)
+  const normalizedPageKey = pageKey.toLowerCase();
 
   // Find any role permission that has access to this page
   const hasAccess = rolePermissions.some(rolePermission => {
@@ -21,12 +23,12 @@ export const hasPageAccess = (rolePermissions = [], pageKey) => {
       return false;
     }
 
-    // Check if this role has access to the specific page
-    return rolePermission.permissions.some(permission => 
-      permission.page === pageKey && permission.hasAccess === true
-    );
+    // Check if this role has access to the specific page (case-insensitive comparison)
+    return rolePermission.permissions.some(permission => {
+      const permissionPage = (permission.page || '').toLowerCase();
+      return permissionPage === normalizedPageKey && permission.hasAccess === true;
+    });
   });
-
 
   return hasAccess;
 };
@@ -44,69 +46,72 @@ export const filterNavigationByPermissions = (navigationItems = [], rolePermissi
   }
 
   const filteredItems = navigationItems.filter(item => {
-    // Map navigation item IDs to page keys that are stored in the database
-    const pageMapping = {
-      // Match database page names (lowercase simple names)
-      'dashboard': 'dashboard',
-      'products': 'products',
-      'simple-products': 'simple-products',
-      'add-product': 'add-product',
-      'categories': 'categories',
-      'product-types': 'product-types',
-      'kiosk-types': 'kiosk-types',
-      'online-pos': 'pos',
-      'professional-pos': 'professional-pos',
-      'offline-pos': 'offline-pos',
-      'view-cart': 'view-cart',
-      'order-history': 'order-history',
-      'online-order-history': 'online-order-history',
-      'kiosk-order-history': 'kiosk-order-history',
-      'qr-management': 'qr-management',
-      'qr-code-names': 'qr-code-names',
-      'generate-qr': 'generate-qr',
-      'settings': 'settings',
-      'stock': 'stock',
-      'orders': 'orders',
-      'reports': 'reports',
-      'messages': 'messages',
-      'banner': 'banner',
-      'theater-roles': 'theater-roles',
-      'theater-role-access': 'theater-role-access',
-      'theater-users': 'theater-users',
-      // Also support CamelCase names for backward compatibility
-      'TheaterDashboardWithId': 'dashboard',
-      'OnlinePOSInterface': 'pos',
-      'ProfessionalPOSInterface': 'professional-pos',
-      'OfflinePOSInterface': 'offline-pos',
-      'SimpleProductList': 'simple-products',
-      'ViewCart': 'view-cart',
-      'TheaterOrderHistory': 'order-history',
-      'OnlineOrderHistory': 'online-order-history',
-      'KioskOrderHistory': 'kiosk-order-history',
-      'StaffOrderHistory': 'staff-order-history',
-      'TheaterProductList': 'products',
-      'TheaterAddProductWithId': 'add-product',
-      'TheaterCategories': 'categories',
-      'TheaterKioskTypes': 'kiosk-types',
-      'TheaterProductTypes': 'product-types',
-      'TheaterMessages': 'messages',
-      'TheaterBanner': 'banner',
-      'TheaterRoles': 'theater-roles',
-      'TheaterRoleAccess': 'theater-role-access',
-      'TheaterQRCodeNames': 'qr-code-names',
-      'TheaterGenerateQR': 'generate-qr',
-      'TheaterQRManagement': 'qr-management',
-      'TheaterUserManagement': 'theater-users',
-      'TheaterSettingsWithId': 'settings'
+    // Map sidebar item IDs to ALL possible page name formats stored in the database
+    // Database can store pages in multiple formats: 'KioskOrderHistory', 'kiosk-order-history', 'TheaterDashboardWithId', etc.
+    const possiblePageNames = [
+      item.id, // Try the ID itself first
+      item.id.toLowerCase(), // Try lowercase version
+      item.id.replace(/-/g, ''), // Try without hyphens
+    ];
+
+    // Generate CamelCase variations
+    const toCamelCase = (str) => {
+      return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+    };
+    
+    const toPascalCase = (str) => {
+      const camel = toCamelCase(str);
+      return camel.charAt(0).toUpperCase() + camel.slice(1);
     };
 
-    const pageKey = pageMapping[item.id];
-    if (!pageKey) {
+    // Add CamelCase and PascalCase variations
+    possiblePageNames.push(toCamelCase(item.id));
+    possiblePageNames.push(toPascalCase(item.id));
 
-      return false;
+    // Add specific mappings for known page names
+    const specificMappings = {
+      'dashboard': ['Dashboard', 'TheaterDashboard', 'TheaterDashboardWithId'],
+      'products': ['Products', 'TheaterProductList', 'TheaterProducts'],
+      'simple-products': ['SimpleProducts', 'SimpleProductList'],
+      'add-product': ['AddProduct', 'TheaterAddProduct', 'TheaterAddProductWithId'],
+      'categories': ['Categories', 'TheaterCategories'],
+      'product-types': ['ProductTypes', 'TheaterProductTypes'],
+      'kiosk-types': ['KioskTypes', 'TheaterKioskTypes'],
+      'online-pos': ['OnlinePOS', 'OnlinePOSInterface', 'POS'],
+      'professional-pos': ['ProfessionalPOS', 'ProfessionalPOSInterface'],
+      'offline-pos': ['OfflinePOS', 'OfflinePOSInterface'],
+      'view-cart': ['ViewCart', 'Cart'],
+      'order-history': ['OrderHistory', 'TheaterOrderHistory'],
+      'online-order-history': ['OnlineOrderHistory'],
+      'kiosk-order-history': ['KioskOrderHistory'],
+      'qr-management': ['QRManagement', 'TheaterQRManagement'],
+      'qr-code-names': ['QRCodeNames', 'TheaterQRCodeNames'],
+      'generate-qr': ['GenerateQR', 'TheaterGenerateQR'],
+      'settings': ['Settings', 'TheaterSettings', 'TheaterSettingsWithId'],
+      'stock': ['Stock', 'StockManagement'],
+      'orders': ['Orders', 'TheaterOrders'],
+      'reports': ['Reports', 'TheaterReports'],
+      'messages': ['Messages', 'TheaterMessages'],
+      'banner': ['Banner', 'TheaterBanner'],
+      'theater-roles': ['TheaterRoles', 'Roles'],
+      'theater-role-access': ['TheaterRoleAccess', 'RoleAccess'],
+      'theater-users': ['TheaterUsers', 'TheaterUserManagement', 'TheaterUserManagementPage']
+    };
+
+    if (specificMappings[item.id]) {
+      possiblePageNames.push(...specificMappings[item.id]);
     }
 
-    return hasPageAccess(rolePermissions, pageKey);
+    // Check if any of the possible page names has access
+    const hasAccess = possiblePageNames.some(pageName => {
+      return hasPageAccess(rolePermissions, pageName);
+    });
+
+    if (!hasAccess) {
+      console.log(`🔍 [Sidebar] No access for "${item.id}". Tried:`, possiblePageNames);
+    }
+
+    return hasAccess;
   });
 
 

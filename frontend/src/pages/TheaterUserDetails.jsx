@@ -189,7 +189,16 @@ const TheaterUserDetails = () => {
   // Helper function to close modal and reset states
   const closeCreateUserModal = () => {
     setShowCreateUserForm(false);
-    setCreateUserData({ username: '', email: '', password: '', confirmPassword: '', fullName: '', phoneNumber: '', pin: '', role: '' });
+    setCreateUserData({ 
+      username: theater?.uniqueNumber || '', // Reset to theater's uniqueNumber
+      email: '', 
+      password: '', 
+      confirmPassword: '', 
+      fullName: '', 
+      phoneNumber: '', 
+      pin: '', 
+      role: '' 
+    });
     setCreateUserErrors({});
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -1037,6 +1046,11 @@ const TheaterUserDetails = () => {
                 onClick={() => {
                   setShowCreateUserForm(true);
                   setCreateUserErrors({}); // Clear any previous errors
+                  // Auto-populate username with theater's uniqueNumber
+                  setCreateUserData(prev => ({
+                    ...prev,
+                    username: theater?.uniqueNumber || ''
+                  }));
                 }}
               >
                 <span className="btn-icon">
@@ -1256,16 +1270,52 @@ const TheaterUserDetails = () => {
 
                     <div className="form-group">
                       <label>Username *</label>
-                      <input
-                        type="text"
-                        value={createUserData.username}
-                        onChange={(e) => setCreateUserData(prev => ({ ...prev, username: e.target.value }))}
-                        placeholder="Enter unique username"
-                        className="form-control"
-                        autoComplete="off"
-                      />
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          value={createUserData.username}
+                          onChange={(e) => {
+                            const newValue = e.target.value;
+                            const theaterPrefix = theater?.uniqueNumber || '';
+                            
+                            // Ensure the value always starts with theater's uniqueNumber
+                            if (theaterPrefix && !newValue.startsWith(theaterPrefix)) {
+                              // If user tries to delete the prefix, restore it
+                              setCreateUserData(prev => ({ ...prev, username: theaterPrefix }));
+                            } else {
+                              // Allow adding text after the prefix
+                              setCreateUserData(prev => ({ ...prev, username: newValue }));
+                            }
+                          }}
+                          placeholder={theater?.uniqueNumber ? `${theater.uniqueNumber}` : "Enter unique username"}
+                          className="form-control"
+                          autoComplete="off"
+                          style={{ paddingLeft: theater?.uniqueNumber ? '10px' : '12px' }}
+                        />
+                        {theater?.uniqueNumber && (
+                          <div style={{ 
+                            position: 'absolute', 
+                            left: '12px', 
+                            top: '50%', 
+                            transform: 'translateY(-50%)',
+                            pointerEvents: 'none',
+                            color: '#059669',
+                            fontWeight: '600',
+                            fontSize: '14px',
+                            zIndex: 1,
+                            display: createUserData.username.startsWith(theater.uniqueNumber) ? 'none' : 'block'
+                          }}>
+                            {theater.uniqueNumber}
+                          </div>
+                        )}
+                      </div>
                       {createUserErrors.username && (
                         <div className="error-message">{createUserErrors.username}</div>
+                      )}
+                      {theater?.uniqueNumber && (
+                        <div style={{ fontSize: '0.75rem', color: '#059669', marginTop: '4px', fontWeight: '500' }}>
+                          🎯 Theater ID: <strong>{theater.uniqueNumber}</strong> (locked as prefix, you can add text after it)
+                        </div>
                       )}
                       {users.length > 0 && (
                         <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
@@ -1562,6 +1612,11 @@ const TheaterUserDetails = () => {
                         className="form-control"
                         style={{ backgroundColor: '#f8fafc', cursor: 'not-allowed' }}
                       />
+                      {theater?.uniqueNumber && (
+                        <div style={{ fontSize: '0.75rem', color: '#059669', marginTop: '4px', fontWeight: '500' }}>
+                          🎯 Theater ID: <strong>{theater.uniqueNumber}</strong>
+                        </div>
+                      )}
                     </div>
 
                     <div className="form-group">
@@ -1728,6 +1783,11 @@ const TheaterUserDetails = () => {
                       <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>
                         ⚠️ Username cannot be changed
                       </div>
+                      {theater?.uniqueNumber && (
+                        <div style={{ fontSize: '0.75rem', color: '#059669', marginTop: '4px', fontWeight: '500' }}>
+                          🎯 Theater ID: <strong>{theater.uniqueNumber}</strong>
+                        </div>
+                      )}
                     </div>
 
                     <div className="form-group">

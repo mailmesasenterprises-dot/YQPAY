@@ -113,8 +113,45 @@ class PageAccessService extends BaseService {
       throw new Error('Page access document not found');
     }
 
+    // Get the page name before deleting
+    const pageToDelete = pageAccessDoc.pageAccessList.id(pageId);
+    if (!pageToDelete) {
+      throw new Error('Page not found in access list');
+    }
+    
+    const deletedPageName = pageToDelete.page;
+    console.log(`🗑️ [deletePageAccess] Deleting page "${deletedPageName}" from theater ${theaterId}`);
+
+    // Remove from page access list
     pageAccessDoc.pageAccessList.pull(pageId);
     await pageAccessDoc.save();
+    
+    // ✅ FIX: Clean up this page from all role permissions for this theater
+    console.log(`🧹 [deletePageAccess] Cleaning up "${deletedPageName}" from all role permissions...`);
+    const RoleArray = require('../models/RoleArray');
+    const roleDoc = await RoleArray.findOne({ theater: theaterId }).maxTimeMS(20000);
+    
+    if (roleDoc) {
+      let cleanupCount = 0;
+      roleDoc.roleList.forEach(role => {
+        const initialLength = role.permissions.length;
+        role.permissions = role.permissions.filter(permission => permission.page !== deletedPageName);
+        const removed = initialLength - role.permissions.length;
+        if (removed > 0) {
+          cleanupCount++;
+          console.log(`  🧹 Removed "${deletedPageName}" from role "${role.name}"`);
+        }
+      });
+      
+      if (cleanupCount > 0) {
+        await roleDoc.save();
+        console.log(`✅ [deletePageAccess] Cleaned up "${deletedPageName}" from ${cleanupCount} role(s)`);
+      } else {
+        console.log(`ℹ️ [deletePageAccess] No role permissions found for "${deletedPageName}"`);
+      }
+    } else {
+      console.log(`ℹ️ [deletePageAccess] No role document found for theater ${theaterId}`);
+    }
 
     return true;
   }

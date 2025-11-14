@@ -16,9 +16,7 @@ const LoginHowItWorksSlider = () => {
   const images = [
     { id: 1, src: scanQRImage, alt: "Scan QR Code" },
     { id: 2, src: browseMenuImage, alt: "Browse Menu" },
-    { id: 3, src: securePaymentImage, alt: "Secure Payment" },
-    { id: 4, src: orderProcessingImage, alt: "Order Processing" },
-    { id: 5, src: seatDeliveryImage, alt: "Seat Delivery" }
+    { id: 3, src: securePaymentImage, alt: "Secure Payment" }
   ];
 
   // Auto-scroll every 3 seconds
