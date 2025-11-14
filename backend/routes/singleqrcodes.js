@@ -310,7 +310,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     res.json({
       success: true,
-      data: singleQRCodes,
+      data: QRCodesCollection,
       pagination: {
         total,
         limit: parseInt(limit),

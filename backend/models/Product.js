@@ -139,8 +139,8 @@ const productSchema = new mongoose.Schema({
 productSchema.index({ theaterId: 1, categoryId: 1 });
 productSchema.index({ theaterId: 1, isActive: 1, status: 1 });
 productSchema.index({ theaterId: 1, isFeatured: 1 });
-// SKU unique per theater (allows same SKU in different theaters, allows null SKUs)
-productSchema.index({ theaterId: 1, sku: 1 }, { unique: true, sparse: true });
+// SKU index per theater (non-unique to avoid null key errors)
+productSchema.index({ theaterId: 1, sku: 1 });
 productSchema.index({ barcode: 1 });
 productSchema.index({ 'pricing.basePrice': 1 });
 productSchema.index({ tags: 1 });
@@ -176,8 +176,10 @@ productSchema.virtual('mainImage').get(function() {
 // Generate SKU before saving
 productSchema.pre('save', async function(next) {
   if (this.isNew && !this.sku) {
+    // Generate unique SKU with timestamp to avoid collisions
     const count = await this.constructor.countDocuments({ theaterId: this.theaterId });
-    this.sku = `${this.theaterId.toString().slice(-6)}-${(count + 1).toString().padStart(4, '0')}`;
+    const timestamp = Date.now().toString().slice(-4); // Last 4 digits of timestamp
+    this.sku = `${this.theaterId.toString().slice(-6)}-${(count + 1).toString().padStart(4, '0')}-${timestamp}`;
   }
   this.updatedAt = new Date();
   next();

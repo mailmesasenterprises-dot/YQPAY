@@ -14,6 +14,7 @@ class ProductService extends BaseService {
 
   /**
    * Get products for a theater (supports both array and individual document structures)
+   * 🚀 OPTIMIZED: Use MongoDB aggregation for faster filtering, sorting, and pagination
    */
   async getProductsByTheater(theaterId, queryParams) {
     const {
@@ -28,69 +29,120 @@ class ProductService extends BaseService {
       sortOrder = 'asc'
     } = queryParams;
 
-    // Try array-based structure first
     const db = mongoose.connection.db;
     const theaterObjectId = new mongoose.Types.ObjectId(theaterId);
-    const productContainer = await db.collection('productlist').findOne({
-      theater: theaterObjectId,
-      productList: { $exists: true }
-    });
-
-    let allProducts = [];
     
-    if (productContainer && productContainer.productList) {
-      allProducts = productContainer.productList || [];
-    } else {
-      // Fallback to individual document structure
-      const query = { theaterId: new mongoose.Types.ObjectId(theaterId) };
-      allProducts = await Product.find(query).lean().maxTimeMS(20000);
-    }
+    // 🚀 OPTIMIZATION: Use aggregation pipeline for better performance
+    const pipeline = [
+      // Match theater document
+      {
+        $match: {
+          theater: theaterObjectId,
+          productList: { $exists: true }
+        }
+      },
+      // Unwind product list
+      { $unwind: '$productList' },
+      // Replace root with product
+      { $replaceRoot: { newRoot: '$productList' } }
+    ];
 
-    // Apply filters
-    let filtered = allProducts;
-
+    // 🚀 Add filters to pipeline (done in MongoDB, not JavaScript)
+    const matchStage = {};
+    
     if (categoryId) {
-      filtered = filtered.filter(p => String(p.categoryId) === categoryId);
+      matchStage.categoryId = new mongoose.Types.ObjectId(categoryId);
     }
     if (status) {
-      filtered = filtered.filter(p => p.status === status);
+      matchStage.status = status;
     }
     if (isActive !== undefined) {
-      filtered = filtered.filter(p => p.isActive === (isActive === 'true'));
+      matchStage.isActive = isActive === 'true';
     }
     if (isFeatured !== undefined) {
-      filtered = filtered.filter(p => p.isFeatured === (isFeatured === 'true'));
+      matchStage.isFeatured = isFeatured === 'true';
     }
     if (search) {
-      const searchLower = search.toLowerCase();
-      filtered = filtered.filter(p =>
-        (p.name || '').toLowerCase().includes(searchLower) ||
-        (p.description || '').toLowerCase().includes(searchLower)
-      );
+      matchStage.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
     }
 
-    // Sort
-    const sortMultiplier = sortOrder === 'desc' ? -1 : 1;
-    filtered.sort((a, b) => {
-      let aVal = a[sortBy];
-      let bVal = b[sortBy];
-      
-      if (sortBy === 'price') {
-        aVal = a.pricing?.basePrice || a.sellingPrice || 0;
-        bVal = b.pricing?.basePrice || b.sellingPrice || 0;
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage });
+    }
+
+    // 🚀 Add sorting to pipeline
+    const sortField = sortBy === 'price' ? 'pricing.basePrice' : sortBy;
+    const sortDir = sortOrder === 'desc' ? -1 : 1;
+    pipeline.push({ $sort: { [sortField]: sortDir } });
+
+    // 🚀 Add pagination using $facet for count and data in single query
+    pipeline.push({
+      $facet: {
+        metadata: [{ $count: 'total' }],
+        data: [
+          { $skip: (page - 1) * limit },
+          { $limit: parseInt(limit) }
+        ]
       }
-      
-      if (typeof aVal === 'string') {
-        return aVal.localeCompare(bVal) * sortMultiplier;
-      }
-      return (aVal - bVal) * sortMultiplier;
     });
 
-    // Paginate
-    const skip = (page - 1) * limit;
-    const paginated = filtered.slice(skip, skip + limit);
-    const total = filtered.length;
+    const startTime = Date.now();
+    const results = await db.collection('productlist').aggregate(pipeline).maxTimeMS(10000).toArray();
+    const duration = Date.now() - startTime;
+    
+    console.log(`⚡ ProductService: Fetched products in ${duration}ms using aggregation`);
+
+    const metadata = results[0]?.metadata[0] || { total: 0 };
+    const paginated = results[0]?.data || [];
+    const total = metadata.total;
     const totalPages = Math.ceil(total / limit);
+
+    // Fallback to individual documents if no array structure found
+    if (paginated.length === 0 && total === 0) {
+      console.log('📦 ProductService: No array structure found, using individual documents');
+      const query = { theaterId: theaterObjectId };
+      
+      if (categoryId) query.categoryId = new mongoose.Types.ObjectId(categoryId);
+      if (status) query.status = status;
+      if (isActive !== undefined) query.isActive = isActive === 'true';
+      if (isFeatured !== undefined) query.isFeatured = isFeatured === 'true';
+      if (search) {
+        query.$or = [
+          { name: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } }
+        ];
+      }
+
+      const fallbackStart = Date.now();
+      const [items, count] = await Promise.all([
+        Product.find(query)
+          .sort({ [sortField]: sortDir })
+          .skip((page - 1) * limit)
+          .limit(parseInt(limit))
+          .lean()
+          .maxTimeMS(10000),
+        Product.countDocuments(query).maxTimeMS(5000)
+      ]);
+      
+      console.log(`⚡ ProductService: Fallback query completed in ${Date.now() - fallbackStart}ms`);
+
+      return {
+        data: items,
+        pagination: {
+          current: parseInt(page),
+          limit: parseInt(limit),
+          total: count,
+          totalItems: count,
+          pages: Math.ceil(count / limit),
+          totalPages: Math.ceil(count / limit),
+          hasNext: page < Math.ceil(count / limit),
+          hasPrev: page > 1
+        }
+      };
+    }
 
     return {
       data: paginated,
