@@ -14,23 +14,51 @@ class StockService extends BaseService {
 
   /**
    * Get monthly stock data for a product
+   * 🚀 OPTIMIZED: Deferred background tasks and parallel queries
    */
   async getMonthlyStock(theaterId, productId, year, month) {
+    const startTime = Date.now();
     const currentDate = new Date();
     const targetYear = year || currentDate.getFullYear();
     const targetMonth = month || (currentDate.getMonth() + 1);
 
-    // Auto-expire stock and update old stock chain
-    await this.autoExpireStock(theaterId, productId);
-    await this.updateOldStockChain(theaterId, productId);
+    // 🚀 OPTIMIZATION: Run expensive operations in background after response
+    // Don't block the response with auto-expire and old stock chain updates
+    setImmediate(() => {
+      Promise.all([
+        this.autoExpireStock(theaterId, productId).catch(err => 
+          console.error('Background autoExpireStock error:', err)
+        ),
+        this.updateOldStockChain(theaterId, productId).catch(err =>
+          console.error('Background updateOldStockChain error:', err)
+        )
+      ]);
+    });
 
-    const previousBalance = await MonthlyStock.getPreviousMonthBalance(
-      theaterId,
-      productId,
-      targetYear,
-      targetMonth
-    );
+    // 🚀 OPTIMIZATION: Parallel fetch of previous balance and monthly doc
+    const [previousBalance, existingDoc] = await Promise.all([
+      MonthlyStock.getPreviousMonthBalance(
+        theaterId,
+        productId,
+        targetYear,
+        targetMonth
+      ),
+      MonthlyStock.findOne({
+        theaterId: new mongoose.Types.ObjectId(theaterId),
+        productId: new mongoose.Types.ObjectId(productId),
+        year: targetYear,
+        monthNumber: targetMonth
+      }).lean().maxTimeMS(5000)
+    ]);
 
+    // If document exists, return it immediately
+    if (existingDoc) {
+      const duration = Date.now() - startTime;
+      console.log(`⚡ StockService: Fetched stock data in ${duration}ms (from existing doc)`);
+      return existingDoc;
+    }
+
+    // Create new document only if it doesn't exist
     const monthlyDoc = await MonthlyStock.getOrCreateMonthlyDoc(
       theaterId,
       productId,
@@ -39,6 +67,9 @@ class StockService extends BaseService {
       previousBalance
     );
 
+    const duration = Date.now() - startTime;
+    console.log(`⚡ StockService: Fetched stock data in ${duration}ms (new doc created)`);
+    
     return monthlyDoc;
   }
 
