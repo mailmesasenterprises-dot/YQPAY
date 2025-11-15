@@ -137,18 +137,23 @@ TableSkeleton.displayName = 'TableSkeleton';
 const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false }) => {
   // Always sync with parent prop - simpler and more reliable
   const toggleValue = isLive ?? false;
+  const [internalValue, setInternalValue] = useState(toggleValue);
   const prevProductIdRef = useRef(product._id);
   const prevIsLiveRef = useRef(toggleValue);
 
-  // Reset if product changed
+  // Sync with parent prop whenever it changes
   useEffect(() => {
     if (prevProductIdRef.current !== product._id) {
       prevProductIdRef.current = product._id;
       prevIsLiveRef.current = toggleValue;
+      setInternalValue(toggleValue);
+      console.log('🔄 SimpleToggle: Product changed, synced to', toggleValue, 'for product', product.name);
     } else if (prevIsLiveRef.current !== toggleValue) {
       prevIsLiveRef.current = toggleValue;
+      setInternalValue(toggleValue);
+      console.log('🔄 SimpleToggle: State synced to', toggleValue, 'for product', product.name);
     }
-  }, [product._id, toggleValue]);
+  }, [product._id, toggleValue, product.name]);
 
   const handleChange = useCallback((e) => {
     e.preventDefault();
@@ -161,9 +166,15 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
     // Get the new value from checkbox
     const newValue = e.target.checked;
     
+    // Optimistically update internal state immediately
+    setInternalValue(newValue);
+    
     // Immediately call parent handler - parent will handle state updates
     onToggle(product, newValue);
   }, [product, onToggle, isToggling]);
+
+  // Use internalValue to ensure UI updates even if parent state is delayed
+  const displayValue = internalValue;
 
   return (
     <div className="access-status" style={{display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
@@ -181,7 +192,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
       >
         <input
           type="checkbox"
-          checked={toggleValue}
+          checked={displayValue}
           onChange={handleChange}
           disabled={isToggling} // Disable input when toggling
           style={{
@@ -202,7 +213,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: toggleValue ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+          backgroundColor: displayValue ? 'var(--primary-dark, #6D28D9)' : '#ccc',
           transition: '.4s',
           borderRadius: '24px',
           pointerEvents: 'none' // Let clicks pass through to input
@@ -212,7 +223,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
             content: '""',
             height: '18px',
             width: '18px',
-            left: toggleValue ? '26px' : '3px',
+            left: displayValue ? '26px' : '3px',
             bottom: '3px',
             backgroundColor: 'white',
             transition: '.4s',
@@ -222,6 +233,14 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
         </span>
       </label>
     </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison - always re-render if isLive, isToggling, or product._id changes
+  return (
+    prevProps.isLive === nextProps.isLive &&
+    prevProps.isToggling === nextProps.isToggling &&
+    prevProps.product._id === nextProps.product._id &&
+    prevProps.onToggle === nextProps.onToggle
   );
 });
 
@@ -244,21 +263,28 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
   };
 
   // Extract correct field values from database structure
-  // Image extraction - try multiple paths (comprehensive check)
+  // Image extraction - FOLLOW SAME PATTERN AS KIOSKTYPE
   let productImageRaw = null;
   
-  // Try images array first (new structure)
-  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+  // STEP 1: Check if backend populated imageData (like kioskTypeData)
+  // This would be the normalized image data from backend
+  if (product.imageData) {
+    productImageRaw = typeof product.imageData === 'string' 
+      ? product.imageData 
+      : (product.imageData.url || product.imageData.path || product.imageData.src || product.imageData);
+  }
+  // STEP 2: Check images array first (backend normalizes this)
+  else if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    // Backend already normalizes images array - first element should be the URL string
     const firstImage = product.images[0];
     if (typeof firstImage === 'string') {
       productImageRaw = firstImage;
     } else if (firstImage && typeof firstImage === 'object') {
-      productImageRaw = firstImage.url || firstImage.path || firstImage;
+      productImageRaw = firstImage.url || firstImage.path || firstImage.src || firstImage;
     }
   }
-  
-  // Try other possible fields
-  if (!productImageRaw) {
+  // STEP 3: Try other possible fields (fallback for old data)
+  else {
     productImageRaw = 
       product.productImage?.url ||          // Old structure: productImage object with url
       product.productImage?.path ||         // Old structure: productImage object with path
@@ -304,6 +330,7 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
     if (index === 0) {
       console.log('🖼️ Product Image Debug:', {
         product: product.name,
+        imageData: product.imageData, // Backend-populated image data (like kioskTypeData)
         imagesArray: product.images,
         productImageField: product.productImage,
         imageUrlField: product.imageUrl,
@@ -318,6 +345,7 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
     console.log('⚠️ No image found for product:', {
       product: product.name,
       productId: product._id,
+      imageData: product.imageData, // Backend-populated image data
       images: product.images,
       productImage: product.productImage,
       imageUrl: product.imageUrl,
@@ -522,9 +550,23 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
           if (productToggleStates[product._id] !== undefined) {
             computedIsLive = !!productToggleStates[product._id];
           } else {
+            // Fallback: compute from product properties
             const isActive = !!product.isActive;
             const isAvailable = product.isAvailable !== undefined ? !!product.isAvailable : true;
             computedIsLive = isActive && isAvailable;
+          }
+          
+          // Debug logging for first product only
+          if (index === 0) {
+            console.log('🔘 ProductRow Toggle State:', {
+              productName: product.name,
+              productId: product._id,
+              productToggleState: productToggleStates[product._id],
+              productIsActive: product.isActive,
+              productIsAvailable: product.isAvailable,
+              computedIsLive: computedIsLive,
+              isToggling: toggleInProgress[product._id]
+            });
           }
           
           return (
@@ -590,6 +632,7 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
   // Check other important props
   if (prevProps.index !== nextProps.index) return false;
   if (prevProps.product.isActive !== nextProps.product.isActive) return false;
+  if (prevProps.product.isAvailable !== nextProps.product.isAvailable) return false; // Add isAvailable check
   if (prevProps.product.pricing?.basePrice !== nextProps.product.pricing?.basePrice) return false;
   if (prevProps.product.sellingPrice !== nextProps.product.sellingPrice) return false;
   
@@ -907,19 +950,28 @@ const TheaterProductList = () => {
       console.log('🚀 Starting toggle update...');
 
       // STEP 1: Update local states immediately for instant UI feedback
+      // Use functional updates to ensure state is properly updated
       setProductToggleStates(prev => {
-        const newState = { ...prev, [product._id]: newStatus };
+        const newState = { ...prev, [product._id]: !!newStatus };
         console.log('📝 Updated toggle states:', newState);
         return newState;
       });
 
       setProducts(prevProducts => {
-        const updated = prevProducts.map(p => 
-          p._id === product._id 
-            ? { ...p, isActive: newStatus, isAvailable: newStatus }
-            : p
-        );
-        console.log('📝 Updated products list');
+        const updated = prevProducts.map(p => {
+          if (p._id === product._id) {
+            // Create a new object to ensure React detects the change
+            const updatedProduct = {
+              ...p,
+              isActive: !!newStatus,
+              isAvailable: !!newStatus
+            };
+            console.log('📝 Updated product:', updatedProduct.name, 'isActive:', updatedProduct.isActive, 'isAvailable:', updatedProduct.isAvailable);
+            return updatedProduct;
+          }
+          return p;
+        });
+        console.log('📝 Updated products list, total:', updated.length);
         return updated;
       });
 
@@ -958,6 +1010,17 @@ const TheaterProductList = () => {
             abortController.abort();
           }, timeoutMs);
           
+          const requestBody = {
+            isActive: newStatus,
+            isAvailable: newStatus
+          };
+          
+          console.log('📤 Toggle API Request:', {
+            url: `${config.api.baseUrl}/theater-products/${theaterId}/${product._id}`,
+            method: 'PUT',
+            body: requestBody
+          });
+          
           const response = await fetch(`${config.api.baseUrl}/theater-products/${theaterId}/${product._id}`, {
             method: 'PUT',
             headers: {
@@ -965,87 +1028,95 @@ const TheaterProductList = () => {
               'Authorization': `Bearer ${authToken}`,
               'Cache-Control': 'no-cache'
             },
-            body: JSON.stringify({
-              isActive: newStatus,
-              isAvailable: newStatus
-            }),
+            body: JSON.stringify(requestBody),
             signal: abortController.signal
           });
+          
+          console.log('📥 Toggle API Response Status:', response.status, response.statusText);
           
           clearTimeout(timeoutId);
           
 
           if (response.ok) {
             const data = await response.json();
+            
+            console.log('📥 Toggle API Response Data:', JSON.stringify(data, null, 2));
 
             if (data.success) {
 
               // STEP 3: Update from server response to ensure consistency
-              // Backend returns data.data, not data.product
+              // Backend returns both data.product and data.data for compatibility
               const updatedProduct = data.product || data.data;
               
               console.log('✅ Toggle update successful:', {
                 productName: product.name,
                 requestedStatus: newStatus,
-                serverResponse: updatedProduct
+                serverResponse: updatedProduct,
+                hasProduct: !!data.product,
+                hasData: !!data.data
               });
               
-              if (updatedProduct) {
-                // Compute server toggle state: isActive AND (isAvailable or true if undefined)
-                const serverIsActive = !!updatedProduct.isActive;
-                const serverIsAvailable = updatedProduct.isAvailable !== undefined ? !!updatedProduct.isAvailable : true;
-                const serverToggleState = serverIsActive && serverIsAvailable;
-                
-                console.log('🔄 Server state:', {
-                  serverIsActive,
-                  serverIsAvailable,
-                  serverToggleState
+              if (!updatedProduct) {
+                console.error('❌ No product in response!', data);
+                throw new Error('Server did not return updated product data');
+              }
+              
+              // Process the updated product
+              // Compute server toggle state: isActive AND (isAvailable or true if undefined)
+              const serverIsActive = !!updatedProduct.isActive;
+              const serverIsAvailable = updatedProduct.isAvailable !== undefined ? !!updatedProduct.isAvailable : true;
+              const serverToggleState = serverIsActive && serverIsAvailable;
+              
+              console.log('🔄 Server state:', {
+                serverIsActive,
+                serverIsAvailable,
+                serverToggleState
+              });
+              
+              // Always update with server state to ensure consistency
+              // Create new objects to ensure React detects changes
+              setProducts(prevProducts => {
+                const updated = prevProducts.map(p => {
+                  if (p._id === product._id) {
+                    const mergedProduct = {
+                      ...p,
+                      ...updatedProduct,
+                      isActive: serverIsActive,
+                      isAvailable: serverIsAvailable
+                    };
+                    console.log('🔄 Product updated with server state:', {
+                      name: mergedProduct.name,
+                      isActive: mergedProduct.isActive,
+                      isAvailable: mergedProduct.isAvailable
+                    });
+                    return mergedProduct;
+                  }
+                  return p;
                 });
-                
-                // Always update with server state to ensure consistency
-                setProducts(prevProducts => 
-                  prevProducts.map(p => 
-                    p._id === product._id 
-                      ? { ...p, ...updatedProduct, isActive: serverIsActive, isAvailable: serverIsAvailable }
-                      : p
-                  )
-                );
-                
-                setProductToggleStates(prev => ({
+                return updated;
+              });
+              
+              setProductToggleStates(prev => {
+                const newState = {
                   ...prev,
                   [product._id]: serverToggleState
-                }));
-                
-                console.log('✅ Toggle state updated to:', serverToggleState);
-                
-                // Only show warning if server state doesn't match expected
-                if (serverToggleState !== newStatus) {
-                  console.warn('⚠️ Server returned different toggle state than expected', {
-                    productId: product._id,
-                    productName: product.name,
-                    expected: newStatus,
-                    received: serverToggleState,
-                    serverIsActive: serverIsActive,
-                    serverIsAvailable: serverIsAvailable
-                  });
-                }
-              } else {
-                // If no product in response, ensure state is updated based on what we sent
-                console.log('⚠️ No product in response, using requested state');
-                setProducts(prevProducts => 
-                  prevProducts.map(p => 
-                    p._id === product._id 
-                      ? { ...p, isActive: newStatus, isAvailable: newStatus }
-                      : p
-                  )
-                );
-                
-                setProductToggleStates(prev => ({
-                  ...prev,
-                  [product._id]: !!newStatus
-                }));
-                
-                console.log('✅ Toggle state updated to:', !!newStatus);
+                };
+                console.log('🔄 Toggle states updated:', newState);
+                return newState;
+              });
+              
+              console.log('✅ Toggle state updated to:', serverToggleState);
+              
+              // Only show warning if server state doesn't match expected
+              if (serverToggleState !== newStatus) {
+                console.warn('⚠️ Server returned different toggle state than expected', {
+                  productId: product._id,
+                  productName: product.name,
+                  expected: newStatus,
+                  received: serverToggleState,
+                  serverIsActive: serverIsActive,
+                  serverIsAvailable: serverIsAvailable
+                });
               }
               
               // Don't refresh - we already have the latest data from server response

@@ -341,8 +341,8 @@ router.post('/:theaterId', [
       name: req.body.name,
       description: req.body.description || '',
       categoryId: new mongoose.Types.ObjectId(req.body.categoryId),
-      kioskType: req.body.kioskType ? new mongoose.Types.ObjectId(req.body.kioskType) : undefined,
-      productTypeId: req.body.productTypeId ? new mongoose.Types.ObjectId(req.body.productTypeId) : undefined,
+      kioskType: req.body.kioskType ? new mongoose.Types.ObjectId(req.body.kioskType) : null,
+      productTypeId: req.body.productTypeId ? new mongoose.Types.ObjectId(req.body.productTypeId) : null,
       sku: req.body.sku || `PRD-${Date.now()}`,
       quantity: req.body.quantity || '', // NEW: Accept quantity field from frontend
       pricing: {
@@ -360,7 +360,7 @@ router.post('/:theaterId', [
         maxStock: req.body.inventory?.maxStock || 1000,
         unit: req.body.inventory?.unit || 'piece'
       },
-      images: req.body.images || [],
+      images: [], // Will be set below after normalization
       imageUrl: null,
       image: null,
       specifications: req.body.specifications || {
@@ -381,7 +381,7 @@ router.post('/:theaterId', [
       updatedAt: new Date()
     };
 
-    // Handle image upload if provided
+    // Handle image upload if provided (file upload via multer)
     if (req.file) {
       try {
         const productName = req.body.name || 'product';
@@ -411,6 +411,40 @@ router.post('/:theaterId', [
           error: 'Failed to upload image',
           message: uploadError.message
         });
+      }
+    }
+    // Handle images from JSON body (URL strings or objects)
+    else if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
+      // Normalize images array - handle both URL strings and objects
+      newProduct.images = req.body.images.map(img => {
+        if (typeof img === 'string') {
+          // If it's a URL string, convert to object format
+          return {
+            url: img,
+            filename: img.split('/').pop() || 'image',
+            isMain: true
+          };
+        } else if (img && typeof img === 'object') {
+          // If it's already an object, ensure it has required fields
+          return {
+            url: img.url || img.path || img.src || img,
+            filename: img.filename || (img.url || img.path || img.src || '').split('/').pop() || 'image',
+            size: img.size || 0,
+            mimeType: img.mimeType || img.mimetype || 'image/jpeg',
+            isMain: img.isMain !== false
+          };
+        }
+        return null;
+      }).filter(Boolean); // Remove any null entries
+      
+      // Set imageUrl and image for backward compatibility (use first image)
+      if (newProduct.images.length > 0) {
+        // Extract URL from first image object (we already normalized to objects above)
+        const firstImage = newProduct.images[0];
+        const firstImageUrl = firstImage.url || firstImage.path || firstImage.src || firstImage;
+        newProduct.imageUrl = firstImageUrl;
+        newProduct.image = firstImageUrl;
+        console.log('✅ Product images from JSON body:', newProduct.images.length, 'image(s), first URL:', firstImageUrl);
       }
     }
 
@@ -562,9 +596,15 @@ router.put('/:theaterId/:productId', [
     if (processedData['pricing.categoryId']) {
       processedData['pricing.categoryId'] = new mongoose.Types.ObjectId(processedData['pricing.categoryId']);
     }
-    if (processedData.kioskType) {
-      processedData.kioskType = new mongoose.Types.ObjectId(processedData.kioskType);
-      console.log('✅ Saving kioskType:', processedData.kioskType);
+    // Handle kioskType - allow null to clear the field
+    if ('kioskType' in processedData) {
+      if (processedData.kioskType && processedData.kioskType !== '') {
+        processedData.kioskType = new mongoose.Types.ObjectId(processedData.kioskType);
+        console.log('✅ Saving kioskType:', processedData.kioskType);
+      } else {
+        processedData.kioskType = null;
+        console.log('✅ Clearing kioskType (setting to null)');
+      }
     }
     if (processedData.productTypeId) {
       processedData.productTypeId = new mongoose.Types.ObjectId(processedData.productTypeId);
@@ -622,9 +662,50 @@ router.put('/:theaterId/:productId', [
     }
 
     // Build positional update for each field
+    // Handle boolean fields specially - allow false values
+    // Check both processedData and updateData (req.body) in case they're not in processedData
+    const isActiveValue = processedData.isActive !== undefined ? processedData.isActive : updateData.isActive;
+    const isAvailableValue = processedData.isAvailable !== undefined ? processedData.isAvailable : updateData.isAvailable;
+    
+    if (isActiveValue !== undefined) {
+      // Convert string "true"/"false" to boolean - handle both true and false
+      let boolValue;
+      if (typeof isActiveValue === 'boolean') {
+        boolValue = isActiveValue;
+      } else if (typeof isActiveValue === 'string') {
+        boolValue = isActiveValue.toLowerCase() === 'true';
+      } else {
+        boolValue = !!isActiveValue;
+      }
+      updateFields['productList.$.isActive'] = boolValue;
+      console.log('✅ Saving isActive:', boolValue, '(from:', isActiveValue, typeof isActiveValue, ')');
+    }
+    if (isAvailableValue !== undefined) {
+      // Convert string "true"/"false" to boolean - handle both true and false
+      let boolValue;
+      if (typeof isAvailableValue === 'boolean') {
+        boolValue = isAvailableValue;
+      } else if (typeof isAvailableValue === 'string') {
+        boolValue = isAvailableValue.toLowerCase() === 'true';
+      } else {
+        boolValue = !!isAvailableValue;
+      }
+      updateFields['productList.$.isAvailable'] = boolValue;
+      console.log('✅ Saving isAvailable:', boolValue, '(from:', isAvailableValue, typeof isAvailableValue, ')');
+    }
+    
+    // Handle kioskType specially - allow null to be saved
     for (const [key, value] of Object.entries(processedData)) {
-      // Handle nested updates properly
-      if (value !== null && value !== undefined && value !== '') {
+      // Skip boolean fields already handled above
+      if (key === 'isActive' || key === 'isAvailable') {
+        continue;
+      }
+      // Special handling for kioskType - allow null (explicitly set) or ObjectId
+      if (key === 'kioskType' && value !== undefined) {
+        updateFields[`productList.$.${key}`] = value;
+      }
+      // Handle nested updates properly - skip undefined and empty strings, but allow null
+      else if (value !== undefined && value !== '') {
         updateFields[`productList.$.${key}`] = value;
       }
     }
@@ -657,10 +738,43 @@ router.put('/:theaterId/:productId', [
 
     const updatedProduct = updatedContainer?.productList[0];
 
+    // Ensure boolean fields are properly set in response
+    if (updatedProduct) {
+      const isActiveValue = processedData.isActive !== undefined ? processedData.isActive : updateData.isActive;
+      const isAvailableValue = processedData.isAvailable !== undefined ? processedData.isAvailable : updateData.isAvailable;
+      
+      if (isActiveValue !== undefined) {
+        // Convert to boolean properly
+        if (typeof isActiveValue === 'boolean') {
+          updatedProduct.isActive = isActiveValue;
+        } else if (typeof isActiveValue === 'string') {
+          updatedProduct.isActive = isActiveValue.toLowerCase() === 'true';
+        } else {
+          updatedProduct.isActive = !!isActiveValue;
+        }
+      }
+      if (isAvailableValue !== undefined) {
+        // Convert to boolean properly
+        if (typeof isAvailableValue === 'boolean') {
+          updatedProduct.isAvailable = isAvailableValue;
+        } else if (typeof isAvailableValue === 'string') {
+          updatedProduct.isAvailable = isAvailableValue.toLowerCase() === 'true';
+        } else {
+          updatedProduct.isAvailable = !!isAvailableValue;
+        }
+      }
+      
+      console.log('📤 Response product state:', {
+        isActive: updatedProduct.isActive,
+        isAvailable: updatedProduct.isAvailable
+      });
+    }
+
     res.json({
       success: true,
       message: 'Product updated successfully',
-      data: updatedProduct
+      product: updatedProduct, // Changed from 'data' to 'product' to match frontend expectation
+      data: updatedProduct // Keep 'data' for backwards compatibility
     });
 
   } catch (error) {

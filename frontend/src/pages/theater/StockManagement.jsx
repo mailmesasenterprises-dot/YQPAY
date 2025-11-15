@@ -158,18 +158,26 @@ DateFilterButtonLabel.displayName = 'DateFilterButtonLabel';
 // Optimized Stock Table Row Component
 const StockTableRow = React.memo(({ entry, index, onDateClick, onEdit, onDelete }) => {
   const displayData = entry.displayData || {};
-  const entryDateFormatted = useMemo(() => formatDate(entry.entryDate), [entry.entryDate]);
+  const entryDateFormatted = useMemo(() => formatDate(entry.entryDate || entry.date), [entry.entryDate, entry.date]);
   const expireDateFormatted = useMemo(() => entry.expireDate ? formatDate(entry.expireDate) : null, [entry.expireDate]);
   const isExpiredDate = useMemo(() => entry.expireDate ? isExpired(entry.expireDate) : false, [entry.expireDate]);
   
+  // Extract values with fallbacks - same logic as edit modal
+  const oldStock = displayData.oldStock ?? entry.oldStock ?? 0;
+  const invordStock = displayData.invordStock ?? entry.stock ?? entry.invordStock ?? 0;
+  const sales = displayData.sales ?? entry.sales ?? 0;
+  const damageStock = displayData.damageStock ?? entry.damageStock ?? 0;
+  const expiredStock = displayData.expiredStock ?? entry.expiredStock ?? 0;
+  const balance = displayData.balance ?? entry.balance ?? (invordStock - sales - damageStock - expiredStock);
+  
   const handleDateClickInternal = useCallback(() => {
-    const entryDate = new Date(entry.entryDate);
+    const entryDate = new Date(entry.entryDate || entry.date);
     const year = entryDate.getFullYear();
     const month = String(entryDate.getMonth() + 1).padStart(2, '0');
     const day = String(entryDate.getDate()).padStart(2, '0');
     const dateString = `${year}-${month}-${day}`;
     onDateClick(dateString, entryDate);
-  }, [entry.entryDate, onDateClick]);
+  }, [entry.entryDate, entry.date, onDateClick]);
 
   return (
     <tr className="theater-row">
@@ -187,37 +195,37 @@ const StockTableRow = React.memo(({ entry, index, onDateClick, onEdit, onDelete 
       </td>
       <td className="old-stock-cell">
         <div className="stock-badge old-stock">
-          <span className="stock-quantity">{displayData.oldStock || 0}</span>
+          <span className="stock-quantity">{oldStock}</span>
           <span className="stock-label">Old Stock</span>
         </div>
       </td>
       <td className="stock-cell">
         <div className="stock-badge added">
-          <span className="stock-quantity">{displayData.invordStock || 0}</span>
+          <span className="stock-quantity">{invordStock}</span>
           <span className="stock-label">Added</span>
         </div>
       </td>
       <td className="used-cell">
         <div className="stock-badge used">
-          <span className="stock-quantity">{displayData.sales || 0}</span>
+          <span className="stock-quantity">{sales}</span>
           <span className="stock-label">Used</span>
         </div>
       </td>
       <td className="damage-cell">
         <div className="stock-badge damage">
-          <span className="stock-quantity">{displayData.damageStock || 0}</span>
+          <span className="stock-quantity">{damageStock}</span>
           <span className="stock-label">Damage</span>
         </div>
       </td>
       <td className="balance-cell">
         <div className="stock-badge balance">
-          <span className="stock-quantity">{displayData.balance || 0}</span>
+          <span className="stock-quantity">{Math.max(0, balance)}</span>
           <span className="stock-label">Balance</span>
         </div>
       </td>
       <td className="expired-old-stock-cell">
         <div className="stock-badge expired-old">
-          <span className="stock-quantity">{displayData.expiredStock || 0}</span>
+          <span className="stock-quantity">{expiredStock}</span>
           <span className="stock-label">Expired Old</span>
         </div>
       </td>
@@ -714,8 +722,10 @@ const StockEntryModal = React.memo(({ isOpen, onClose, entry, onSave, isLoading,
         });
       } else {
         // Add mode - defaults (Always ADDED)
+        // Set date to today (minimum allowed date)
+        const today = new Date().toISOString().split('T')[0];
         setFormData({
-          date: new Date().toISOString().split('T')[0],
+          date: today,
           type: 'ADDED', // Always ADDED (Invord Stock)
           quantity: '',
           expireDate: '',
@@ -734,6 +744,16 @@ const StockEntryModal = React.memo(({ isOpen, onClose, entry, onSave, isLoading,
       
       // Validate date if it's being changed
       if (field === 'date' && value) {
+        // Check if date is in the past (only for add mode, not edit mode)
+        if (!entry) {
+          const today = new Date().toISOString().split('T')[0];
+          const selectedDate = new Date(value).toISOString().split('T')[0];
+          if (selectedDate < today) {
+            setErrors(prev => ({ ...prev, date: 'Date cannot be in the past. Please select today or a future date.' }));
+            return prev; // Don't update the date if it's in the past
+          }
+        }
+        
         // Check if date already exists (excluding current entry if editing)
         const dateExists = stockEntries.some(existingEntry => {
           // Skip the current entry being edited
@@ -759,6 +779,9 @@ const StockEntryModal = React.memo(({ isOpen, onClose, entry, onSave, isLoading,
             if (newErrors.date && newErrors.date.includes('already exists')) {
               delete newErrors.date;
             }
+            if (newErrors.date && newErrors.date.includes('cannot be in the past')) {
+              delete newErrors.date;
+            }
             return newErrors;
           });
         }
@@ -778,6 +801,15 @@ const StockEntryModal = React.memo(({ isOpen, onClose, entry, onSave, isLoading,
     if (!formData.date) {
       newErrors.date = 'Date is required';
     } else {
+      // Check if date is in the past (only for add mode, not edit mode)
+      if (!entry) {
+        const today = new Date().toISOString().split('T')[0];
+        const selectedDate = new Date(formData.date).toISOString().split('T')[0];
+        if (selectedDate < today) {
+          newErrors.date = 'Date cannot be in the past. Please select today or a future date.';
+        }
+      }
+      
       // Check if date already exists (excluding current entry if editing)
       const dateExists = stockEntries.some(existingEntry => {
         // Skip the current entry being edited
@@ -876,6 +908,7 @@ const StockEntryModal = React.memo(({ isOpen, onClose, entry, onSave, isLoading,
                 type="date"
                 value={formData.date}
                 onChange={(e) => handleInputChange('date', e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
                 className={`form-control ${errors.date ? 'error' : ''}`}
               />
               {errors.date && <span className="error-text">{errors.date}</span>}
@@ -1088,6 +1121,9 @@ const StockManagement = React.memo(() => {
     page: 1,
     limit: 10
   });
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Modal state
   const [showStockModal, setShowStockModal] = useState(false);
@@ -1475,6 +1511,20 @@ const StockManagement = React.memo(() => {
   const filterKey = useMemo(() => {
     return `${filters.page}-${filters.limit}-${dateFilter.type}-${dateFilter.year}-${dateFilter.month}-${dateFilter.selectedDate || ''}-${dateFilter.startDate || ''}-${dateFilter.endDate || ''}`;
   }, [filters.page, filters.limit, dateFilter.type, dateFilter.year, dateFilter.month, dateFilter.selectedDate, dateFilter.startDate, dateFilter.endDate]);
+
+  // Filter stock entries by search term
+  const filteredStockEntries = useMemo(() => {
+    if (!searchTerm.trim()) return stockEntries;
+    const searchLower = searchTerm.toLowerCase();
+    return stockEntries.filter(entry => {
+      const dateStr = entry.date ? formatDate(entry.date).toLowerCase() : '';
+      const typeStr = entry.type ? entry.type.toLowerCase() : '';
+      const notesStr = entry.notes ? entry.notes.toLowerCase() : '';
+      return dateStr.includes(searchLower) || 
+             typeStr.includes(searchLower) || 
+             notesStr.includes(searchLower);
+    });
+  }, [stockEntries, searchTerm]);
 
   // Optimized filter effect - only trigger when filters actually change and initial load is done
   useEffect(() => {
@@ -2220,24 +2270,21 @@ const StockManagement = React.memo(() => {
             </div> */}
           </div>
 
-          {/* Calculation Report Section - Food Product Stock Management */}
-          <div style={{
-            background: '#F9FAFB',
-            border: '2px solid #E5E7EB',
-            borderRadius: '12px',
-            padding: '24px',
-            marginTop: '24px',
-            marginBottom: '24px'
-          }}>
-          
-            
-         
-
-         
-          </div>
-
           {/* Filters Section - Global Design Pattern */}
           <div className="theater-filters">
+            <div className="search-box">
+              <input
+                type="text"
+                placeholder="Search entries by date, type, or notes..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setFilters(prev => ({ ...prev, page: 1 }));
+                }}
+                className="search-input"
+              />
+            </div>
+
             <div className="filter-controls">
               <button 
                 type="button"
@@ -2274,7 +2321,7 @@ const StockManagement = React.memo(() => {
               </button>
               
               <div className="results-count">
-                Showing {stockEntries.length} of {pagination.total} entries (Page {pagination.current} of {pagination.pages})
+                Showing {filteredStockEntries.length} of {searchTerm ? filteredStockEntries.length : pagination.total} entries {searchTerm ? '(filtered)' : `(Page ${pagination.current} of ${pagination.pages})`}
               </div>
               
               <div className="items-per-page">
@@ -2311,7 +2358,7 @@ const StockManagement = React.memo(() => {
               </thead>
                   <tbody>
                     <StockTableBody 
-                      stockEntries={stockEntries}
+                      stockEntries={filteredStockEntries}
                       loading={loading}
                       filters={filters}
                       onDateClick={handleDateClick}

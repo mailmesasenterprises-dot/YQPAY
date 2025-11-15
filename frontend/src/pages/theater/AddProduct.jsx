@@ -825,14 +825,22 @@ const AddProduct = React.memo(() => {
       }
       
       // Find the selected KioskType to get its ID
-      const selectedKioskType = kioskTypes.find(kt => kt.name === formData.kioskType || kt._id === formData.kioskType);
+      // formData.kioskType contains the ID (from Select value={kioskType.id})
+      const selectedKioskType = kioskTypes.find(kt => kt.id === formData.kioskType || kt.name === formData.kioskType);
+      
+      console.log('🔍 KioskType Debug:', {
+        formDataKioskType: formData.kioskType,
+        kioskTypesAvailable: kioskTypes.length,
+        kioskTypesList: kioskTypes.map(kt => ({ id: kt.id, name: kt.name })),
+        selectedKioskType: selectedKioskType ? { id: selectedKioskType.id, name: selectedKioskType.name } : null
+      });
       
       // Prepare product data matching backend schema
       const productData = {
         name: formData.name,
         description: formData.description || '',
         categoryId: selectedCategory.id, // Backend expects categoryId as ObjectId
-        kioskType: selectedKioskType ? selectedKioskType._id : undefined, // Add kioskType ID
+        kioskType: selectedKioskType ? selectedKioskType.id : null, // Send kioskType ID (or null if not selected)
         productTypeId: selectedProduct ? selectedProduct.id : null, // Backend expects productTypeId
         sku: formData.productCode || '', // Map productCode to sku
         quantity: formData.quantity || '', // Send quantity (e.g., "150ML")
@@ -857,11 +865,16 @@ const AddProduct = React.memo(() => {
         status: 'active'
       };
       
-      console.log('📤 Sending product data:', {
+      console.log('📤 Sending product data:', JSON.stringify({
+        name: productData.name,
+        categoryId: productData.categoryId,
         kioskType: productData.kioskType,
+        productTypeId: productData.productTypeId,
         quantity: productData.quantity,
-        images: productData.images
-      });
+        images: productData.images,
+        pricing: productData.pricing,
+        inventory: productData.inventory
+      }, null, 2));
       
       // Add product details if isVeg or preparationTime is specified
       if (formData.isVeg !== '' || formData.preparationTime) {

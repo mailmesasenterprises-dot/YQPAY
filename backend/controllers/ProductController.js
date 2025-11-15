@@ -93,7 +93,9 @@ class ProductController extends BaseController {
         name: req.body.name.trim(),
         description: req.body.description || '',
         categoryId: req.body.categoryId,
+        kioskType: req.body.kioskType || null,
         productTypeId: req.body.productTypeId || null,
+        quantity: req.body.quantity || '',
         pricing: {
           basePrice: parseFloat(req.body.pricing?.basePrice || req.body.basePrice || 0),
           sellingPrice: parseFloat(req.body.pricing?.sellingPrice || req.body.sellingPrice || 0),
@@ -175,7 +177,9 @@ class ProductController extends BaseController {
       if (req.body.name) updateData.name = req.body.name.trim();
       if (req.body.description !== undefined) updateData.description = req.body.description;
       if (req.body.categoryId) updateData.categoryId = req.body.categoryId;
-      if (req.body.productTypeId) updateData.productTypeId = req.body.productTypeId;
+      if (req.body.kioskType !== undefined) updateData.kioskType = req.body.kioskType || null;
+      if (req.body.productTypeId !== undefined) updateData.productTypeId = req.body.productTypeId || null;
+      if (req.body.quantity !== undefined) updateData.quantity = req.body.quantity || '';
       if (req.body.pricing) {
         updateData.pricing = {
           basePrice: parseFloat(req.body.pricing.basePrice || 0),

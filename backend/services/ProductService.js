@@ -96,9 +96,127 @@ class ProductService extends BaseService {
     console.log(`⚡ ProductService: Fetched products in ${duration}ms using aggregation`);
 
     const metadata = results[0]?.metadata[0] || { total: 0 };
-    const paginated = results[0]?.data || [];
+    let paginated = results[0]?.data || [];
     const total = metadata.total;
     const totalPages = Math.ceil(total / limit);
+
+    // Populate kioskType, category, productType, and ensure images/quantity
+    if (paginated.length > 0) {
+      const mongoose = require('mongoose');
+      const KioskType = require('../models/KioskType');
+      const Category = require('../models/Category');
+      const ProductType = require('../models/ProductType');
+
+      // Create maps for quick lookup
+      const kioskTypeIds = [...new Set(paginated.map(p => p.kioskType).filter(Boolean))];
+      const categoryIds = [...new Set(paginated.map(p => p.categoryId).filter(Boolean))];
+      const productTypeIds = [...new Set(paginated.map(p => p.productTypeId).filter(Boolean))];
+
+      // Fetch categories and productTypes (they also use array structure)
+      const [kioskTypeDocs, categoryDocs, productTypeDocs] = await Promise.all([
+        kioskTypeIds.length > 0 ? KioskType.find({ theater: new mongoose.Types.ObjectId(theaterId) }).lean() : [],
+        categoryIds.length > 0 ? Category.find({ theater: new mongoose.Types.ObjectId(theaterId) }).lean() : [],
+        productTypeIds.length > 0 ? ProductType.find({ theater: new mongoose.Types.ObjectId(theaterId) }).lean() : []
+      ]);
+
+      // Build maps from array structures
+      const kioskTypeMap = new Map();
+      if (kioskTypeDocs.length > 0 && kioskTypeDocs[0].kioskTypeList) {
+        kioskTypeDocs[0].kioskTypeList.forEach(kt => {
+          kioskTypeMap.set(kt._id.toString(), kt);
+        });
+      }
+
+      const categoryMap = new Map();
+      if (categoryDocs.length > 0 && categoryDocs[0].categoryList) {
+        categoryDocs[0].categoryList.forEach(cat => {
+          categoryMap.set(cat._id.toString(), cat);
+        });
+      }
+
+      const productTypeMap = new Map();
+      if (productTypeDocs.length > 0 && productTypeDocs[0].productTypeList) {
+        productTypeDocs[0].productTypeList.forEach(pt => {
+          productTypeMap.set(pt._id.toString(), pt);
+        });
+      }
+
+      // Populate data for each product
+      paginated = paginated.map(product => {
+        // Get kioskType data
+        let kioskTypeData = null;
+        if (product.kioskType) {
+          kioskTypeData = kioskTypeMap.get(product.kioskType.toString());
+        }
+
+        // Get category data
+        let categoryData = null;
+        if (product.categoryId) {
+          categoryData = categoryMap.get(product.categoryId.toString());
+        }
+
+        // Get quantity from productType if not directly stored
+        let quantity = product.quantity || '';
+        if (!quantity && product.productTypeId) {
+          const productTypeData = productTypeMap.get(product.productTypeId.toString());
+          if (productTypeData) {
+            quantity = productTypeData.quantity || '';
+          }
+        }
+
+        // Ensure images array exists and is properly formatted
+        let images = [];
+        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+          // Normalize image array - extract URLs from objects if needed
+          images = product.images.map(img => {
+            if (typeof img === 'string') {
+              return img;
+            } else if (img && typeof img === 'object') {
+              return img.url || img.path || img.src || img;
+            }
+            return img;
+          }).filter(Boolean);
+        } else if (product.productImage) {
+          // If old single image field exists, convert to array
+          const imgUrl = typeof product.productImage === 'string' 
+            ? product.productImage 
+            : (product.productImage.url || product.productImage.path || product.productImage.src || product.productImage);
+          if (imgUrl) images = [imgUrl];
+        } else if (product.imageUrl) {
+          images = [product.imageUrl];
+        } else if (product.image) {
+          const imgUrl = typeof product.image === 'string' 
+            ? product.image 
+            : (product.image.url || product.image.path || product.image.src || product.image);
+          if (imgUrl) images = [imgUrl];
+        }
+
+        // Format kioskTypeData to match frontend expectations
+        const formattedKioskTypeData = kioskTypeData ? {
+          _id: kioskTypeData._id,
+          name: kioskTypeData.name
+        } : null;
+
+        // Format categoryData to match frontend expectations
+        const formattedCategoryData = categoryData ? {
+          _id: categoryData._id,
+          name: categoryData.categoryName || categoryData.name
+        } : null;
+
+        // Format imageData to match frontend expectations (similar to kioskTypeData)
+        // Use first image from normalized images array, or null if no images
+        const imageData = images && images.length > 0 ? images[0] : null;
+
+        return {
+          ...product,
+          kioskTypeData: formattedKioskTypeData,
+          categoryData: formattedCategoryData,
+          quantity: quantity,
+          images: images,
+          imageData: imageData // Add imageData for easy frontend access (like kioskTypeData)
+        };
+      });
+    }
 
     // Fallback to individual documents if no array structure found
     if (paginated.length === 0 && total === 0) {
@@ -119,6 +237,9 @@ class ProductService extends BaseService {
       const fallbackStart = Date.now();
       const [items, count] = await Promise.all([
         Product.find(query)
+          .populate('kioskType', 'name')
+          .populate('categoryId', 'name')
+          .populate('productTypeId', 'quantity name')
           .sort({ [sortField]: sortDir })
           .skip((page - 1) * limit)
           .limit(parseInt(limit))
@@ -129,8 +250,56 @@ class ProductService extends BaseService {
       
       console.log(`⚡ ProductService: Fallback query completed in ${Date.now() - fallbackStart}ms`);
 
+      // Process fallback items to match structure
+      const processedItems = items.map(product => {
+        // Get quantity from productType if not directly stored
+        let quantity = product.quantity || '';
+        if (!quantity && product.productTypeId) {
+          quantity = product.productTypeId.quantity || '';
+        }
+
+        // Ensure images array exists
+        let images = [];
+        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+          // Normalize image array - extract URLs from objects if needed
+          images = product.images.map(img => {
+            if (typeof img === 'string') {
+              return img;
+            } else if (img && typeof img === 'object') {
+              return img.url || img.path || img.src || img;
+            }
+            return img;
+          }).filter(Boolean);
+        } else if (product.productImage) {
+          const imgUrl = typeof product.productImage === 'string' 
+            ? product.productImage 
+            : (product.productImage.url || product.productImage.path || product.productImage.src || product.productImage);
+          if (imgUrl) images = [imgUrl];
+        } else if (product.imageUrl) {
+          images = [product.imageUrl];
+        } else if (product.image) {
+          const imgUrl = typeof product.image === 'string' 
+            ? product.image 
+            : (product.image.url || product.image.path || product.image.src || product.image);
+          if (imgUrl) images = [imgUrl];
+        }
+
+        // Format imageData to match frontend expectations (similar to kioskTypeData)
+        // Use first image from normalized images array, or null if no images
+        const imageData = images && images.length > 0 ? images[0] : null;
+
+        return {
+          ...product,
+          kioskTypeData: product.kioskType ? { _id: product.kioskType._id, name: product.kioskType.name } : null,
+          categoryData: product.categoryId ? { _id: product.categoryId._id, name: product.categoryId.name } : null,
+          quantity: quantity,
+          images: images,
+          imageData: imageData // Add imageData for easy frontend access (like kioskTypeData)
+        };
+      });
+
       return {
-        data: items,
+        data: processedItems,
         pagination: {
           current: parseInt(page),
           limit: parseInt(limit),
@@ -211,6 +380,7 @@ class ProductService extends BaseService {
       name: productData.name,
       description: productData.description || '',
       categoryId: new mongoose.Types.ObjectId(productData.categoryId),
+      kioskType: productData.kioskType ? new mongoose.Types.ObjectId(productData.kioskType) : null,
       productTypeId: productData.productTypeId ? new mongoose.Types.ObjectId(productData.productTypeId) : null,
       sku: productData.sku || `SKU-${Date.now()}`,
       barcode: productData.barcode || null,
@@ -292,10 +462,26 @@ class ProductService extends BaseService {
       throw new Error('Product not found');
     }
 
+    // Convert ObjectId fields if provided
+    const processedUpdateData = { ...updateData };
+    if (processedUpdateData.categoryId) {
+      processedUpdateData.categoryId = new mongoose.Types.ObjectId(processedUpdateData.categoryId);
+    }
+    if (processedUpdateData.kioskType !== undefined) {
+      processedUpdateData.kioskType = processedUpdateData.kioskType 
+        ? new mongoose.Types.ObjectId(processedUpdateData.kioskType) 
+        : null;
+    }
+    if (processedUpdateData.productTypeId !== undefined) {
+      processedUpdateData.productTypeId = processedUpdateData.productTypeId 
+        ? new mongoose.Types.ObjectId(processedUpdateData.productTypeId) 
+        : null;
+    }
+
     // Merge existing product with update data
     const mergedProduct = {
       ...existingProduct,
-      ...updateData,
+      ...processedUpdateData,
       _id: productObjectId,
       updatedAt: new Date()
     };
