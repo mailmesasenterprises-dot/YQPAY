@@ -712,32 +712,33 @@ const TheaterProductTypes = React.memo(() => {
           <div className="search-box">
             <input
               type="text"
-              placeholder="Search product names by name, code or description..."
+              placeholder="Search product names by name..."
               value={searchTerm}
               onChange={handleSearch}
               className="search-input"
             />
           </div>
-          <div className="filter-controls">
-            <select
-              value="all"
-              className="status-filter"
-              disabled
-            >
-              <option value="all">All Status</option>
+          
+          <select
+            value="all"
+            className="status-filter"
+            disabled
+          >
+            <option value="all">All Status</option>
+          </select>
+          
+          <span className="results-count">
+            Showing {productTypes.length} of {totalItems} product names (Page {currentPage} of {totalPages})
+          </span>
+          
+          <div className="items-per-page">
+            <label>Items per page:</label>
+            <select value={itemsPerPage} onChange={handleItemsPerPageChange} className="items-select">
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
-            <div className="results-count">
-              Showing {productTypes.length} of {totalItems} product names (Page {currentPage} of {totalPages})
-            </div>
-            <div className="items-per-page">
-              <label>Items per page:</label>
-              <select value={itemsPerPage} onChange={handleItemsPerPageChange} className="items-select">
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
           </div>
         </div>
 

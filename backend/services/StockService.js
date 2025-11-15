@@ -48,14 +48,16 @@ class StockService extends BaseService {
         productId: new mongoose.Types.ObjectId(productId),
         year: targetYear,
         monthNumber: targetMonth
-      }).lean().maxTimeMS(5000)
+      })
+        .maxTimeMS(5000)
+        .exec() // Force fresh read without lean() for accurate data
     ]);
 
-    // If document exists, return it immediately
+    // If document exists, return it immediately (convert to plain object)
     if (existingDoc) {
       const duration = Date.now() - startTime;
-      console.log(`⚡ StockService: Fetched stock data in ${duration}ms (from existing doc)`);
-      return existingDoc;
+      console.log(`⚡ StockService: Fetched stock data in ${duration}ms (from existing doc) - ${existingDoc.stockDetails?.length || 0} entries`);
+      return existingDoc.toObject(); // Convert to plain object after ensuring fresh data
     }
 
     // Create new document only if it doesn't exist

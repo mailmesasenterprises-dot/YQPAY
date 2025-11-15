@@ -7,8 +7,16 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { clearTheaterCache } from '../utils/cacheManager';
 import config from '../config';
+import { 
+  TextField, 
+  Box,
+  Button,
+  IconButton
+} from '@mui/material';
+import { CloudUpload, Delete, CheckCircle } from '@mui/icons-material';
 import '../styles/AddTheater.css';
 import '../styles/TheaterList.css';
+import '../styles/AddProductMUI.css'; // Reuse MUI form styles
 import { useDeepMemo, useComputed } from '../utils/ultraPerformance';
 import { ultraFetch } from '../utils/ultraFetch';
 
@@ -92,6 +100,165 @@ const HeaderButton = React.memo(() => {
     </button>
   );
 });
+
+// Professional File Upload Component using MUI
+const ProfessionalFileUpload = React.memo(({ 
+  id, 
+  name, 
+  label, 
+  accept, 
+  file, 
+  error, 
+  helperText, 
+  onChange, 
+  onRemove,
+  description 
+}) => {
+  const fileInputRef = React.useRef(null);
+
+  const handleButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    if (onChange) {
+      onChange(e);
+    }
+  };
+
+  const handleRemove = (e) => {
+    e.stopPropagation();
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (onRemove) {
+      onRemove(name);
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  };
+
+  return (
+    <Box className="mui-form-group">
+      <input
+        ref={fileInputRef}
+        type="file"
+        id={id}
+        name={name}
+        accept={accept}
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
+      
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <TextField
+          label={label}
+          value={file ? file.name : 'No file chosen'}
+          InputProps={{
+            readOnly: true,
+            sx: {
+              paddingRight: '12px',
+              height: '56px',
+            },
+            endAdornment: (
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', marginRight: 0.5 }}>
+                {file && (
+                  <>
+                    <CheckCircle sx={{ color: '#10b981', fontSize: 22 }} />
+                    <IconButton
+                      size="medium"
+                      onClick={handleRemove}
+                      sx={{ 
+                        color: '#ef4444',
+                        padding: '6px',
+                        '&:hover': { 
+                          backgroundColor: '#fee2e2',
+                          transform: 'scale(1.1)'
+                        },
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                    >
+                      <Delete sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </>
+                )}
+                <Button
+                  variant="contained"
+                  component="span"
+                  startIcon={<CloudUpload sx={{ fontSize: 18 }} />}
+                  onClick={handleButtonClick}
+                  sx={{
+                    backgroundColor: '#8B5CF6',
+                    '&:hover': { 
+                      backgroundColor: '#7C3AED',
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 4px 8px rgba(139, 92, 246, 0.3)'
+                    },
+                    textTransform: 'none',
+                    minWidth: '150px',
+                    height: '40px',
+                    padding: '10px 20px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    borderRadius: '8px',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                >
+                  Choose File
+                </Button>
+              </Box>
+            )
+          }}
+          error={!!error}
+          helperText={error || (file ? `Selected: ${file.name} (${formatFileSize(file.size)})` : description || '')}
+          fullWidth
+          sx={{
+            '& .MuiInputLabel-root': {
+              fontSize: '15px',
+              fontWeight: 500,
+            },
+            '& .MuiOutlinedInput-root': {
+              backgroundColor: file ? '#f0fdf4' : '#ffffff',
+              border: file ? '2px solid #10b981' : '1px solid #e5e7eb',
+              transition: 'all 0.2s ease-in-out',
+              height: '56px',
+              fontSize: '15px',
+              '&:hover': {
+                border: file ? '2px solid #10b981' : '1px solid #8B5CF6',
+                backgroundColor: file ? '#f0fdf4' : '#fafafa',
+              },
+              '&.Mui-focused': {
+                border: file ? '2px solid #10b981' : '2px solid #8B5CF6',
+                boxShadow: file ? '0 0 0 3px rgba(16, 185, 129, 0.1)' : '0 0 0 3px rgba(139, 92, 246, 0.1)',
+              }
+            },
+            '& .MuiInputBase-input': {
+              color: file ? '#059669' : '#1a1a1a',
+              fontWeight: file ? 500 : 400,
+              fontSize: '15px',
+              padding: '16.5px 14px',
+              height: '56px',
+              display: 'flex',
+              alignItems: 'center',
+            },
+            '& .MuiFormHelperText-root': {
+              fontSize: '13px',
+              marginTop: '6px',
+              marginLeft: '0px',
+            }
+          }}
+        />
+      </Box>
+    </Box>
+  );
+});
+
+ProfessionalFileUpload.displayName = 'ProfessionalFileUpload';
 
 const AddTheater = React.memo(() => {
   const navigate = useNavigate();
@@ -364,6 +531,28 @@ const AddTheater = React.memo(() => {
 
       return updated;
     });
+  }, []);
+
+  // Handle file removal
+  const handleFileRemove = useCallback((fileName) => {
+    setFiles(prev => {
+      const updated = { ...prev };
+      delete updated[fileName];
+      return updated;
+    });
+    
+    // Clear errors for this file
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fileName];
+      return newErrors;
+    });
+    
+    // Reset file input
+    const fileInput = document.getElementById(fileName);
+    if (fileInput) {
+      fileInput.value = '';
+    }
   }, []);
 
   // Memoized form validation
@@ -789,518 +978,431 @@ const AddTheater = React.memo(() => {
           method="post"
         >
           {/* Basic Information */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Basic Information</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="name">Theater Name *</label>
-                <input
-                  type="text"
+            <div className="form-grid mui-form-grid">
+              <Box className="mui-form-group">
+                <TextField
                   id="name"
                   name="name"
+                  label="Theater Name *"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`form-control ${errors.name ? 'error-field is-invalid' : ''}`}
+                  error={!!errors.name}
+                  helperText={errors.name || ''}
                   placeholder="Enter theater name"
                   required
-                  aria-invalid={errors.name ? 'true' : 'false'}
-                  aria-describedby={errors.name ? 'name-error' : undefined}
+                  fullWidth
                 />
-                {errors.name && (
-                  <span 
-                    id="name-error" 
-                    className="error-message" 
-                    role="alert"
-                    aria-live="polite"
-                  >
-                    {errors.name}
-                  </span>
-                )}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="ownerName">Owner Name *</label>
-                <input
-                  type="text"
+              <Box className="mui-form-group">
+                <TextField
                   id="ownerName"
                   name="ownerName"
+                  label="Owner Name *"
                   value={formData.ownerName}
                   onChange={handleInputChange}
-                  className={`form-control ${errors.ownerName ? 'error-field is-invalid' : ''}`}
+                  error={!!errors.ownerName}
+                  helperText={errors.ownerName || ''}
                   placeholder="Enter owner full name"
                   required
-                  aria-invalid={errors.ownerName ? 'true' : 'false'}
-                  aria-describedby={errors.ownerName ? 'ownerName-error' : undefined}
+                  fullWidth
                 />
-                {errors.ownerName && (
-                  <span 
-                    id="ownerName-error" 
-                    className="error-message" 
-                    role="alert"
-                    aria-live="polite"
-                  >
-                    {errors.ownerName}
-                  </span>
-                )}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="phone">Theater Phone *</label>
-                <input
-                  type="tel"
+              <Box className="mui-form-group">
+                <TextField
                   id="phone"
                   name="phone"
+                  label="Theater Phone *"
+                  type="tel"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  className={errors.phone ? 'error' : ''}
+                  error={!!errors.phone}
+                  helperText={errors.phone || ''}
                   placeholder="Enter theater phone number (10 digits)"
-                  maxLength="10"
-                  pattern="[0-9]{10}"
+                  inputProps={{ maxLength: 10, pattern: '[0-9]{10}' }}
                   required
+                  fullWidth
                 />
-                {errors.phone && <span className="error-message">{errors.phone}</span>}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="ownerContactNumber">Owner Contact *</label>
-                <input
-                  type="tel"
+              <Box className="mui-form-group">
+                <TextField
                   id="ownerContactNumber"
                   name="ownerContactNumber"
+                  label="Owner Contact *"
+                  type="tel"
                   value={formData.ownerContactNumber}
                   onChange={handleInputChange}
-                  className={errors.ownerContactNumber ? 'error' : ''}
+                  error={!!errors.ownerContactNumber}
+                  helperText={errors.ownerContactNumber || ''}
                   placeholder="Enter owner contact number (10 digits)"
-                  maxLength="10"
-                  pattern="[0-9]{10}"
+                  inputProps={{ maxLength: 10, pattern: '[0-9]{10}' }}
                   required
+                  fullWidth
                 />
-                {errors.ownerContactNumber && <span className="error-message">{errors.ownerContactNumber}</span>}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="email">Email Address *</label>
-                <input
-                  type="email"
+              <Box className="mui-form-group">
+                <TextField
                   id="email"
                   name="email"
+                  label="Email Address *"
+                  type="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className={errors.email ? 'error' : ''}
+                  error={!!errors.email}
+                  helperText={errors.email || ''}
                   placeholder="Enter email address"
                   required
+                  fullWidth
                 />
-                {errors.email && <span className="error-message">{errors.email}</span>}
-              </div>
+              </Box>
 
-              <div className="form-group full-width">
-                <label htmlFor="personalAddress">Personal Address *</label>
-                <textarea
+              <Box className="mui-form-group full-width">
+                <TextField
                   id="personalAddress"
                   name="personalAddress"
+                  label="Personal Address *"
                   value={formData.personalAddress}
                   onChange={handleInputChange}
-                  className={errors.personalAddress ? 'error' : ''}
+                  error={!!errors.personalAddress}
+                  helperText={errors.personalAddress || ''}
                   placeholder="Enter owner's personal address"
-                  rows="3"
+                  multiline
+                  rows={2}
                   required
+                  fullWidth
                 />
-                {errors.personalAddress && <span className="error-message">{errors.personalAddress}</span>}
-              </div>
+              </Box>
             </div>
           </div>
 
           {/* Location Information */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Location Details</h2>
-            <div className="form-grid">
-              <div className="form-group full-width">
-                <label htmlFor="address">Address *</label>
-                <textarea
+            <div className="form-grid mui-form-grid">
+              <Box className="mui-form-group full-width">
+                <TextField
                   id="address"
                   name="address"
+                  label="Address *"
                   value={formData.address}
                   onChange={handleInputChange}
-                  className={errors.address ? 'error' : ''}
+                  error={!!errors.address}
+                  helperText={errors.address || ''}
                   placeholder="Enter complete address"
-                  rows="3"
+                  multiline
+                  rows={2}
+                  fullWidth
                 />
-                {errors.address && <span className="error-message">{errors.address}</span>}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="city">City *</label>
-                <input
-                  type="text"
+              <Box className="mui-form-group">
+                <TextField
                   id="city"
                   name="city"
+                  label="City *"
                   value={formData.city}
                   onChange={handleInputChange}
-                  className={errors.city ? 'error' : ''}
+                  error={!!errors.city}
+                  helperText={errors.city || ''}
                   placeholder="Enter city"
+                  fullWidth
                 />
-                {errors.city && <span className="error-message">{errors.city}</span>}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="state">State *</label>
-                <input
-                  type="text"
+              <Box className="mui-form-group">
+                <TextField
                   id="state"
                   name="state"
+                  label="State *"
                   value={formData.state}
                   onChange={handleInputChange}
-                  className={errors.state ? 'error' : ''}
+                  error={!!errors.state}
+                  helperText={errors.state || ''}
                   placeholder="Enter state"
+                  fullWidth
                 />
-                {errors.state && <span className="error-message">{errors.state}</span>}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="pincode">Pincode *</label>
-                <input
-                  type="text"
+              <Box className="mui-form-group">
+                <TextField
                   id="pincode"
                   name="pincode"
+                  label="Pincode *"
                   value={formData.pincode}
                   onChange={handleInputChange}
-                  className={errors.pincode ? 'error' : ''}
+                  error={!!errors.pincode}
+                  helperText={errors.pincode || ''}
                   placeholder="Enter pincode"
+                  inputProps={{ maxLength: 6 }}
                   required
+                  fullWidth
                 />
-                {errors.pincode && <span className="error-message">{errors.pincode}</span>}
-              </div>
+              </Box>
             </div>
           </div>
 
           {/* Business Registration Details */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Business Registration Details</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="gstNumber">GST Number</label>
-                <input
-                  type="text"
+            <div className="form-grid mui-form-grid">
+              <Box className="mui-form-group">
+                <TextField
                   id="gstNumber"
                   name="gstNumber"
+                  label="GST Number"
                   value={formData.gstNumber}
                   onChange={handleInputChange}
-                  className={errors.gstNumber ? 'error' : ''}
+                  error={!!errors.gstNumber}
+                  helperText={errors.gstNumber || 'Enter 15-character GST Identification Number (Optional)'}
                   placeholder="e.g., 22AAAAA0000A1Z5"
-                  maxLength="15"
-                  style={{ textTransform: 'uppercase' }}
+                  inputProps={{ maxLength: 15, style: { textTransform: 'uppercase' } }}
+                  fullWidth
                 />
-                {errors.gstNumber && <span className="error-message">{errors.gstNumber}</span>}
-                <small>Enter 15-character GST Identification Number (Optional)</small>
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="fssaiNumber">FSSAI License Number</label>
-                <input
-                  type="text"
+              <Box className="mui-form-group">
+                <TextField
                   id="fssaiNumber"
                   name="fssaiNumber"
+                  label="FSSAI License Number"
                   value={formData.fssaiNumber}
                   onChange={handleInputChange}
-                  className={errors.fssaiNumber ? 'error' : ''}
+                  error={!!errors.fssaiNumber}
+                  helperText={errors.fssaiNumber || 'Enter 14-digit FSSAI License Number (Optional)'}
                   placeholder="e.g., 12345678901234"
-                  maxLength="14"
+                  inputProps={{ maxLength: 14 }}
+                  fullWidth
                 />
-                {errors.fssaiNumber && <span className="error-message">{errors.fssaiNumber}</span>}
-                <small>Enter 14-digit FSSAI License Number (Optional)</small>
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="uniqueNumber">Unique Identifier</label>
-                <input
-                  type="text"
+              <Box className="mui-form-group">
+                <TextField
                   id="uniqueNumber"
                   name="uniqueNumber"
+                  label="Unique Identifier"
                   value={formData.uniqueNumber}
                   onChange={handleInputChange}
+                  helperText="Any unique reference number for this theater (Optional)"
                   placeholder="Enter unique identifier"
+                  fullWidth
                 />
-                <small>Any unique reference number for this theater (Optional)</small>
-              </div>
+              </Box>
             </div>
           </div>
 
           {/* Agreement Details */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Agreement Details</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="agreementStartDate">Agreement Start Date *</label>
-                <input
-                  type="date"
+            <div className="form-grid mui-form-grid">
+              <Box className="mui-form-group">
+                <TextField
                   id="agreementStartDate"
                   name="agreementStartDate"
+                  label="Agreement Start Date *"
+                  type="date"
                   value={formData.agreementStartDate}
                   onChange={handleInputChange}
-                  className={errors.agreementStartDate ? 'error' : ''}
+                  error={!!errors.agreementStartDate}
+                  helperText={errors.agreementStartDate || ''}
+                  InputLabelProps={{ shrink: true }}
                   required
+                  fullWidth
                 />
-                {errors.agreementStartDate && <span className="error-message">{errors.agreementStartDate}</span>}
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="agreementEndDate">Agreement End Date *</label>
-                <input
-                  type="date"
+              <Box className="mui-form-group">
+                <TextField
                   id="agreementEndDate"
                   name="agreementEndDate"
+                  label="Agreement End Date *"
+                  type="date"
                   value={formData.agreementEndDate}
                   onChange={handleInputChange}
-                  className={errors.agreementEndDate ? 'error' : ''}
+                  error={!!errors.agreementEndDate}
+                  helperText={errors.agreementEndDate || ''}
+                  InputLabelProps={{ shrink: true }}
                   required
+                  fullWidth
                 />
-                {errors.agreementEndDate && <span className="error-message">{errors.agreementEndDate}</span>}
-              </div>
+              </Box>
             </div>
           </div>
 
           {/* Social Media Accounts */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Social Media Accounts</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="facebook">Facebook</label>
-                <input
-                  type="url"
+            <div className="form-grid mui-form-grid">
+              <Box className="mui-form-group">
+                <TextField
                   id="facebook"
                   name="facebook"
+                  label="Facebook"
+                  type="url"
                   value={formData.facebook}
                   onChange={handleInputChange}
                   placeholder="https://facebook.com/yourpage"
+                  fullWidth
                 />
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="instagram">Instagram</label>
-                <input
-                  type="url"
+              <Box className="mui-form-group">
+                <TextField
                   id="instagram"
                   name="instagram"
+                  label="Instagram"
+                  type="url"
                   value={formData.instagram}
                   onChange={handleInputChange}
                   placeholder="https://instagram.com/yourpage"
+                  fullWidth
                 />
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="twitter">Twitter</label>
-                <input
-                  type="url"
+              <Box className="mui-form-group">
+                <TextField
                   id="twitter"
                   name="twitter"
+                  label="Twitter"
+                  type="url"
                   value={formData.twitter}
                   onChange={handleInputChange}
                   placeholder="https://twitter.com/yourpage"
+                  fullWidth
                 />
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="youtube">YouTube</label>
-                <input
-                  type="url"
+              <Box className="mui-form-group">
+                <TextField
                   id="youtube"
                   name="youtube"
+                  label="YouTube"
+                  type="url"
                   value={formData.youtube}
                   onChange={handleInputChange}
                   placeholder="https://youtube.com/yourchannel"
+                  fullWidth
                 />
-              </div>
+              </Box>
 
-              <div className="form-group">
-                <label htmlFor="website">Website</label>
-                <input
-                  type="url"
+              <Box className="mui-form-group">
+                <TextField
                   id="website"
                   name="website"
+                  label="Website"
+                  type="url"
                   value={formData.website}
                   onChange={handleInputChange}
                   placeholder="https://yourwebsite.com"
+                  fullWidth
                 />
-              </div>
+              </Box>
             </div>
           </div>
 
           {/* Photos & Media */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Photos & Media</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="theaterPhoto">Theater Photo</label>
-                <input
-                  type="file"
-                  id="theaterPhoto"
-                  name="theaterPhoto"
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="file-input"
-                />
-                {files.theaterPhoto && (
-                  <small className="file-selected" style={{color: 'green', display: 'block', marginTop: '5px'}}>
-                    ✓ Selected: {files.theaterPhoto.name}
-                  </small>
-                )}
-                {errors.theaterPhoto && (
-                  <small className="error-text" style={{color: 'red', display: 'block', marginTop: '5px'}}>
-                    {errors.theaterPhoto}
-                  </small>
-                )}
-                <small>Upload theater main photo (PNG, JPG, JPEG - Max 10MB)</small>
-              </div>
+            <div className="form-grid mui-form-grid">
+              <ProfessionalFileUpload
+                id="theaterPhoto"
+                name="theaterPhoto"
+                label="Theater Photo"
+                accept="image/*"
+                file={files.theaterPhoto}
+                error={errors.theaterPhoto}
+                onChange={handleFileChange}
+                onRemove={handleFileRemove}
+                description="Upload theater main photo (PNG, JPG, JPEG - Max 10MB)"
+              />
 
-              <div className="form-group">
-                <label htmlFor="logo">Theater Logo</label>
-                <input
-                  type="file"
-                  id="logo"
-                  name="logo"
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="file-input"
-                />
-                {files.logo && (
-                  <small className="file-selected" style={{color: 'green', display: 'block', marginTop: '5px'}}>
-                    ✓ Selected: {files.logo.name}
-                  </small>
-                )}
-                {errors.logo && (
-                  <small className="error-text" style={{color: 'red', display: 'block', marginTop: '5px'}}>
-                    {errors.logo}
-                  </small>
-                )}
-                <small>Upload theater logo (PNG, JPG, JPEG - Max 10MB)</small>
-              </div>
+              <ProfessionalFileUpload
+                id="logo"
+                name="logo"
+                label="Theater Logo"
+                accept="image/*"
+                file={files.logo}
+                error={errors.logo}
+                onChange={handleFileChange}
+                onRemove={handleFileRemove}
+                description="Upload theater logo (PNG, JPG, JPEG - Max 10MB)"
+              />
             </div>
           </div>
 
           {/* Identity Documents */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Identity Documents</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="aadharCard">Aadhar Card</label>
-                <input
-                  type="file"
-                  id="aadharCard"
-                  name="aadharCard"
-                  onChange={handleFileChange}
-                  accept=".pdf,image/*"
-                  className="file-input"
-                />
-                {files.aadharCard && (
-                  <small className="file-selected" style={{color: 'green', display: 'block', marginTop: '5px'}}>
-                    ✓ Selected: {files.aadharCard.name}
-                  </small>
-                )}
-                {errors.aadharCard && (
-                  <small className="error-text" style={{color: 'red', display: 'block', marginTop: '5px'}}>
-                    {errors.aadharCard}
-                  </small>
-                )}
-                <small>Upload Aadhar card (PDF or Image - Max 10MB)</small>
-              </div>
+            <div className="form-grid mui-form-grid">
+              <ProfessionalFileUpload
+                id="aadharCard"
+                name="aadharCard"
+                label="Aadhar Card"
+                accept=".pdf,image/*"
+                file={files.aadharCard}
+                error={errors.aadharCard}
+                onChange={handleFileChange}
+                onRemove={handleFileRemove}
+                description="Upload Aadhar card (PDF or Image - Max 10MB)"
+              />
 
-              <div className="form-group">
-                <label htmlFor="panCard">PAN Card</label>
-                <input
-                  type="file"
-                  id="panCard"
-                  name="panCard"
-                  onChange={handleFileChange}
-                  accept=".pdf,image/*"
-                  className="file-input"
-                />
-                {files.panCard && (
-                  <small className="file-selected" style={{color: 'green', display: 'block', marginTop: '5px'}}>
-                    ✓ Selected: {files.panCard.name}
-                  </small>
-                )}
-                {errors.panCard && (
-                  <small className="error-text" style={{color: 'red', display: 'block', marginTop: '5px'}}>
-                    {errors.panCard}
-                  </small>
-                )}
-                <small>Upload PAN card (PDF or Image - Max 10MB)</small>
-              </div>
+              <ProfessionalFileUpload
+                id="panCard"
+                name="panCard"
+                label="PAN Card"
+                accept=".pdf,image/*"
+                file={files.panCard}
+                error={errors.panCard}
+                onChange={handleFileChange}
+                onRemove={handleFileRemove}
+                description="Upload PAN card (PDF or Image - Max 10MB)"
+              />
             </div>
           </div>
 
           {/* Business Documents */}
-          <div className="form-section">
+          <div className="form-section mui-form-section">
             <h2>Business Documents</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label htmlFor="gstCertificate">GST Certificate</label>
-                <input
-                  type="file"
-                  id="gstCertificate"
-                  name="gstCertificate"
-                  onChange={handleFileChange}
-                  accept=".pdf,image/*"
-                  className="file-input"
-                />
-                {files.gstCertificate && (
-                  <small className="file-selected" style={{color: 'green', display: 'block', marginTop: '5px'}}>
-                    ✓ Selected: {files.gstCertificate.name}
-                  </small>
-                )}
-                {errors.gstCertificate && (
-                  <small className="error-text" style={{color: 'red', display: 'block', marginTop: '5px'}}>
-                    {errors.gstCertificate}
-                  </small>
-                )}
-                <small>Upload GST certificate (PDF or Image - Max 10MB)</small>
-              </div>
+            <div className="form-grid mui-form-grid">
+              <ProfessionalFileUpload
+                id="gstCertificate"
+                name="gstCertificate"
+                label="GST Certificate"
+                accept=".pdf,image/*"
+                file={files.gstCertificate}
+                error={errors.gstCertificate}
+                onChange={handleFileChange}
+                onRemove={handleFileRemove}
+                description="Upload GST certificate (PDF or Image - Max 10MB)"
+              />
 
-              <div className="form-group">
-                <label htmlFor="fssaiCertificate">FSSAI Certificate</label>
-                <input
-                  type="file"
-                  id="fssaiCertificate"
-                  name="fssaiCertificate"
-                  onChange={handleFileChange}
-                  accept=".pdf,image/*"
-                  className="file-input"
-                />
-                {files.fssaiCertificate && (
-                  <small className="file-selected" style={{color: 'green', display: 'block', marginTop: '5px'}}>
-                    ✓ Selected: {files.fssaiCertificate.name}
-                  </small>
-                )}
-                {errors.fssaiCertificate && (
-                  <small className="error-text" style={{color: 'red', display: 'block', marginTop: '5px'}}>
-                    {errors.fssaiCertificate}
-                  </small>
-                )}
-                <small>Upload FSSAI certificate (PDF or Image - Max 10MB)</small>
-              </div>
+              <ProfessionalFileUpload
+                id="fssaiCertificate"
+                name="fssaiCertificate"
+                label="FSSAI Certificate"
+                accept=".pdf,image/*"
+                file={files.fssaiCertificate}
+                error={errors.fssaiCertificate}
+                onChange={handleFileChange}
+                onRemove={handleFileRemove}
+                description="Upload FSSAI certificate (PDF or Image - Max 10MB)"
+              />
 
-              <div className="form-group">
-                <label htmlFor="agreementCopy">Agreement Copy</label>
-                <input
-                  type="file"
-                  id="agreementCopy"
-                  name="agreementCopy"
-                  onChange={handleFileChange}
-                  accept=".pdf,image/*"
-                  className="file-input"
-                />
-                {files.agreementCopy && (
-                  <small className="file-selected" style={{color: 'green', display: 'block', marginTop: '5px'}}>
-                    ✓ Selected: {files.agreementCopy.name}
-                  </small>
-                )}
-                {errors.agreementCopy && (
-                  <small className="error-text" style={{color: 'red', display: 'block', marginTop: '5px'}}>
-                    {errors.agreementCopy}
-                  </small>
-                )}
-                <small>Upload agreement copy (PDF or Image - Max 10MB)</small>
-              </div>
+              <ProfessionalFileUpload
+                id="agreementCopy"
+                name="agreementCopy"
+                label="Agreement Copy"
+                accept=".pdf,image/*"
+                file={files.agreementCopy}
+                error={errors.agreementCopy}
+                onChange={handleFileChange}
+                onRemove={handleFileRemove}
+                description="Upload agreement copy (PDF or Image - Max 10MB)"
+              />
             </div>
           </div>
 

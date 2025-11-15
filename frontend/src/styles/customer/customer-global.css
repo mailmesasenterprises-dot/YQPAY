@@ -14,17 +14,41 @@
   --status-bar-height: env(safe-area-inset-top, 0px);
 }
 
-/* Global body background - ALWAYS purple for customer pages */
+/* Default body/html should be white - Apply first */
 body {
-  background: var(--status-bar-bg) !important;
-  margin: 0 !important;
-  padding: 0 !important;
+  background: #ffffff;
+  margin: 0;
+  padding: 0;
 }
 
 html {
+  background: #ffffff;
+  margin: 0;
+  padding: 0;
+}
+
+/* Global body background - ALWAYS purple for customer pages ONLY */
+/* Use class-based selector for better browser compatibility */
+body.customer-page-active,
+body:has(.customer-landing),
+body:has(.customer-home),
+body:has(.customer-cart),
+body:has(.customer-checkout),
+body:has(.customer-history),
+body:has(.customer-profile),
+body:has([class*="customer-"]) {
   background: var(--status-bar-bg) !important;
-  margin: 0 !important;
-  padding: 0 !important;
+}
+
+html.customer-page-active,
+html:has(body:has(.customer-landing)),
+html:has(body:has(.customer-home)),
+html:has(body:has(.customer-cart)),
+html:has(body:has(.customer-checkout)),
+html:has(body:has(.customer-history)),
+html:has(body:has(.customer-profile)),
+html:has(body:has([class*="customer-"])) {
+  background: var(--status-bar-bg) !important;
 }
 
 /* Fixed status bar overlay for all customer pages */

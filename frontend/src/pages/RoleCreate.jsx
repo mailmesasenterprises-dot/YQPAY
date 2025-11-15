@@ -893,7 +893,7 @@ const RoleCreate = () => {
                       </div>
                     </td>
                     <td className="role-status">
-                      <span className={`status-badge ${role.isActive ? 'active-badge' : 'inactive-badge'}`}>
+                      <span className={`status-badge ${role.isActive ? 'active' : 'inactive'}`}>
                         {role.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>

@@ -1309,26 +1309,30 @@ style.textContent = `
     text-align: center;
   }
 
-  /* Status badge styling */
+  /* Status badge styling - Matching Theater Management global style */
   .theater-user-settings-content .status-badge {
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    padding: 6px 12px !important;
+    border-radius: 20px !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin: 0 8px !important;
   }
 
   .theater-user-settings-content .status-badge.active {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #a7f3d0;
+    background: rgba(16, 185, 129, 0.15) !important;
+    color: var(--success-color, #10b981) !important;
+    border: none !important;
   }
 
   .theater-user-settings-content .status-badge.inactive {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
+    background: rgba(156, 163, 175, 0.15) !important;
+    color: var(--text-gray, #6b7280) !important;
+    border: none !important;
   }
 
   /* Actions cell styling */

@@ -326,13 +326,13 @@
 }
 
 .status-badge.active {
-  background: var(--success-light);
-  color: var(--success-color);
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success-color, #10b981);
 }
 
 .status-badge.inactive {
-  background: var(--error-light);
-  color: var(--error-color);
+  background: rgba(156, 163, 175, 0.15);
+  color: var(--text-gray, #6b7280);
 }
 
 .status-badge.pending {

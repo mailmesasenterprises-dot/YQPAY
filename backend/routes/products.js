@@ -147,16 +147,34 @@ router.get('/:theaterId', [
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
     
-    // Get all unique kioskType IDs and productType IDs
+    // Get all unique kioskType IDs, categoryIds, and productType IDs
     const kioskTypeIds = [...new Set(paginatedProducts.map(p => p.kioskType).filter(Boolean))];
+    const categoryIds = [...new Set(paginatedProducts.map(p => p.categoryId).filter(Boolean))];
     const productTypeIds = [...new Set(paginatedProducts.map(p => p.productTypeId).filter(Boolean))];
     
-    // Fetch all kiosk types in one query
+    // Fetch kiosk types from theater-specific collection
     const KioskType = mongoose.model('KioskType');
-    const kioskTypesData = await KioskType.find({
-      _id: { $in: kioskTypeIds }
-    }).lean();
-    const kioskTypeMap = new Map(kioskTypesData.map(kt => [kt._id.toString(), kt]));
+    const kioskTypeDoc = await KioskType.findOne({ theater: new mongoose.Types.ObjectId(theaterId) }).lean();
+    const kioskTypeMap = new Map();
+    if (kioskTypeDoc && kioskTypeDoc.kioskTypeList) {
+      kioskTypeDoc.kioskTypeList.forEach(kt => {
+        kioskTypeMap.set(kt._id.toString(), kt);
+      });
+      console.log('✅ KioskType Map built with', kioskTypeMap.size, 'items');
+      console.log('✅ Sample kioskType:', kioskTypeDoc.kioskTypeList[0]);
+    } else {
+      console.log('⚠️ No kioskTypeDoc found for theater:', theaterId);
+    }
+    
+    // Fetch categories from theater-specific collection
+    const Category = mongoose.model('Category');
+    const categoryDoc = await Category.findOne({ theater: new mongoose.Types.ObjectId(theaterId) }).lean();
+    const categoryMap = new Map();
+    if (categoryDoc && categoryDoc.categoryList) {
+      categoryDoc.categoryList.forEach(cat => {
+        categoryMap.set(cat._id.toString(), cat);
+      });
+    }
     
     // Fetch all product types to get quantity values
     const ProductType = mongoose.model('ProductType');
@@ -190,6 +208,20 @@ router.get('/:theaterId', [
           let kioskTypeData = null;
           if (product.kioskType) {
             kioskTypeData = kioskTypeMap.get(product.kioskType.toString());
+            if (kioskTypeData) {
+              console.log(`✅ Product ${product.name} - kioskTypeData:`, {
+                id: kioskTypeData._id,
+                name: kioskTypeData.name
+              });
+            } else {
+              console.log(`⚠️ Product ${product.name} - kioskType ID ${product.kioskType} not found in map`);
+            }
+          }
+          
+          // Get category data if exists
+          let categoryData = null;
+          if (product.categoryId) {
+            categoryData = categoryMap.get(product.categoryId.toString());
           }
           
           // Get quantity from productType if not directly stored
@@ -209,6 +241,8 @@ router.get('/:theaterId', [
             },
             // Add populated kioskType data
             kioskTypeData: kioskTypeData || null,
+            // Add populated category data
+            categoryData: categoryData || null,
             // Ensure quantity is available
             quantity: quantity
           };
@@ -510,7 +544,8 @@ router.put('/:theaterId/:productId', [
       'productCode': 'sku',
       'category': 'categoryId',
       'productType': 'productTypeId',
-      'kioskType': 'kioskType'
+      'kioskType': 'kioskType',
+      'quantity': 'quantity' // Add quantity mapping
     };
 
     // Process each field
@@ -529,12 +564,18 @@ router.put('/:theaterId/:productId', [
     }
     if (processedData.kioskType) {
       processedData.kioskType = new mongoose.Types.ObjectId(processedData.kioskType);
+      console.log('✅ Saving kioskType:', processedData.kioskType);
     }
     if (processedData.productTypeId) {
       processedData.productTypeId = new mongoose.Types.ObjectId(processedData.productTypeId);
     }
     if (processedData['pricing.productTypeId']) {
       processedData['pricing.productTypeId'] = new mongoose.Types.ObjectId(processedData['pricing.productTypeId']);
+    }
+    
+    // Log quantity if provided
+    if (processedData.quantity) {
+      console.log('✅ Saving quantity:', processedData.quantity);
     }
 
     // Set updatedAt timestamp

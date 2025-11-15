@@ -31,31 +31,6 @@ const OnlineOrderHistory = () => {
   console.log('👤 user:', user);
   console.log('🎭 userTheaterId:', userTheaterId);
 
-  // Early return for testing - show a simple message
-  if (!theaterId) {
-    console.error('❌ OnlineOrderHistory: theaterId is MISSING!');
-    return (
-      <div style={{ 
-        padding: '40px', 
-        textAlign: 'center', 
-        color: 'white', 
-        background: '#8B5CF6',
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center'
-      }}>
-        <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>⚠️ Theater ID Missing</h1>
-        <p style={{ fontSize: '20px', marginBottom: '10px' }}>Current URL: {window.location.href}</p>
-        <p style={{ fontSize: '20px', marginBottom: '10px' }}>Params: {JSON.stringify(useParams())}</p>
-        <p style={{ fontSize: '16px', opacity: 0.8 }}>Please navigate from the theaters list.</p>
-      </div>
-    );
-  }
-
-  console.log('✅ OnlineOrderHistory: theaterId found:', theaterId);
-
   // PERFORMANCE MONITORING: Track page performance metrics
   // usePerformanceMonitoring('OnlineOrderHistory'); // Temporarily disabled for debugging
   
@@ -800,34 +775,474 @@ const OnlineOrderHistory = () => {
 
   console.log('OnlineOrderHistory: Rendering main content with theaterId:', theaterId);
 
-  // TEMPORARY: Simple test render to verify component works
   return (
-    <div style={{ 
-      padding: '40px', 
-      background: 'white', 
-      minHeight: '100vh',
-      color: '#333'
-    }}>
-      <h1 style={{ color: '#8B5CF6', marginBottom: '20px' }}>🎉 Component Works!</h1>
-      <h2>Theater ID: {theaterId}</h2>
-      <p>Loading: {loading ? 'Yes' : 'No'}</p>
-      <p>Orders Count: {orders.length}</p>
-      <p>User: {user?.email || 'Not logged in'}</p>
-      <button 
-        onClick={() => fetchOrders(true)}
-        style={{
-          padding: '10px 20px',
-          background: '#8B5CF6',
-          color: 'white',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer',
-          marginTop: '20px'
-        }}
-      >
-        Fetch Orders
-      </button>
-    </div>
+    <ErrorBoundary>
+      <TheaterLayout currentPage="online-order-history" pageTitle="Online Order History">
+        <PageContainer title="Online Order History" showBackButton={false}>
+          <div className="qr-management-page">
+            
+            {/* Summary Statistics */}
+            <div className="qr-stats">
+              <div className="stat-card">
+                <div className="stat-number">{summary.totalOrders}</div>
+                <div className="stat-label">Total Orders</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">{summary.confirmedOrders}</div>
+                <div className="stat-label">Confirmed</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">{summary.completedOrders}</div>
+                <div className="stat-label">Completed</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-number">{formatCurrency(summary.totalRevenue)}</div>
+                <div className="stat-label">Total Revenue</div>
+              </div>
+            </div>
+
+            {/* Filters and Controls */}
+            <div className="theater-filters">
+              <div className="search-box">
+                <input
+                  type="text"
+                  placeholder="Search by order number, customer name, or phone..."
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  className="search-input"
+                />
+              </div>
+              
+              <div className="filter-controls">
+                <select
+                  value={statusFilter}
+                  onChange={handleStatusFilter}
+                  className="status-filter"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+                <button 
+                  type="button"
+                  className="submit-btn excel-download-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleDownloadExcel();
+                  }}
+                  disabled={downloadingExcel || loading}
+                  style={{
+                    backgroundColor: downloadingExcel ? '#9ca3af' : '#10b981',
+                    cursor: downloadingExcel || loading ? 'not-allowed' : 'pointer',
+                    opacity: downloadingExcel || loading ? 0.6 : 1,
+                    pointerEvents: downloadingExcel || loading ? 'none' : 'auto',
+                    minWidth: '100px',
+                    padding: '8px 16px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <span className="btn-icon">{downloadingExcel ? '⏳' : '📊'}</span>
+                  {downloadingExcel ? 'Downloading...' : 'EXCEL'}
+                </button>
+                <button 
+                  className="submit-btn date-filter-btn"
+                  onClick={() => setShowDateFilterModal(true)}
+                >
+                  <span className="btn-icon">📅</span>
+                  {dateFilter.type === 'all' ? 'Date Filter' : 
+                   dateFilter.type === 'date' ? `TODAY (${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')})` :
+                   dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
+                   'Date Filter'}
+                </button>
+                <div className="items-per-page">
+                  <label>Items per page:</label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={handleItemsPerPageChange}
+                    className="items-select"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Orders Table */}
+            <div className="theater-table-container">
+              <table className="theater-table">
+                <thead>
+                  <tr>
+                    <th className="sno-cell">S.No</th>
+                    <th className="name-cell">Order Number</th>
+                    <th className="name-cell">Customer</th>
+                    <th className="status-cell">Items</th>
+                    <th className="status-cell">Amount</th>
+                    <th className="status-cell">Payment Mode</th>
+                    <th className="status-cell">Status</th>
+                    <th className="status-cell">Date</th>
+                    <th className="actions-cell">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRowSkeleton key={`skeleton-${i}`} />
+                    ))
+                  ) : paginatedOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" className="empty-cell">
+                        <i className="fas fa-shopping-cart fa-3x"></i>
+                        <h3>No Online Orders Found</h3>
+                        <p>There are no online orders available for viewing at the moment.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedOrders.map((order, index) => (
+                      <tr key={order._id} className="theater-row">
+                        <td className="sno-cell">
+                          <div className="sno-number">
+                            {(currentPage - 1) * itemsPerPage + index + 1}
+                          </div>
+                        </td>
+                        
+                        <td className="order-number-cell">
+                          <div className="order-number">
+                            {order.orderNumber || 'N/A'}
+                          </div>
+                        </td>
+                        
+                        <td className="customer-cell">
+                          <div className="customer-info">
+                            <div className="customer-name">
+                              {order.customerName || order.customerInfo?.name || order.customerInfo?.name || 'Customer'}
+                            </div>
+                            {(order.customerPhone || order.customerInfo?.phone || order.customerInfo?.phoneNumber) && (
+                              <div className="customer-phone">
+                                {order.customerPhone || order.customerInfo?.phone || order.customerInfo?.phoneNumber}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        
+                        <td className="items-cell">
+                          <div className="items-count">
+                            {(order.products?.length || order.items?.length || 0)} items
+                          </div>
+                        </td>
+                        
+                        <td className="amount-cell" style={{ textAlign: 'center' }}>
+                          <div className="amount">
+                            {formatCurrency(order.pricing?.total ?? order.totalAmount ?? 0)}
+                          </div>
+                        </td>
+                        
+                        <td className="payment-mode-cell">
+                          <div className="payment-mode">
+                            {order.payment?.method || order.paymentMode || order.paymentMethod || 'UPI'}
+                          </div>
+                        </td>
+                        
+                        <td className="status-cell">
+                          <span className={`status-badge ${getStatusBadgeClass(order.status)}`}>
+                            {order.status || 'pending'}
+                          </span>
+                        </td>
+                        
+                        <td className="date-cell">
+                          <div className="order-date">
+                            {formatDate(order.createdAt)}
+                          </div>
+                        </td>
+                        
+                        <td className="action-cell">
+                          <div className="action-buttons" style={{ gap: '0px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <button 
+                              className="action-btn view-btn"
+                              title="View Details"
+                              onClick={() => viewOrder(order)}
+                              style={{ margin: '0' }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '16px', height: '16px'}}>
+                                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                              </svg>
+                            </button>
+                            <button 
+                              className="action-btn download-btn"
+                              title="Download Receipt"
+                              onClick={() => downloadOrderPDF(order)}
+                              style={{ margin: '0' }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '16px', height: '16px'}}>
+                                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination - Always Show (Global Component) */}
+            {!loading && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredOrders.length}
+                itemsPerPage={itemsPerPage}
+                onPageChange={handlePageChange}
+                itemType="orders"
+              />
+            )}
+
+          </div>
+
+          {/* Date Filter Modal */}
+          {showDateFilterModal && (
+            <DateFilter
+              dateFilter={dateFilter}
+              onDateFilterChange={(newFilter) => {
+                setDateFilter(newFilter);
+                setCurrentPage(1);
+              }}
+              onClose={() => setShowDateFilterModal(false)}
+            />
+          )}
+
+          {/* View Modal - Thermal Receipt Style */}
+          {showViewModal && selectedOrder && (
+            <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
+              <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{
+                maxWidth: '400px',
+                fontFamily: "'Courier New', monospace",
+                backgroundColor: '#fff',
+                padding: '0'
+              }}>
+                <div className="modal-header" style={{
+                  background: '#8B5CF6',
+                  color: 'white',
+                  padding: '15px 20px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderRadius: '8px 8px 0 0'
+                }}>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Bill - {selectedOrder.orderNumber}</h2>
+                  <button 
+                    className="close-btn"
+                    onClick={() => setShowViewModal(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'white',
+                      cursor: 'pointer',
+                      padding: '5px'
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '20px', height: '20px'}}>
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="modal-body" style={{
+                  padding: '20px',
+                  fontSize: '13px',
+                  lineHeight: '1.5'
+                }}>
+                  {/* Business Header */}
+                  <div style={{
+                    textAlign: 'center',
+                    borderBottom: '2px dashed #000',
+                    paddingBottom: '10px',
+                    marginBottom: '10px'
+                  }}>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px' }}>
+                      {theaterInfo?.name || 'Theater Name'}
+                    </div>
+                    <div style={{ fontSize: '11px', lineHeight: '1.5' }}>
+                      {theaterInfo?.address ? (() => {
+                        const addr = theaterInfo.address;
+                        const parts = [addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean);
+                        return parts.join(', ') || 'N/A';
+                      })() : 'Address'}<br/>
+                      {theaterInfo?.phone ? `Phone: ${theaterInfo.phone}` : ''}<br/>
+                      {theaterInfo?.email ? `Email: ${theaterInfo.email}` : ''}<br/>
+                      {theaterInfo?.gstNumber ? `GST: ${theaterInfo.gstNumber}` : ''}
+                    </div>
+                  </div>
+
+                  {/* Bill Details */}
+                  <div style={{
+                    borderBottom: '2px dashed #000',
+                    padding: '8px 0',
+                    marginBottom: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '11px' }}>
+                      <span><strong>Invoice ID:</strong> {selectedOrder.orderNumber || 'N/A'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '11px' }}>
+                      <span><strong>Date:</strong> {formatDate(selectedOrder.createdAt)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '11px' }}>
+                      <span><strong>Bill To:</strong> {selectedOrder.customerName || selectedOrder.customerInfo?.name || 'Customer'}</span>
+                    </div>
+                    {(selectedOrder.customerPhone || selectedOrder.customerInfo?.phone || selectedOrder.customerInfo?.phoneNumber) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '11px' }}>
+                        <span><strong>Phone:</strong> {selectedOrder.customerPhone || selectedOrder.customerInfo?.phone || selectedOrder.customerInfo?.phoneNumber}</span>
+                      </div>
+                    )}
+                    {(selectedOrder.qrName || selectedOrder.screenName) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '11px' }}>
+                        <span><strong>Screen:</strong> {selectedOrder.qrName || selectedOrder.screenName || 'N/A'}</span>
+                      </div>
+                    )}
+                    {(selectedOrder.seat || selectedOrder.seatNumber) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '11px' }}>
+                        <span><strong>Seat:</strong> {selectedOrder.seat || selectedOrder.seatNumber || 'N/A'}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Items Header */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontWeight: 'bold',
+                    borderBottom: '1px solid #000',
+                    paddingBottom: '5px',
+                    marginBottom: '5px',
+                    fontSize: '11px'
+                  }}>
+                    <div style={{ flex: 2 }}>Item Name</div>
+                    <div style={{ flex: 0.5, textAlign: 'center' }}>Qty</div>
+                    <div style={{ flex: 1, textAlign: 'right' }}>Rate</div>
+                    <div style={{ flex: 1, textAlign: 'right' }}>Total</div>
+                  </div>
+
+                  {/* Items List */}
+                  {(selectedOrder.products || selectedOrder.items || []).map((item, idx) => {
+                    const qty = item.quantity || 1;
+                    const rate = item.unitPrice || item.price || 0;
+                    const total = item.totalPrice || (qty * rate);
+                    return (
+                      <div key={idx} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '4px',
+                        fontSize: '11px'
+                      }}>
+                        <div style={{ flex: 2 }}>{item.productName || item.menuItem?.name || item.name || 'Item'}</div>
+                        <div style={{ flex: 0.5, textAlign: 'center' }}>{qty}</div>
+                        <div style={{ flex: 1, textAlign: 'right' }}>₹{rate.toFixed(2)}</div>
+                        <div style={{ flex: 1, textAlign: 'right' }}>₹{total.toFixed(2)}</div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Totals Section */}
+                  <div style={{
+                    borderTop: '2px dashed #000',
+                    paddingTop: '8px',
+                    marginTop: '8px'
+                  }}>
+                    {(selectedOrder.pricing?.subtotal || selectedOrder.subtotal) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px' }}>
+                        <span>Subtotal:</span>
+                        <span>₹{(selectedOrder.pricing?.subtotal || selectedOrder.subtotal).toFixed(2)}</span>
+                      </div>
+                    )}
+                    
+                    {(selectedOrder.pricing?.tax || selectedOrder.tax || selectedOrder.pricing?.gst || selectedOrder.gst) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px' }}>
+                        <span>GST/Tax:</span>
+                        <span>₹{(selectedOrder.pricing?.tax || selectedOrder.tax || selectedOrder.pricing?.gst || selectedOrder.gst).toFixed(2)}</span>
+                      </div>
+                    )}
+                    
+                    {(selectedOrder.pricing?.discount || selectedOrder.discount) && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '12px' }}>
+                        <span>Discount:</span>
+                        <span>-₹{(selectedOrder.pricing?.discount || selectedOrder.discount).toFixed(2)}</span>
+                      </div>
+                    )}
+                    
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      borderTop: '1px solid #000',
+                      paddingTop: '5px',
+                      marginTop: '5px'
+                    }}>
+                      <span>Grand Total:</span>
+                      <span>₹{(selectedOrder.pricing?.total || selectedOrder.totalAmount || selectedOrder.total || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{
+                    textAlign: 'center',
+                    marginTop: '10px',
+                    paddingTop: '10px',
+                    borderTop: '2px dashed #000',
+                    fontSize: '10px'
+                  }}>
+                    <p>Thank you for your order!</p>
+                    <p>By YQPayNow</p>
+                    <p>Generated on {new Date().toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+
+                <div className="modal-footer" style={{
+                  padding: '15px 20px',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '10px',
+                  borderTop: '1px solid #eee'
+                }}>
+                  <button
+                    onClick={() => downloadOrderPDF(selectedOrder)}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Download PDF
+                  </button>
+                  <button
+                    onClick={() => setShowViewModal(false)}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#6b7280',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </PageContainer>
+      </TheaterLayout>
+    </ErrorBoundary>
   );
 };
 

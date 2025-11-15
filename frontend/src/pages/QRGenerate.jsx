@@ -9,8 +9,19 @@ import { clearTheaterCache } from '../utils/cacheManager';
 import { optimizedFetch } from '../utils/apiOptimizer';
 import { getCachedData } from '../utils/cacheUtils';
 import config from '../config';
+import { 
+  TextField, 
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  FormHelperText,
+  Box,
+  Button
+} from '@mui/material';
 import '../styles/QRGenerate.css';
 import '../styles/TheaterList.css';
+import '../styles/AddProductMUI.css';
 import { useDeepMemo, useComputed } from '../utils/ultraPerformance';
 import { ultraFetch } from '../utils/ultraFetch';
 import QRCode from 'qrcode';
@@ -1196,226 +1207,231 @@ const QRGenerate = React.memo(() => {
               {/* Left Column - Form */}
               <div className="qr-generate-form-wrapper" style={{ flex: '1', minWidth: '0' }}>
                 <form onSubmit={handleSubmit} className="qr-generate-form">
-                  <div className="form-section">
-                    <h2 className="section-title">Basic Information</h2>
-                    <div className="form-grid">
+                  <div className="form-section mui-form-section">
+                    <h2>Basic Information</h2>
+                    <div className="form-grid mui-form-grid">
                   {/* Theater Selection */}
-                  <div className="form-group">
-                    <label htmlFor="theaterId">
-                      SELECT THEATER <span className="required">*</span>
-                    </label>
+                  <Box className="mui-form-group">
                     {theatersLoading ? (
                       <TheaterSelectSkeleton />
                     ) : (
-                      <select
-                        id="theaterId"
-                        name="theaterId"
-                        value={formData.theaterId}
-                        onChange={handleInputChange}
-                        className="form-control"
-                        required
-                      >
-                        <option value="">
-                          {theaters.length === 0 ? 'No active theaters found' : 'Select a theater'}
-                        </option>
-                        {theaters.map(theater => (
-                          <option key={theater._id} value={theater._id}>
-                            {theater.name}
-                            {theater.location?.city && theater.location?.state && 
-                              ` - ${theater.location.city}, ${theater.location.state}`
-                            }
-                          </option>
-                        ))}
-                      </select>
+                      <FormControl fullWidth required error={false}>
+                        <InputLabel id="theaterId-label">Select Theater *</InputLabel>
+                        <Select
+                          id="theaterId"
+                          name="theaterId"
+                          labelId="theaterId-label"
+                          label="Select Theater *"
+                          value={formData.theaterId || ''}
+                          onChange={handleInputChange}
+                          displayEmpty
+                        >
+                          <MenuItem value="" disabled>
+                            <em>{theaters.length === 0 ? 'No active theaters found' : 'Select a theater'}</em>
+                          </MenuItem>
+                          {theaters.map(theater => (
+                            <MenuItem key={theater._id} value={theater._id}>
+                              {theater.name}
+                              {theater.location?.city && theater.location?.state && 
+                                ` - ${theater.location.city}, ${theater.location.state}`
+                              }
+                            </MenuItem>
+                          ))}
+                        </Select>
+                        {!theatersLoading && theaters.length === 0 && (
+                          <FormHelperText>
+                            No active theaters available. Please add theaters first.
+                          </FormHelperText>
+                        )}
+                      </FormControl>
                     )}
-                    {!theatersLoading && theaters.length === 0 && (
-                      <p className="form-help-text">
-                        No active theaters available. Please add theaters first.
-                      </p>
-                    )}
-                  </div>
+                  </Box>
 
                   {/* Logo Selection */}
-                  <div className="form-group">
-                    <label htmlFor="logoType">
-                      LOGO SELECTION <span className="required">*</span>
-                    </label>
-                    {!formData.theaterId ? (
-                      <div className="form-control disabled-dropdown">
-                        <span>Please select a theater first</span>
-                      </div>
-                    ) : (
-                      <select
+                  <Box className="mui-form-group">
+                    <FormControl fullWidth required disabled={!formData.theaterId} error={false}>
+                      <InputLabel id="logoType-label">Logo Selection *</InputLabel>
+                      <Select
                         id="logoType"
                         name="logoType"
-                        value={formData.logoType}
+                        labelId="logoType-label"
+                        label="Logo Selection *"
+                        value={formData.logoType || ''}
                         onChange={(e) => handleLogoTypeChange(e.target.value)}
-                        className="form-control"
-                        required
+                        displayEmpty
                       >
-                        <option value="">Select Logo Type</option>
-                        <option value="default">Default Logo</option>
-                        <option value="theater">Theater Logo</option>
-                      </select>
-                    )}
-                    {formData.logoType === 'default' && !defaultLogoUrl && (
-                      <p className="form-help-text">
-                        No default logo configured in settings. Please upload a default logo in settings.
-                      </p>
-                    )}
-                    {formData.logoType === 'theater' && formData.theaterId && (
-                      (() => {
+                        <MenuItem value="" disabled>
+                          <em>{!formData.theaterId ? 'Please select a theater first' : 'Select Logo Type'}</em>
+                        </MenuItem>
+                        <MenuItem value="default">Default Logo</MenuItem>
+                        <MenuItem value="theater">Theater Logo</MenuItem>
+                      </Select>
+                      {formData.logoType === 'default' && !defaultLogoUrl && (
+                        <FormHelperText>
+                          No default logo configured in settings. Please upload a default logo in settings.
+                        </FormHelperText>
+                      )}
+                      {formData.logoType === 'theater' && formData.theaterId && (() => {
                         const selectedTheater = theaters.find(t => t._id === formData.theaterId);
                         const hasTheaterLogo = selectedTheater?.logo || selectedTheater?.logoUrl;
                         return !hasTheaterLogo ? (
-                          <p className="form-help-text">
+                          <FormHelperText>
                             Selected theater has no logo. Please upload a logo for this theater or use default logo.
-                          </p>
+                          </FormHelperText>
                         ) : null;
-                      })()
-                    )}
-                  </div>
+                      })()}
+                    </FormControl>
+                  </Box>
 
                   {/* QR Type Selection */}
-                  <div className="form-group">
-                    <label htmlFor="qrType">
-                      QR CODE TYPE <span className="required">*</span>
-                    </label>
-                    {!formData.theaterId || !formData.logoType ? (
-                      <div className="form-control disabled-dropdown">
-                        <span>
-                          {!formData.theaterId 
-                            ? "Please select a theater first" 
-                            : "Please select a logo type first"}
-                        </span>
-                      </div>
-                    ) : (
-                      <select
+                  <Box className="mui-form-group">
+                    <FormControl fullWidth required disabled={!formData.theaterId || !formData.logoType} error={false}>
+                      <InputLabel id="qrType-label">QR Code Type *</InputLabel>
+                      <Select
                         id="qrType"
                         name="qrType"
-                        value={formData.qrType}
+                        labelId="qrType-label"
+                        label="QR Code Type *"
+                        value={formData.qrType || ''}
                         onChange={(e) => handleQRTypeChange(e.target.value)}
-                        className="form-control"
-                        required
+                        displayEmpty
                       >
-                      <option value="">Select QR Code Type</option>
-                      <option value="single">SINGLE QR CODE</option>
-                      <option value="screen">Screen</option>
-                    </select>
-                    )}
-                  </div>
+                        <MenuItem value="" disabled>
+                          <em>
+                            {!formData.theaterId 
+                              ? "Please select a theater first" 
+                              : !formData.logoType
+                              ? "Please select a logo type first"
+                              : "Select QR Code Type"}
+                          </em>
+                        </MenuItem>
+                        <MenuItem value="single">SINGLE QR CODE</MenuItem>
+                        <MenuItem value="screen">Screen</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
 
                   {/* QR Code Name */}
-                  <div className="form-group">
-                    <label htmlFor="name">
-                      QR CODE NAME <span className="required">*</span>
-                    </label>
-                    {!formData.theaterId ? (
-                      <div className="form-control disabled-dropdown">
-                        <span>Please select a theater first</span>
-                      </div>
-                    ) : qrNamesLoading ? (
-                      <div className="form-control disabled-dropdown">
-                        <span>Loading QR names...</span>
-                      </div>
-                    ) : qrNames.length === 0 ? (
-                      <div className="form-control disabled-dropdown" style={{ color: '#e74c3c' }}>
-                        <span>⚠️ All QR names have already been generated for this theater (checked against singleqrcodes database)</span>
-                      </div>
-                    ) : (
-                      <select
+                  <Box className="mui-form-group">
+                    <FormControl 
+                      fullWidth 
+                      required 
+                      disabled={!formData.theaterId || qrNamesLoading || qrNames.length === 0}
+                      error={qrNames.length === 0 && formData.theaterId && !qrNamesLoading}
+                    >
+                      <InputLabel id="name-label">QR Code Name *</InputLabel>
+                      <Select
                         id="name"
                         name="name"
-                        value={formData.name}
+                        labelId="name-label"
+                        label="QR Code Name *"
+                        value={formData.name || ''}
                         onChange={handleInputChange}
-                        className="form-control"
-                        required
+                        displayEmpty
                       >
-                        <option value="">Select QR Code Name</option>
+                        <MenuItem value="" disabled>
+                          <em>
+                            {!formData.theaterId 
+                              ? 'Please select a theater first'
+                              : qrNamesLoading
+                              ? 'Loading QR names...'
+                              : qrNames.length === 0
+                              ? '⚠️ All QR names have already been generated'
+                              : 'Select QR Code Name'}
+                          </em>
+                        </MenuItem>
                         {qrNames.map(qrName => (
-                          <option key={qrName._id} value={qrName.qrName}>
+                          <MenuItem key={qrName._id} value={qrName.qrName}>
                             {qrName.qrName}
-                          </option>
+                          </MenuItem>
                         ))}
-                      </select>
-                    )}
-                    {formData.theaterId && !qrNamesLoading && qrNames.length > 0 && (
-                      <p className="form-help-text">
-                        ✅ {qrNames.length} QR name(s) available for generation (filtered by singleqrcodes database)
-                      </p>
-                    )}
-                  </div>
+                      </Select>
+                      {formData.theaterId && !qrNamesLoading && qrNames.length > 0 && (
+                        <FormHelperText>
+                          ✅ {qrNames.length} QR name(s) available for generation (filtered by singleqrcodes database)
+                        </FormHelperText>
+                      )}
+                      {qrNames.length === 0 && formData.theaterId && !qrNamesLoading && (
+                        <FormHelperText error>
+                          All QR names have already been generated for this theater (checked against singleqrcodes database)
+                        </FormHelperText>
+                      )}
+                    </FormControl>
+                  </Box>
 
                   {/* Seat Class - Show for both canteen and screen types */}
-                  <div className="form-group">
-                    <label htmlFor="seatClass">
-                      SEAT CLASS <span className="required">*</span>
-                    </label>
-                    <input
-                      type="text"
+                  <Box className="mui-form-group">
+                    <TextField
                       id="seatClass"
                       name="seatClass"
+                      label="Seat Class *"
                       value={formData.seatClass}
-                      className="form-control"
-                      readOnly
+                      InputProps={{
+                        readOnly: true
+                      }}
+                      helperText={formData.name ? `Auto-populated from QR name: ${formData.name}` : "Seat class will be auto-populated when you select a QR name"}
                       placeholder={formData.name ? "Auto-populated from QR name" : "Select a QR name first"}
-                      title={formData.name ? `Seat class auto-populated from selected QR name: ${formData.name}` : "Seat class will be auto-populated when you select a QR name"}
+                      fullWidth
                     />
-                  </div>
+                  </Box>
 
                   {/* Screen-specific fields */}
                   {formData.qrType === 'screen' && (
                     <>
 
                       {/* Seat Range and Generate Button - Always visible for multiple ranges */}
-                      <div className="seat-range-container form-group-full">
-                        <div className="form-group">
-                          <label htmlFor="seatStart">
-                            SEAT START ID {(!formData.selectedSeats || formData.selectedSeats.length === 0) && <span className="required">*</span>}
-                          </label>
-                          <input
-                            type="text"
+                      <Box className="seat-range-container full-width" sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 2, alignItems: 'start', gridColumn: '1 / -1' }}>
+                        <Box className="mui-form-group">
+                          <TextField
                             id="seatStart"
                             name="seatStart"
+                            label={(!formData.selectedSeats || formData.selectedSeats.length === 0) ? "Seat Start ID *" : "Seat Start ID"}
                             value={formData.seatStart}
                             onChange={handleInputChange}
                             placeholder="e.g., A1, B1, C1"
-                            className="form-control"
+                            fullWidth
+                            required={!formData.selectedSeats || formData.selectedSeats.length === 0}
                           />
-                        </div>
+                        </Box>
 
-                        <div className="form-group">
-                          <label htmlFor="seatEnd">
-                            SEAT END ID {(!formData.selectedSeats || formData.selectedSeats.length === 0) && <span className="required">*</span>}
-                          </label>
-                          <input
-                            type="text"
+                        <Box className="mui-form-group">
+                          <TextField
                             id="seatEnd"
                             name="seatEnd"
+                            label={(!formData.selectedSeats || formData.selectedSeats.length === 0) ? "Seat End ID *" : "Seat End ID"}
                             value={formData.seatEnd}
                             onChange={handleInputChange}
                             placeholder="e.g., A20, B20, C20"
-                            className="form-control"
+                            fullWidth
+                            required={!formData.selectedSeats || formData.selectedSeats.length === 0}
                           />
-                        </div>
+                        </Box>
                         
                         {/* Generate Seat Map Button */}
-                        <div className="form-group">
-                          <label>&nbsp;</label>
-                          <button 
-                            type="button" 
-                            className="generate-seat-map-btn"
+                        <Box sx={{ display: 'flex', alignItems: 'flex-end', height: '56px' }}>
+                          <Button
+                            type="button"
+                            variant="contained"
                             onClick={handleGenerateSeatMap}
+                            sx={{
+                              backgroundColor: '#8B5CF6',
+                              '&:hover': { backgroundColor: '#7C3AED' },
+                              textTransform: 'none',
+                              padding: '10px 20px',
+                              whiteSpace: 'nowrap',
+                              height: '40px'
+                            }}
                           >
                             {formData.selectedSeats && formData.selectedSeats.length > 0 ? 'Add More Seats' : 'Generate Seat Map'}
-                          </button>
-                        </div>
-                      </div>
+                          </Button>
+                        </Box>
+                      </Box>
 
            
                     </>
                   )}
-                </div>
+                    </div>
+                  </div>
                 
                 {/* Theater Seat Map for Screen Type - Show only after clicking Generate Seat Map button */}
                 {formData.qrType === 'screen' && showSeatMap && (
@@ -1486,33 +1502,53 @@ const QRGenerate = React.memo(() => {
                     )}
                   </div>
                 )}
-              </div>
 
               {/* Action Buttons */}
-              <div className="form-actions">
-                <button 
-                  type="button" 
-                  onClick={() => navigate('/qr-management')} 
-                  className="cancel-btn"
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', marginTop: 4, paddingTop: 3, borderTop: '1px solid #e5e7eb' }}>
+                <Button
+                  type="button"
+                  variant="outlined"
+                  onClick={() => navigate('/qr-management')}
                   disabled={generating}
+                  sx={{
+                    borderColor: '#6b7280',
+                    color: '#6b7280',
+                    '&:hover': {
+                      borderColor: '#4b5563',
+                      backgroundColor: '#f3f4f6'
+                    },
+                    textTransform: 'none',
+                    padding: '10px 24px',
+                    minWidth: '120px'
+                  }}
                 >
                   Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={generating || theatersLoading} 
-                  className={`submit-btn ${generating ? 'loading' : ''}`}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={generating || theatersLoading}
+                  sx={{
+                    backgroundColor: generating ? '#9ca3af' : '#8B5CF6',
+                    '&:hover': {
+                      backgroundColor: generating ? '#9ca3af' : '#7C3AED'
+                    },
+                    textTransform: 'none',
+                    padding: '10px 24px',
+                    minWidth: '180px',
+                    fontWeight: 600
+                  }}
                 >
                   {generating ? (
                     <>
-                      <span className="loading-spinner"></span>
+                      <span className="loading-spinner" style={{ marginRight: '8px' }}></span>
                       Generating...
                     </>
                   ) : (
                     `Generate QR ${formData.qrType === 'screen' ? 'Codes' : 'Code'}`
                   )}
-                </button>
-              </div>
+                </Button>
+              </Box>
             </form>
                 </div>
 
@@ -1584,52 +1620,80 @@ const QRGenerate = React.memo(() => {
                     {/* QR Code Preview Card */}
                     <div className={`qr-preview-card ${formData.orientation}`} style={{
                       background: '#FFFFFF',
-                      borderRadius: '12px',
-                      padding: formData.orientation === 'landscape' ? '16px' : '20px',
-                      border: '1px solid #E5E7EB',
-                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                      borderRadius: formData.orientation === 'portrait' ? '16px' : '12px',
+                      padding: formData.orientation === 'landscape' ? '16px' : '24px',
+                      border: formData.orientation === 'portrait' ? '2px solid #E5E7EB' : '1px solid #E5E7EB',
+                      boxShadow: formData.orientation === 'portrait' ? '0 8px 16px rgba(0, 0, 0, 0.12)' : '0 4px 6px rgba(0, 0, 0, 0.1)',
                       display: 'flex',
                       flexDirection: formData.orientation === 'landscape' ? 'row' : 'column',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: formData.orientation === 'landscape' ? '20px' : '16px',
-                      minHeight: formData.orientation === 'landscape' ? '200px' : '350px',
+                      justifyContent: formData.orientation === 'portrait' ? 'space-between' : 'space-between',
+                      gap: formData.orientation === 'landscape' ? '20px' : '0px',
+                      minHeight: formData.orientation === 'landscape' ? '200px' : 'auto',
+                      height: formData.orientation === 'landscape' ? 'auto' : '340px',
+                      width: formData.orientation === 'landscape' ? '100%' : '340px',
+                      maxWidth: formData.orientation === 'landscape' ? '100%' : '340px',
+                      maxHeight: formData.orientation === 'landscape' ? 'none' : '340px',
+                      margin: formData.orientation === 'landscape' ? '0' : '0 auto',
                       position: 'relative',
                       overflow: 'hidden',
-                      width: '100%',
-                      boxSizing: 'border-box'
+                      boxSizing: 'border-box',
+                      aspectRatio: formData.orientation === 'portrait' ? '1/1' : 'auto'
                     }}>
-                      {/* Left/Top Section - Content with Theater Name */}
+                      {/* Top Section - Content with Theater Name (Portrait) */}
                       <div className="qr-preview-content" style={{
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: formData.orientation === 'landscape' ? '12px' : '16px',
+                        justifyContent: formData.orientation === 'portrait' ? 'flex-start' : 'center',
+                        gap: formData.orientation === 'landscape' ? '12px' : '0px',
                         flex: formData.orientation === 'landscape' ? '1' : 'none',
                         minWidth: 0,
                         width: formData.orientation === 'landscape' ? 'auto' : '100%',
                         height: formData.orientation === 'landscape' ? '100%' : 'auto',
-                        alignSelf: 'center'
+                        alignSelf: 'stretch',
+                        paddingBottom: formData.orientation === 'portrait' ? '16px' : '0'
                       }}>
                         {/* Theater Name Display */}
                         {selectedTheater && (
                           <div style={{
                             textAlign: 'center',
                             width: '100%',
-                            marginBottom: formData.orientation === 'landscape' ? '8px' : '12px'
+                            marginBottom: formData.orientation === 'landscape' ? '8px' : '6px',
+                            paddingTop: formData.orientation === 'portrait' ? '0' : '0'
                           }}>
                             <h2 style={{
-                              fontSize: formData.orientation === 'landscape' ? '1.5rem' : '1.75rem',
+                              fontSize: formData.orientation === 'landscape' ? '1.5rem' : '0.95rem',
                               fontWeight: '700',
                               color: '#000000',
                               margin: '0',
                               lineHeight: '1.2',
                               textTransform: 'uppercase',
-                              letterSpacing: '0.05em'
+                              letterSpacing: formData.orientation === 'portrait' ? '0.05em' : '0.05em'
                             }}>
                               {selectedTheater.name}
                             </h2>
+                          </div>
+                        )}
+                        
+                        {/* "ORDER YOUR FOOD HERE" Text */}
+                        {formData.orientation === 'portrait' && (
+                          <div style={{
+                            textAlign: 'center',
+                            width: '100%',
+                            marginBottom: '8px'
+                          }}>
+                            <h3 style={{
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              color: '#000000',
+                              margin: '0',
+                              lineHeight: '1.2',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.02em'
+                            }}>
+                              ORDER YOUR FOOD HERE
+                            </h3>
                           </div>
                         )}
                         
@@ -1640,8 +1704,9 @@ const QRGenerate = React.memo(() => {
                           alignItems: 'center',
                           width: '100%',
                           position: 'relative',
-                          minHeight: formData.orientation === 'landscape' ? '100px' : '80px',
-                          height: '100%',
+                          minHeight: formData.orientation === 'landscape' ? '100px' : '50px',
+                          height: 'auto',
+                          marginBottom: formData.orientation === 'portrait' ? '8px' : '0',
                           cursor: 'pointer',
                           transition: 'transform 0.3s ease, opacity 0.3s ease',
                           transform: 'scale(1)'
@@ -1659,10 +1724,10 @@ const QRGenerate = React.memo(() => {
                             src={imageAlternatives[currentImageIndex]} 
                             alt="Scan Order Pay" 
                             style={{
-                              maxWidth: formData.orientation === 'landscape' ? '100%' : '100%',
+                              maxWidth: formData.orientation === 'landscape' ? '100%' : '65%',
                               width: 'auto',
                               height: 'auto',
-                              maxHeight: formData.orientation === 'landscape' ? '140px' : '160px',
+                              maxHeight: formData.orientation === 'landscape' ? '140px' : '55px',
                               objectFit: 'contain',
                               display: imageError && currentImageIndex >= imageAlternatives.length - 1 ? 'none' : 'block',
                               margin: 'auto',
@@ -1694,42 +1759,65 @@ const QRGenerate = React.memo(() => {
                             loading="eager"
                           />
                         </div>
+
+                        {/* "Scan | Order | Pay" Text for Portrait */}
+                        {formData.orientation === 'portrait' && (
+                          <div style={{
+                            textAlign: 'center',
+                            width: '100%',
+                            marginBottom: '10px',
+                            marginTop: 'auto'
+                          }}>
+                            <p style={{
+                              fontSize: '0.7rem',
+                              fontWeight: '600',
+                              color: '#000000',
+                              margin: '0',
+                              letterSpacing: '0.05em'
+                            }}>
+                              Scan | Order | Pay
+                            </p>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Right/Bottom Section - QR Code */}
+                      {/* Bottom Section - QR Code (Portrait) */}
                       <div className="qr-preview-qr" style={{
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '12px',
+                        justifyContent: formData.orientation === 'portrait' ? 'flex-end' : 'center',
+                        gap: formData.orientation === 'portrait' ? '6px' : '12px',
                         flexShrink: 0,
-                        alignSelf: 'center'
+                        alignSelf: 'center',
+                        width: formData.orientation === 'portrait' ? '100%' : 'auto',
+                        marginTop: formData.orientation === 'portrait' ? 'auto' : '0'
                       }}>
                         {/* QR Code Display */}
                         <div style={{
-                          width: formData.orientation === 'landscape' ? '180px' : '220px',
-                          height: formData.orientation === 'landscape' ? '180px' : '220px',
-                          borderRadius: '8px',
+                          width: formData.orientation === 'landscape' ? '180px' : '145px',
+                          height: formData.orientation === 'landscape' ? '180px' : '145px',
+                          borderRadius: formData.orientation === 'portrait' ? '10px' : '8px',
                           background: '#FFFFFF',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           position: 'relative',
                           overflow: 'hidden',
-                          padding: '12px',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                          padding: formData.orientation === 'portrait' ? '8px' : '12px',
+                          boxShadow: formData.orientation === 'portrait' ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.15)',
                           cursor: 'pointer',
                           transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                          transform: 'scale(1)'
+                          transform: 'scale(1)',
+                          border: formData.orientation === 'portrait' ? '1px solid #E5E7EB' : 'none'
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.transform = 'scale(1.05)';
-                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.25)';
+                          e.currentTarget.style.boxShadow = formData.orientation === 'portrait' ? '0 6px 16px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.25)';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.transform = 'scale(1)';
-                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
+                          e.currentTarget.style.boxShadow = formData.orientation === 'portrait' ? '0 4px 12px rgba(0, 0, 0, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.15)';
                         }}
                         >
                           <canvas
@@ -1740,20 +1828,40 @@ const QRGenerate = React.memo(() => {
                               maxWidth: '100%',
                               maxHeight: '100%',
                               objectFit: 'contain',
-                              borderRadius: '4px',
+                              borderRadius: formData.orientation === 'portrait' ? '8px' : '4px',
                               display: 'block'
                             }}
                           />
                         </div>
 
                         {/* Theater Info Footer */}
-                        {selectedTheater && formData.name && (
+                        {selectedTheater && formData.name && formData.orientation === 'portrait' && (
+                          <div style={{
+                            width: '100%',
+                            paddingTop: '6px',
+                            marginTop: '0px',
+                            textAlign: 'center',
+                            fontSize: '0.65rem',
+                            color: '#6B7280',
+                            fontWeight: '500',
+                            fontFamily: 'Arial, sans-serif',
+                            borderTop: '1px solid #F3F4F6'
+                          }}>
+                            {selectedTheater.name}
+                            {selectedTheater.location?.city && ` - ${selectedTheater.location.city}`}
+                            {selectedTheater.location?.area && ` - ${selectedTheater.location.area}`}
+                            {formData.qrType === 'screen' && ` - Screen`}
+                            {formData.qrType === 'screen' && formData.selectedSeats.length > 0 && ` - ${formData.selectedSeats[0]}`}
+                            {formData.qrType === 'screen' && formData.selectedSeats.length === 0 && ' - __'}
+                          </div>
+                        )}
+                        {selectedTheater && formData.name && formData.orientation === 'landscape' && (
                           <div style={{
                             width: '100%',
                             borderTop: '1px solid #E5E7EB',
                             paddingTop: '12px',
                             marginTop: '12px',
-                            textAlign: formData.orientation === 'landscape' ? 'center' : 'center',
+                            textAlign: 'center',
                             fontSize: '0.875rem',
                             color: '#000000',
                             fontWeight: '500',

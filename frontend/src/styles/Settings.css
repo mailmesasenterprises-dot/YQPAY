@@ -238,9 +238,11 @@
 }
 
 /* Corporate Action Buttons - Matching AddTheater Design */
+/* Scoped to settings pages only to prevent CSS leakage to other pages */
 .settings-section .action-buttons,
 .settings-section .form-actions,
-.action-buttons {
+.settings-content .action-buttons,
+.settings-container .action-buttons {
   display: flex;
   justify-content: flex-start;
   gap: 12px;
@@ -249,10 +251,27 @@
   border-top: 1px solid var(--border-color);
 }
 
+/* Prevent Settings.css styles from affecting table action columns */
+table .action-buttons,
+.theater-table .action-buttons,
+.qr-management-table .action-buttons,
+.data-table .action-buttons,
+.actions-cell .action-buttons,
+.action-cell .action-buttons {
+  border-top: none !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
 /* Corporate Primary Button - Matching AddTheater Design */
+/* Scoped to settings pages only */
 .settings-button.primary,
-.action-buttons .btn-primary,
-.action-buttons button[variant="primary"] {
+.settings-section .action-buttons .btn-primary,
+.settings-content .action-buttons .btn-primary,
+.settings-container .action-buttons .btn-primary,
+.settings-section .action-buttons button[variant="primary"],
+.settings-content .action-buttons button[variant="primary"],
+.settings-container .action-buttons button[variant="primary"] {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: var(--white);
   border: none;
@@ -270,8 +289,12 @@
 }
 
 .settings-button.primary::before,
-.action-buttons .btn-primary::before,
-.action-buttons button[variant="primary"]::before {
+.settings-section .action-buttons .btn-primary::before,
+.settings-content .action-buttons .btn-primary::before,
+.settings-container .action-buttons .btn-primary::before,
+.settings-section .action-buttons button[variant="primary"]::before,
+.settings-content .action-buttons button[variant="primary"]::before,
+.settings-container .action-buttons button[variant="primary"]::before {
   content: '';
   position: absolute;
   top: 0;
@@ -283,22 +306,35 @@
 }
 
 .settings-button.primary:hover:not(:disabled)::before,
-.action-buttons .btn-primary:hover:not(:disabled)::before,
-.action-buttons button[variant="primary"]:hover:not(:disabled)::before {
+.settings-section .action-buttons .btn-primary:hover:not(:disabled)::before,
+.settings-content .action-buttons .btn-primary:hover:not(:disabled)::before,
+.settings-container .action-buttons .btn-primary:hover:not(:disabled)::before,
+.settings-section .action-buttons button[variant="primary"]:hover:not(:disabled)::before,
+.settings-content .action-buttons button[variant="primary"]:hover:not(:disabled)::before,
+.settings-container .action-buttons button[variant="primary"]:hover:not(:disabled)::before {
   left: 100%;
 }
 
 .settings-button.primary:hover:not(:disabled),
-.action-buttons .btn-primary:hover:not(:disabled),
-.action-buttons button[variant="primary"]:hover:not(:disabled) {
+.settings-section .action-buttons .btn-primary:hover:not(:disabled),
+.settings-content .action-buttons .btn-primary:hover:not(:disabled),
+.settings-container .action-buttons .btn-primary:hover:not(:disabled),
+.settings-section .action-buttons button[variant="primary"]:hover:not(:disabled),
+.settings-content .action-buttons button[variant="primary"]:hover:not(:disabled),
+.settings-container .action-buttons button[variant="primary"]:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px var(--shadow-primary);
 }
 
 /* Corporate Secondary Button - Matching AddTheater Design */
+/* Scoped to settings pages only */
 .settings-button.secondary,
-.action-buttons .btn-secondary,
-.action-buttons button[variant="secondary"] {
+.settings-section .action-buttons .btn-secondary,
+.settings-content .action-buttons .btn-secondary,
+.settings-container .action-buttons .btn-secondary,
+.settings-section .action-buttons button[variant="secondary"],
+.settings-content .action-buttons button[variant="secondary"],
+.settings-container .action-buttons button[variant="secondary"] {
   background: var(--white);
   color: var(--text-dark);
   border: 1.5px solid var(--border-color);
@@ -313,8 +349,12 @@
 }
 
 .settings-button.secondary:hover,
-.action-buttons .btn-secondary:hover,
-.action-buttons button[variant="secondary"]:hover {
+.settings-section .action-buttons .btn-secondary:hover,
+.settings-content .action-buttons .btn-secondary:hover,
+.settings-container .action-buttons .btn-secondary:hover,
+.settings-section .action-buttons button[variant="secondary"]:hover,
+.settings-content .action-buttons button[variant="secondary"]:hover,
+.settings-container .action-buttons button[variant="secondary"]:hover {
   background: var(--background-light);
   border-color: var(--primary-color);
   color: var(--primary-color);
@@ -457,13 +497,19 @@
     gap: var(--spacing-sm);
   }
   
-  .action-buttons {
+  .settings-section .action-buttons,
+  .settings-content .action-buttons,
+  .settings-container .action-buttons {
     flex-direction: column;
   }
   
   .settings-button.primary,
-  .action-buttons .btn-primary,
-  .action-buttons button[variant="primary"] {
+  .settings-section .action-buttons .btn-primary,
+  .settings-content .action-buttons .btn-primary,
+  .settings-container .action-buttons .btn-primary,
+  .settings-section .action-buttons button[variant="primary"],
+  .settings-content .action-buttons button[variant="primary"],
+  .settings-container .action-buttons button[variant="primary"] {
     width: 100%;
   }
 }

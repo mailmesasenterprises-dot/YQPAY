@@ -8,8 +8,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import { usePerformanceMonitoring } from '../../hooks/usePerformanceMonitoring';
 import config from '../../config';
+import { 
+  TextField, 
+  Select, 
+  MenuItem, 
+  FormControl, 
+  InputLabel, 
+  FormHelperText,
+  Box
+} from '@mui/material';
 import '../../styles/TheaterGlobalModals.css'; // Global theater modal styles
 import '../../styles/AddTheater.css'; // Keep original form styling only
+import '../../styles/AddProductMUI.css'; // MUI form component styles
 import { useDeepMemo, useComputed } from '../../utils/ultraPerformance';
 import { ultraFetch } from '../../utils/ultraFetch';
 
@@ -814,14 +824,18 @@ const AddProduct = React.memo(() => {
         throw new Error('Please select a valid category');
       }
       
+      // Find the selected KioskType to get its ID
+      const selectedKioskType = kioskTypes.find(kt => kt.name === formData.kioskType || kt._id === formData.kioskType);
+      
       // Prepare product data matching backend schema
       const productData = {
         name: formData.name,
         description: formData.description || '',
         categoryId: selectedCategory.id, // Backend expects categoryId as ObjectId
+        kioskType: selectedKioskType ? selectedKioskType._id : undefined, // Add kioskType ID
         productTypeId: selectedProduct ? selectedProduct.id : null, // Backend expects productTypeId
         sku: formData.productCode || '', // Map productCode to sku
-        quantity: formData.quantity || '',
+        quantity: formData.quantity || '', // Send quantity (e.g., "150ML")
         pricing: {
           basePrice: parseFloat(formData.sellingPrice), // Backend expects pricing.basePrice
           salePrice: formData.costPrice ? parseFloat(formData.costPrice) : parseFloat(formData.sellingPrice),
@@ -831,7 +845,7 @@ const AddProduct = React.memo(() => {
         },
         inventory: {
           trackStock: true,
-          currentStock: formData.quantity ? parseInt(formData.quantity) : 0,
+          currentStock: 0, // Don't use quantity as stock - use stock management page
           minStock: formData.lowStockAlert ? parseInt(formData.lowStockAlert) : 5,
           maxStock: 1000
         },
@@ -842,6 +856,12 @@ const AddProduct = React.memo(() => {
         isActive: true,
         status: 'active'
       };
+      
+      console.log('📤 Sending product data:', {
+        kioskType: productData.kioskType,
+        quantity: productData.quantity,
+        images: productData.images
+      });
       
       // Add product details if isVeg or preparationTime is specified
       if (formData.isVeg !== '' || formData.preparationTime) {
@@ -978,111 +998,94 @@ const AddProduct = React.memo(() => {
           {!authLoading && (
           <form onSubmit={handleSubmit} className="add-theater-form" ref={formRef}>
             {/* Basic Information */}
-            <div className="form-section">
+            <div className="form-section mui-form-section">
               <h2>Basic Information</h2>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="name">Product Name *</label>
-                  <select
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className={errors.name ? 'form-control error' : 'form-control'}
-                    style={{
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      MozAppearance: 'none',
-                      backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 12px center',
-                      backgroundSize: '20px',
-                      paddingRight: '45px'
-                    }}
-                  >
-                    <option value="">
-                      {loadingProductNames ? 'Loading product names...' : 'Select Product Name...'}
-                    </option>
-                    {productNames.map((productName) => (
-                      <option key={productName.id} value={productName.name}>
-                        {productName.name}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.name && <span className="error-message">{errors.name}</span>}
-                </div>
+              <div className="form-grid mui-form-grid">
+                <Box className="mui-form-group">
+                  <FormControl fullWidth error={!!errors.name} required>
+                    <InputLabel id="name-label">Product Name *</InputLabel>
+                    <Select
+                      labelId="name-label"
+                      id="name"
+                      name="name"
+                      value={formData.name || ''}
+                      onChange={handleInputChange}
+                      label="Product Name *"
+                      disabled={loadingProductNames}
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>{loadingProductNames ? 'Loading product names...' : 'Select Product Name...'}</em>
+                      </MenuItem>
+                      {productNames.map((productName) => (
+                        <MenuItem key={productName.id} value={productName.name}>
+                          {productName.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    {errors.name && <FormHelperText>{errors.name}</FormHelperText>}
+                  </FormControl>
+                </Box>
 
+                <Box className="mui-form-group">
+                  <FormControl fullWidth>
+                    <InputLabel id="category-label">Category</InputLabel>
+                    <Select
+                      labelId="category-label"
+                      id="category"
+                      name="category"
+                      value={formData.category || ''}
+                      onChange={handleInputChange}
+                      label="Category"
+                      disabled={loadingCategories}
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>{loadingCategories ? 'Loading categories...' : 'Select category...'}</em>
+                      </MenuItem>
+                      {categories.map((category) => (
+                        <MenuItem key={category.id} value={category.name}>
+                          {category.name} {category.description ? `- ${category.description}` : ''}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
 
+                <Box className="mui-form-group">
+                  <FormControl fullWidth>
+                    <InputLabel id="kioskType-label">Kiosk Type</InputLabel>
+                    <Select
+                      labelId="kioskType-label"
+                      id="kioskType"
+                      name="kioskType"
+                      value={formData.kioskType || ''}
+                      onChange={handleInputChange}
+                      label="Kiosk Type"
+                      disabled={loadingKioskTypes}
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>{loadingKioskTypes ? 'Loading kiosk types...' : 'Select kiosk type...'}</em>
+                      </MenuItem>
+                      {kioskTypes.map((kioskType) => (
+                        <MenuItem key={kioskType.id} value={kioskType.id}>
+                          {kioskType.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
 
-                <div className="form-group">
-                  <label htmlFor="category">Category</label>
-                  <select
-                    id="category"
-                    name="category"
-                    value={formData.category}
-                    onChange={handleInputChange}
-                    className="form-control"
-                    style={{
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      MozAppearance: 'none',
-                      backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 12px center',
-                      backgroundSize: '20px',
-                      paddingRight: '45px'
-                    }}
-                  >
-                    <option value="">
-                      {loadingCategories ? 'Loading categories...' : 'Select category...'}
-                    </option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.name}>
-                        {category.name} {category.description ? `- ${category.description}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="kioskType">Kiosk Type</label>
-                  <select
-                    id="kioskType"
-                    name="kioskType"
-                    value={formData.kioskType}
-                    onChange={handleInputChange}
-                    className="form-control"
-                    style={{
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      MozAppearance: 'none',
-                      backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 12px center',
-                      backgroundSize: '20px',
-                      paddingRight: '45px'
-                    }}
-                  >
-                    <option value="">
-                      {loadingKioskTypes ? 'Loading kiosk types...' : 'Select kiosk type...'}
-                    </option>
-                    {kioskTypes.map((kioskType) => (
-                      <option key={kioskType.id} value={kioskType.id}>
-                        {kioskType.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="quantity">Quantity</label>
-                  <input
-                    type="text"
+                <Box className="mui-form-group">
+                  <TextField
                     id="quantity"
                     name="quantity"
+                    label="Quantity"
                     value={formData.quantity || ''}
                     onChange={handleInputChange}
-                    className={errors.quantity ? 'form-control error' : 'form-control'}
+                    error={!!errors.quantity}
+                    helperText={errors.quantity || ''}
                     placeholder={
                       isQuantityDisabled && formData.quantity 
                         ? "Auto-filled from product name" 
@@ -1091,25 +1094,19 @@ const AddProduct = React.memo(() => {
                         : "Enter quantity"
                     }
                     disabled={isQuantityDisabled}
-                    style={{
-                      backgroundColor: isQuantityDisabled ? '#f5f5f5' : 'white',
-                      color: isQuantityDisabled ? '#666' : 'inherit',
-                      cursor: isQuantityDisabled ? 'not-allowed' : 'text',
-                      border: isQuantityDisabled ? '2px solid #ccc' : '1px solid #ddd'
-                    }}
+                    fullWidth
                   />
-                  {errors.quantity && <span className="error-message">{errors.quantity}</span>}
-                </div>
+                </Box>
 
-                <div className="form-group">
-                  <label htmlFor="productCode">Product Code / SKU</label>
-                  <input
-                    type="text"
+                <Box className="mui-form-group">
+                  <TextField
                     id="productCode"
                     name="productCode"
+                    label="Product Code / SKU"
                     value={formData.productCode || ''}
                     onChange={handleInputChange}
-                    className={errors.productCode ? 'form-control error' : 'form-control'}
+                    error={!!errors.productCode}
+                    helperText={errors.productCode || ''}
                     placeholder={
                       isProductCodeDisabled && formData.productCode 
                         ? "Auto-filled from product name" 
@@ -1118,197 +1115,179 @@ const AddProduct = React.memo(() => {
                         : "Enter product code"
                     }
                     disabled={isProductCodeDisabled}
-                    style={{
-                      backgroundColor: isProductCodeDisabled ? '#f5f5f5' : 'white',
-                      color: isProductCodeDisabled ? '#666' : 'inherit',
-                      cursor: isProductCodeDisabled ? 'not-allowed' : 'text',
-                      border: isProductCodeDisabled ? '2px solid #ccc' : '1px solid #ddd'
-                    }}
+                    fullWidth
                   />
-                  {errors.productCode && <span className="error-message">{errors.productCode}</span>}
-                </div>
+                </Box>
 
-                <div className="form-group full-width">
-                  <label htmlFor="description">Description</label>
-                  <textarea
+                <Box className="mui-form-group full-width">
+                  <TextField
                     id="description"
                     name="description"
+                    label="Description"
                     value={formData.description}
                     onChange={handleInputChange}
-                    className="form-control"
                     placeholder="Enter product description (optional)"
-                    rows="3"
+                    multiline
+                    rows={2}
+                    fullWidth
                   />
-                </div>
+                </Box>
               </div>
             </div>
 
             {/* Pricing Information */}
-            <div className="form-section">
+            <div className="form-section mui-form-section">
               <h2>Pricing Details</h2>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="sellingPrice">Selling Price *</label>
-                  <input
-                    type="number"
-                    step="0.01"
+              <div className="form-grid mui-form-grid">
+                <Box className="mui-form-group">
+                  <TextField
                     id="sellingPrice"
                     name="sellingPrice"
+                    label="Selling Price *"
+                    type="number"
+                    inputProps={{ step: "0.01" }}
                     value={formData.sellingPrice}
                     onChange={handleInputChange}
-                    className={errors.sellingPrice ? 'form-control error' : 'form-control'}
+                    error={!!errors.sellingPrice}
+                    helperText={errors.sellingPrice || ''}
                     placeholder="Enter selling price"
+                    required
+                    fullWidth
                   />
-                  {errors.sellingPrice && <span className="error-message">{errors.sellingPrice}</span>}
-                </div>
+                </Box>
 
-                <div className="form-group">
-                  <label htmlFor="costPrice">Cost Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
+                <Box className="mui-form-group">
+                  <TextField
                     id="costPrice"
                     name="costPrice"
+                    label="Cost Price"
+                    type="number"
+                    inputProps={{ step: "0.01" }}
                     value={formData.costPrice}
                     onChange={handleInputChange}
-                    className="form-control"
                     placeholder="Enter cost price (optional)"
+                    fullWidth
                   />
-                </div>
+                </Box>
 
-                <div className="form-group">
-                  <label htmlFor="discount">Discount (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
+                <Box className="mui-form-group">
+                  <TextField
                     id="discount"
                     name="discount"
+                    label="Discount (%)"
+                    type="number"
+                    inputProps={{ step: "0.01", min: "0", max: "100" }}
                     value={formData.discount}
                     onChange={handleInputChange}
-                    className="form-control"
                     placeholder="Enter discount percentage"
+                    fullWidth
                   />
-                </div>
+                </Box>
 
+                <Box className="mui-form-group">
+                  <FormControl fullWidth required>
+                    <InputLabel id="gstType-label">GST Type *</InputLabel>
+                    <Select
+                      labelId="gstType-label"
+                      id="gstType"
+                      name="gstType"
+                      value={formData.gstType || ''}
+                      onChange={handleInputChange}
+                      label="GST Type *"
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>Select GST Type...</em>
+                      </MenuItem>
+                      <MenuItem value="EXCLUDE">EXCLUDE (GST added separately)</MenuItem>
+                      <MenuItem value="INCLUDE">INCLUDE (GST included in price)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
 
-
-                <div className="form-group">
-                  <label htmlFor="gstType">GST Type *</label>
-                  <select
-                    id="gstType"
-                    name="gstType"
-                    value={formData.gstType}
-                    onChange={handleInputChange}
-                    className="form-control"
-                    required
-                    style={{
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      MozAppearance: 'none',
-                      backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 12px center',
-                      backgroundSize: '20px',
-                      paddingRight: '45px'
-                    }}
-                  >
-                    <option value="">Select GST Type...</option>
-                    <option value="EXCLUDE">EXCLUDE (GST added separately)</option>
-                    <option value="INCLUDE">INCLUDE (GST included in price)</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="taxRate">Tax Rate (%) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
+                <Box className="mui-form-group">
+                  <TextField
                     id="taxRate"
                     name="taxRate"
+                    label="Tax Rate (%) *"
+                    type="number"
+                    inputProps={{ step: "0.01", min: "0", max: "100" }}
                     value={formData.taxRate}
                     onChange={handleInputChange}
-                    className="form-control"
                     placeholder="Enter tax rate percentage"
                     required
+                    fullWidth
                   />
-                </div>
-
+                </Box>
               </div>
             </div>
 
             {/* Food Information & Display Settings */}
-            <div className="form-section">
+            <div className="form-section mui-form-section">
               <h2>Food Information & Display</h2>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label htmlFor="isVeg">Is Veg / Non-Veg *</label>
-                  <select
-                    id="isVeg"
-                    name="isVeg"
-                    value={formData.isVeg === '' ? '' : formData.isVeg.toString()}
-                    onChange={(e) => handleInputChange({ target: { name: 'isVeg', value: e.target.value, type: 'select' } })}
-                    className="form-control"
-                    style={{
-                      appearance: 'none',
-                      WebkitAppearance: 'none',
-                      MozAppearance: 'none',
-                      backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'currentColor\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3e%3cpolyline points=\'6,9 12,15 18,9\'%3e%3c/polyline%3e%3c/svg%3e")',
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'right 12px center',
-                      backgroundSize: '20px',
-                      paddingRight: '45px'
-                    }}
-                  >
-                    <option value="">Select Type...</option>
-                    <option value="true">Vegetarian</option>
-                    <option value="false">Non-Vegetarian</option>
-                  </select>
-                </div>
+              <div className="form-grid mui-form-grid">
+                <Box className="mui-form-group">
+                  <FormControl fullWidth required>
+                    <InputLabel id="isVeg-label">Is Veg / Non-Veg *</InputLabel>
+                    <Select
+                      labelId="isVeg-label"
+                      id="isVeg"
+                      name="isVeg"
+                      value={formData.isVeg === '' ? '' : formData.isVeg.toString()}
+                      onChange={(e) => handleInputChange({ target: { name: 'isVeg', value: e.target.value, type: 'select' } })}
+                      label="Is Veg / Non-Veg *"
+                      displayEmpty
+                    >
+                      <MenuItem value="">
+                        <em>Select Type...</em>
+                      </MenuItem>
+                      <MenuItem value="true">Vegetarian</MenuItem>
+                      <MenuItem value="false">Non-Vegetarian</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
 
-                <div className="form-group">
-                  <label htmlFor="preparationTime">Preparation Time (minutes)</label>
-                  <input
-                    type="number"
-                    min="0"
+                <Box className="mui-form-group">
+                  <TextField
                     id="preparationTime"
                     name="preparationTime"
+                    label="Preparation Time (minutes)"
+                    type="number"
+                    inputProps={{ min: "0" }}
                     value={formData.preparationTime}
                     onChange={handleInputChange}
-                    className="form-control"
                     placeholder="Enter preparation time"
+                    fullWidth
                   />
-                </div>
+                </Box>
 
-                <div className="form-group">
-                  <label htmlFor="lowStockAlert">Low Stock Alert Level</label>
-                  <input
-                    type="number"
-                    min="0"
+                <Box className="mui-form-group">
+                  <TextField
                     id="lowStockAlert"
                     name="lowStockAlert"
+                    label="Low Stock Alert Level"
+                    type="number"
+                    inputProps={{ min: "0" }}
                     value={formData.lowStockAlert}
                     onChange={handleInputChange}
-                    className="form-control"
                     placeholder="Enter low stock alert level"
+                    fullWidth
                   />
-                </div>
+                </Box>
 
-                <div className="form-group full-width">
-                  <label htmlFor="ingredients">Ingredients</label>
-                  <textarea
+                <Box className="mui-form-group full-width">
+                  <TextField
                     id="ingredients"
                     name="ingredients"
+                    label="Ingredients"
                     value={formData.ingredients}
                     onChange={handleInputChange}
-                    className="form-control"
                     placeholder="Enter ingredients (optional)"
-                    rows="3"
+                    multiline
+                    rows={2}
+                    fullWidth
                   />
-                </div>
+                </Box>
               </div>
             </div>
 

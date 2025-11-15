@@ -313,23 +313,28 @@
 }
 
 .theater-user-settings-content .status-badge {
-  display: inline-block;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 6px 12px !important;
+  border-radius: 20px !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  margin: 0 8px !important;
 }
 
 .theater-user-settings-content .status-badge.active {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  color: #065f46;
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: var(--success-color, #10b981) !important;
+  border: none !important;
 }
 
 .theater-user-settings-content .status-badge.inactive {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #dc2626;
+  background: rgba(156, 163, 175, 0.15) !important;
+  color: var(--text-gray, #6b7280) !important;
+  border: none !important;
 }
 
 .theater-user-settings-content .access-status-cell {
@@ -976,22 +981,25 @@
 .theater-user-details-page .status-badge {
   padding: 6px 12px;
   border-radius: 20px;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .theater-user-details-page .status-badge.active {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success-color, #10b981);
+  border: none;
 }
 
 .theater-user-details-page .status-badge.inactive {
-  background: #fee2e2;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
+  background: rgba(156, 163, 175, 0.15);
+  color: var(--text-gray, #6b7280);
+  border: none;
 }
 
 /* Action Buttons - Compact Corporate Style */

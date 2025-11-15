@@ -1070,6 +1070,9 @@ const StockManagement = React.memo(() => {
   const [loading, setLoading] = useState(!initialCachedStock); // 🚀 Start false if cache exists
   const [error, setError] = useState(null);
   const [hasData, setHasData] = useState(!!initialCachedStock); // 🚀 Track if we have any data to show
+  
+  // Excel download state
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
 
   // Removed debug useEffect hooks for better performance
   const [pagination, setPagination] = useState({
@@ -1300,7 +1303,9 @@ const StockManagement = React.memo(() => {
         console.log('📦 Setting stock data:', {
           entriesCount: sortedEntries.length,
           summary: finalSummary,
-          pagination: finalPagination
+          pagination: finalPagination,
+          firstEntry: sortedEntries[0],
+          lastEntry: sortedEntries[sortedEntries.length - 1]
         });
 
         // Batch all state updates together using React 18 automatic batching
@@ -1311,6 +1316,8 @@ const StockManagement = React.memo(() => {
         setMonthlySummaries([]);
         setMonthlySummariesTotals(null);
         setHasData(sortedEntries.length > 0);
+        
+        console.log('✅ State updated - stockEntries:', sortedEntries.length, 'entries');
         
         // 🚀 INSTANT: Cache the data for instant loading next time
         const cacheKey = `stock_${theaterId}_${productId}_all`;
@@ -1563,6 +1570,7 @@ const StockManagement = React.memo(() => {
   // Handle Excel download
   const handleDownloadExcel = useCallback(async () => {
     try {
+      setDownloadingExcel(true);
       const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                          'July', 'August', 'September', 'October', 'November', 'December'];
       const monthName = monthNames[dateFilter.month - 1];
@@ -1603,6 +1611,8 @@ const StockManagement = React.memo(() => {
         show: true,
         message: 'Failed to download Excel file'
       });
+    } finally {
+      setDownloadingExcel(false);
     }
   }, [theaterId, productId, dateFilter.year, dateFilter.month, getAuthToken, product]);
 
@@ -1693,6 +1703,8 @@ const StockManagement = React.memo(() => {
       const result = await response.json();
 
       if (result.success) {
+        console.log('✅ Stock entry saved successfully:', result);
+        
         // Store the operation type BEFORE clearing editingEntry
         const isUpdate = !!editingEntry;
         
@@ -1707,19 +1719,26 @@ const StockManagement = React.memo(() => {
           isUpdate: isUpdate
         });
 
+        console.log('🔄 Refreshing stock data after save...');
+        
         // Refresh data IMMEDIATELY without delay - don't clear existing data first
         // This ensures values show instantly
         try {
           if (fetchStockDataRef.current) {
+            console.log('📞 Calling fetchStockDataRef.current()...');
             await fetchStockDataRef.current();
+            console.log('✅ Stock data refreshed successfully');
+          } else {
+            console.error('❌ fetchStockDataRef.current is not defined!');
           }
         } catch (error) {
           // Silently handle abort errors during refresh after save
           if (error.name !== 'AbortError' && !error.message?.includes('aborted')) {
-            console.error('Error refreshing data after save:', error);
+            console.error('❌ Error refreshing data after save:', error);
           }
         }
   } else {
+        console.error('❌ Save failed:', result);
         throw new Error(result.message || 'Failed to save stock entry');
       }
   } catch (error) {
@@ -2221,31 +2240,37 @@ const StockManagement = React.memo(() => {
           <div className="theater-filters">
             <div className="filter-controls">
               <button 
+                type="button"
+                className="submit-btn excel-download-btn"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDownloadExcel();
+                }}
+                disabled={downloadingExcel || loading}
+                style={{
+                  backgroundColor: downloadingExcel ? '#9ca3af' : '#10b981',
+                  cursor: downloadingExcel || loading ? 'not-allowed' : 'pointer',
+                  opacity: downloadingExcel || loading ? 0.6 : 1,
+                  pointerEvents: downloadingExcel || loading ? 'none' : 'auto',
+                  minWidth: '100px',
+                  padding: '8px 16px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span className="btn-icon">{downloadingExcel ? '⏳' : '📊'}</span>
+                {downloadingExcel ? 'Downloading...' : 'EXCEL'}
+              </button>
+              <button 
                 className="submit-btn date-filter-btn"
                 onClick={() => setShowDateFilterModal(true)}
               >
                 <span className="btn-icon">📅</span>
                 {dateFilter.type === 'all' ? 'Date Filter' : 
-                 dateFilter.type === 'date' ? `Today (${new Date(dateFilter.selectedDate).toLocaleDateString()})` :
+                 dateFilter.type === 'date' ? `TODAY (${new Date(dateFilter.selectedDate).toLocaleDateString('en-GB')})` :
                  dateFilter.type === 'month' ? `${new Date(dateFilter.year, dateFilter.month - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
                  dateFilter.type === 'year' ? `Year ${dateFilter.year}` :
                  'Date Filter'}
-              </button>
-
-              <button 
-                className="submit-btn"
-                onClick={handleDownloadExcel}
-                style={{ 
-                  background: '#059669', 
-                  marginLeft: '10px',
-                  padding: '10px 20px',
-                  minWidth: 'auto',
-                  width: 'auto'
-                }}
-                title="Download current month stock data as Excel"
-              >
-                <span className="btn-icon">📥</span>
-                Download Excel
               </button>
               
               <div className="results-count">
