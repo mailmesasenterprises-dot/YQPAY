@@ -648,6 +648,10 @@ if (cacheMiddleware) {
 }
 // app.use('/api/settings', settingsRoutes); // OLD - kept for reference
 
+// SMS (MVC pattern - no cache - real-time operations)
+const smsRoutesMVC = require('./routes/sms.mvc');
+app.use('/api/sms', smsRoutesMVC);
+
 app.use('/api/chat', require('./routes/chat')); // Chat messaging routes
 app.use('/api/notifications', require('./routes/notifications')); // Real-time notifications
 

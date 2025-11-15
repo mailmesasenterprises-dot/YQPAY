@@ -9,9 +9,118 @@ const mongoose = require('mongoose');
 
 let storageClient = null;
 let bucketName = null;
+let lastConfigCheck = null; // Track when config was last checked
 const USE_MOCK_MODE = process.env.GCS_MOCK_MODE === 'true' || false; // Check env variable
+
+/**
+ * Reset GCS client (force re-initialization on next use)
+ * This is called when GCS configuration is updated
+ */
+function resetGCSClient() {
+  storageClient = null;
+  bucketName = null;
+  lastConfigCheck = null;
+  console.log('🔄 [GCS] Client reset - will re-initialize on next upload');
+}
+/**
+ * Get or create system settings document (same logic as SettingsService)
+ * This ensures we use the new _systemSettings: true format
+ */
+async function _getOrCreateSystemSettingsDoc(db) {
+  // First try to find system settings document
+  let systemDoc = await db.collection('settings').findOne({ 
+    _systemSettings: true
+  });
+
+  // If found, return it
+  if (systemDoc) {
+    return systemDoc;
+  }
+
+  // Try to find any old format document (general, sms, firebase, etc.)
+  const oldDocs = await db.collection('settings').find({
+    $or: [
+      { type: 'general', theaterId: null, category: null, key: null },
+      { type: 'sms', theaterId: null, category: null, key: null },
+      { type: 'firebase', theaterId: null, category: null, key: null },
+      { type: 'gcs', theaterId: null, category: null, key: null },
+      { type: 'mail', theaterId: null, category: null, key: null },
+      { type: 'mongodb', theaterId: null, category: null, key: null }
+    ]
+  }).toArray();
+
+  if (oldDocs.length > 0) {
+    // Use the first old document and migrate it to system settings format
+    const docToMigrate = oldDocs[0];
+    
+    // Merge all configs from old documents into one
+    const mergedConfig = {
+      generalConfig: docToMigrate.generalConfig || {},
+      smsConfig: docToMigrate.smsConfig || {},
+      firebaseConfig: docToMigrate.firebaseConfig || {},
+      gcsConfig: docToMigrate.gcsConfig || {},
+      mailConfig: docToMigrate.mailConfig || {},
+      mongodbConfig: docToMigrate.mongodbConfig || {}
+    };
+    
+    // Merge configs from other old documents
+    oldDocs.slice(1).forEach(oldDoc => {
+      if (oldDoc.generalConfig) mergedConfig.generalConfig = { ...mergedConfig.generalConfig, ...oldDoc.generalConfig };
+      if (oldDoc.smsConfig) mergedConfig.smsConfig = { ...mergedConfig.smsConfig, ...oldDoc.smsConfig };
+      if (oldDoc.firebaseConfig) mergedConfig.firebaseConfig = { ...mergedConfig.firebaseConfig, ...oldDoc.firebaseConfig };
+      if (oldDoc.gcsConfig) mergedConfig.gcsConfig = { ...mergedConfig.gcsConfig, ...oldDoc.gcsConfig };
+      if (oldDoc.mailConfig) mergedConfig.mailConfig = { ...mergedConfig.mailConfig, ...oldDoc.mailConfig };
+      if (oldDoc.mongodbConfig) mergedConfig.mongodbConfig = { ...mergedConfig.mongodbConfig, ...oldDoc.mongodbConfig };
+    });
+
+    // Migrate the first document to system settings format
+    await db.collection('settings').findOneAndUpdate(
+      { _id: docToMigrate._id },
+      {
+        $set: {
+          ...mergedConfig,
+          _systemSettings: true,
+          lastUpdated: new Date()
+        },
+        $unset: {
+          type: '',
+          theaterId: '',
+          category: '',
+          key: ''
+        }
+      }
+    );
+
+    // Delete other duplicate documents
+    if (oldDocs.length > 1) {
+      const idsToDelete = oldDocs
+        .slice(1)
+        .map(d => d._id);
+      await db.collection('settings').deleteMany({ _id: { $in: idsToDelete } });
+      console.log(`✅ Consolidated ${oldDocs.length} old settings documents into one system settings document`);
+    }
+
+    // Return the migrated document
+    systemDoc = await db.collection('settings').findOne({ _id: docToMigrate._id });
+    return systemDoc;
+  }
+
+  // No existing document found - create a new system settings document
+  const systemSettingsId = new mongoose.Types.ObjectId();
+  const newDoc = {
+    _id: systemSettingsId,
+    _systemSettings: true,
+    createdAt: new Date(),
+    lastUpdated: new Date()
+  };
+  
+  await db.collection('settings').insertOne(newDoc);
+  return await db.collection('settings').findOne({ _id: systemSettingsId });
+}
+
 /**
  * Initialize GCS client with settings from database
+ * Uses the new _systemSettings: true format with nested gcsConfig
  */
 async function initializeGCS() {
   if (USE_MOCK_MODE) {
@@ -19,43 +128,121 @@ async function initializeGCS() {
   }
   
   try {
-    // Get GCS settings from database
+    // Get GCS settings from database using new format
     const db = mongoose.connection.db;
-    const settings = await db.collection('settings').find({ category: 'gcs' }).toArray();
+    const settingsDoc = await _getOrCreateSystemSettingsDoc(db);
     
-    if (!settings || settings.length === 0) {
-      console.warn('⚠️  GCS settings not found in database');
+    if (!settingsDoc) {
+      console.warn('⚠️  System settings document not found in database');
       return null;
     }
 
-    // Extract settings
-    const settingsMap = {};
-    settings.forEach(setting => {
-      settingsMap[setting.key] = setting.value;
-    });
+    // Extract GCS config from nested gcsConfig object
+    const gcsConfig = settingsDoc.gcsConfig || {};
+    
+    console.log('🔍 [GCS] Reading GCS config from database...');
+    console.log('   gcsConfig keys:', Object.keys(gcsConfig));
+    console.log('   hasCredentials:', !!gcsConfig.credentials);
+    console.log('   credentials type:', typeof gcsConfig.credentials);
+    
+    // Handle credentials structure (can be nested object or flat)
+    let clientEmail, privateKey;
+    if (gcsConfig.credentials) {
+      // Credentials are in a nested object
+      if (typeof gcsConfig.credentials === 'object') {
+        clientEmail = gcsConfig.credentials.clientEmail || gcsConfig.credentials.client_email || gcsConfig.credentials.email;
+        privateKey = gcsConfig.credentials.privateKey || gcsConfig.credentials.private_key || gcsConfig.credentials.privateKey;
+      } else {
+        // Credentials might be a JSON string
+        try {
+          const creds = typeof gcsConfig.credentials === 'string' ? JSON.parse(gcsConfig.credentials) : gcsConfig.credentials;
+          clientEmail = creds.clientEmail || creds.client_email || creds.email;
+          privateKey = creds.privateKey || creds.private_key;
+        } catch (e) {
+          console.warn('⚠️  Could not parse credentials object:', e.message);
+        }
+      }
+    } else {
+      // Fallback: Try flat structure (for backward compatibility)
+      clientEmail = gcsConfig.clientEmail || gcsConfig.client_email || gcsConfig.email;
+      privateKey = gcsConfig.privateKey || gcsConfig.private_key;
+    }
+    
+    const projectId = gcsConfig.projectId;
+    bucketName = gcsConfig.bucketName || 'theater-canteen-uploads';
 
-    const projectId = settingsMap.projectId;
-    const clientEmail = settingsMap.clientEmail;
-    const privateKey = settingsMap.privateKey ? settingsMap.privateKey.replace(/\\n/g, '\n') : null;
-    bucketName = settingsMap.bucketName || 'theater-canteen-uploads';
+    console.log('   projectId:', projectId ? '✅' : '❌');
+    console.log('   bucketName:', bucketName);
+    console.log('   clientEmail:', clientEmail ? `${clientEmail.substring(0, 30)}...` : '❌');
+    console.log('   privateKey:', privateKey ? `${privateKey.substring(0, 30)}...` : '❌');
+
+    // Handle private key formatting (replace \\n with actual newlines)
+    if (privateKey) {
+      privateKey = privateKey.replace(/\\n/g, '\n');
+      // Also handle escaped quotes if any
+      privateKey = privateKey.replace(/\\"/g, '"');
+    }
 
     if (!projectId || !clientEmail || !privateKey) {
-      console.warn('⚠️  GCS credentials incomplete');
+      console.warn('⚠️  GCS credentials incomplete:', {
+        hasProjectId: !!projectId,
+        hasClientEmail: !!clientEmail,
+        hasPrivateKey: !!privateKey,
+        bucketName: bucketName,
+        configKeys: Object.keys(gcsConfig)
+      });
+      console.warn('   💡 Please configure GCS in Settings → GCS Configuration');
+      console.warn('   💡 Required fields: projectId, bucketName, credentials.clientEmail, credentials.privateKey');
       return null;
     }
 
     // Initialize Storage client
-    storageClient = new Storage({
-      projectId: projectId,
-      credentials: {
-        client_email: clientEmail,
-        private_key: privateKey
+    try {
+      storageClient = new Storage({
+        projectId: projectId,
+        credentials: {
+          client_email: clientEmail,
+          private_key: privateKey
+        }
+      });
+      
+      // Test the connection by getting the bucket (doesn't actually make a request, just validates)
+      const bucket = storageClient.bucket(bucketName);
+      console.log('✅ GCS client initialized successfully');
+      console.log('   Project ID:', projectId);
+      console.log('   Bucket:', bucketName);
+      console.log('   Client Email:', clientEmail.substring(0, 30) + '...');
+      
+      // Verify bucket exists and is accessible
+      try {
+        const [exists] = await bucket.exists();
+        if (exists) {
+          console.log('✅ Bucket verified: exists and accessible');
+        } else {
+          console.warn('⚠️  Bucket does not exist or is not accessible:', bucketName);
+          console.warn('   Please create the bucket in Google Cloud Console');
+        }
+      } catch (verifyError) {
+        console.warn('⚠️  Could not verify bucket access:', verifyError.message);
+        // Don't fail initialization, bucket might be accessible even if verification fails
       }
-    });
-    return storageClient;
+      
+      return storageClient;
+    } catch (initError) {
+      console.error('❌ Failed to create GCS Storage client:', initError.message);
+      if (initError.message.includes('invalid') || initError.message.includes('credentials')) {
+        console.error('   💡 Please verify your GCS credentials are correct');
+        console.error('   💡 Check that client_email and private_key are valid');
+      }
+      storageClient = null;
+      return null;
+    }
 
   } catch (error) {
     console.error('❌ Failed to initialize GCS:', error.message);
+    if (error.stack) {
+      console.error('Stack:', error.stack);
+    }
     return null;
   }
 }
@@ -70,10 +257,15 @@ async function initializeGCS() {
  */
 async function uploadFile(fileBuffer, filename, folder, mimetype) {
   try {
-
-    // Initialize GCS if not already done
-    if (!storageClient && !USE_MOCK_MODE) {
+    // Always try to initialize GCS (in case config was updated)
+    // Check every 5 minutes if config changed, or if client not initialized
+    const now = Date.now();
+    const shouldReinitialize = !storageClient || !lastConfigCheck || (now - lastConfigCheck) > 5 * 60 * 1000;
+    
+    if (!USE_MOCK_MODE && shouldReinitialize) {
+      console.log('🔄 [GCS] (Re)initializing GCS client...');
       await initializeGCS();
+      lastConfigCheck = now;
     }
 
     if (!storageClient && !USE_MOCK_MODE) {
@@ -100,25 +292,50 @@ async function uploadFile(fileBuffer, filename, folder, mimetype) {
     
     // Create file reference
     const file = bucket.file(destination);
+    
+    console.log(`📤 [GCS] Uploading file: ${destination}`);
+    console.log(`   Bucket: ${bucketName}`);
+    console.log(`   File size: ${fileBuffer.length} bytes`);
+    console.log(`   Content type: ${mimetype}`);
+    
     // Upload file (removed public:true to work with Public Access Prevention)
-    await file.save(fileBuffer, {
-      metadata: {
-        contentType: mimetype,
+    try {
+      await file.save(fileBuffer, {
         metadata: {
-          originalName: filename,
-          uploadedAt: new Date().toISOString()
-        }
-      },
-      validation: 'md5'
-    });
+          contentType: mimetype,
+          metadata: {
+            originalName: filename,
+            uploadedAt: new Date().toISOString()
+          }
+        },
+        validation: 'md5'
+      });
+      console.log(`✅ [GCS] File uploaded successfully: ${destination}`);
+    } catch (uploadError) {
+      console.error(`❌ [GCS] File upload failed: ${uploadError.message}`);
+      if (uploadError.code === 404) {
+        console.error('   💡 Bucket not found. Please create the bucket:', bucketName);
+      } else if (uploadError.code === 403) {
+        console.error('   💡 Permission denied. Please check bucket permissions and service account access');
+      }
+      throw uploadError;
+    }
 
     // Generate signed URL (works even with Public Access Prevention)
-    const [url] = await file.getSignedUrl({
-      action: 'read',
-      expires: '12-31-2099' // Long-term access
-    });
-
-    return url;
+    try {
+      const [url] = await file.getSignedUrl({
+        action: 'read',
+        expires: '12-31-2099' // Long-term access
+      });
+      console.log(`✅ [GCS] Signed URL generated: ${url.substring(0, 100)}...`);
+      return url;
+    } catch (urlError) {
+      console.error(`❌ [GCS] Failed to generate signed URL: ${urlError.message}`);
+      // Fallback: Try to construct public URL (might not work if bucket is private)
+      const publicUrl = `https://storage.googleapis.com/${bucketName}/${destination}`;
+      console.log(`   Using fallback URL: ${publicUrl}`);
+      return publicUrl;
+    }
 
   } catch (error) {
     console.error('❌ File upload error:', error.message);
@@ -134,9 +351,35 @@ async function uploadFile(fileBuffer, filename, folder, mimetype) {
  */
 async function uploadFiles(files, folder) {
   try {
+    console.log(`📤 [gcsUploadUtil] Starting upload of ${files.length} file(s) to folder: ${folder}`);
+    
+    if (!files || files.length === 0) {
+      console.warn('⚠️  [gcsUploadUtil] No files provided to upload');
+      return {};
+    }
+
+    // Log file details
+    files.forEach((file, index) => {
+      console.log(`   File ${index + 1}:`, {
+        fieldname: file.fieldname,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        hasBuffer: !!file.buffer,
+        bufferLength: file.buffer ? file.buffer.length : 0
+      });
+    });
+
     const uploadPromises = files.map(file => 
       uploadFile(file.buffer, file.originalname, folder, file.mimetype)
-        .then(url => ({ field: file.fieldname, url }))
+        .then(url => {
+          console.log(`   ✅ Uploaded ${file.originalname} (field: ${file.fieldname}) -> ${url.substring(0, 100)}...`);
+          return { field: file.fieldname, url };
+        })
+        .catch(error => {
+          console.error(`   ❌ Failed to upload ${file.originalname} (field: ${file.fieldname}):`, error.message);
+          throw error;
+        })
     );
 
     const results = await Promise.all(uploadPromises);
@@ -144,13 +387,19 @@ async function uploadFiles(files, folder) {
     // Convert array to object
     const urlMap = {};
     results.forEach(result => {
-      urlMap[result.field] = result.url;
+      if (result && result.field && result.url) {
+        urlMap[result.field] = result.url;
+      } else {
+        console.warn(`⚠️  [gcsUploadUtil] Invalid result format:`, result);
+      }
     });
 
+    console.log(`✅ [gcsUploadUtil] Upload complete. URL map:`, JSON.stringify(Object.keys(urlMap), null, 2));
     return urlMap;
 
   } catch (error) {
-    console.error('❌ Multiple files upload error:', error.message);
+    console.error('❌ [gcsUploadUtil] Multiple files upload error:', error.message);
+    console.error('   Error stack:', error.stack);
     throw new Error(`Failed to upload files: ${error.message}`);
   }
 }
@@ -176,22 +425,63 @@ async function deleteFile(fileUrl) {
       return false;
     }
 
+    // Handle base64 data URLs (cannot be deleted from GCS)
+    if (fileUrl.startsWith('data:')) {
+      console.log('ℹ️  Skipping deletion of base64 data URL (not stored in GCS)');
+      return true; // Consider it successful since there's nothing to delete
+    }
+
     const bucket = storageClient.bucket(bucketName);
     
     // Extract file path from URL
-    // URL format: https://storage.googleapis.com/bucket-name/path/to/file
-    const urlParts = fileUrl.split('/');
-    const bucketIndex = urlParts.findIndex(part => part === bucketName);
-    if (bucketIndex === -1) {
-      console.warn('⚠️  Invalid GCS URL format');
+    // URL format can be:
+    // 1. Signed URL: https://storage.googleapis.com/bucket-name/path/to/file?X-Goog-Algorithm=...
+    // 2. Public URL: https://storage.googleapis.com/bucket-name/path/to/file
+    let filePath;
+    try {
+      // Parse URL properly
+      const url = new URL(fileUrl);
+      const pathname = url.pathname;
+      
+      // Remove bucket name from path if it's in the path
+      if (pathname.startsWith(`/${bucketName}/`)) {
+        filePath = pathname.substring(`/${bucketName}/`.length);
+      } else if (pathname.startsWith('/')) {
+        filePath = pathname.substring(1);
+      } else {
+        filePath = pathname;
+      }
+    } catch (error) {
+      // Fallback: Try simple string parsing
+      const urlParts = fileUrl.split('/');
+      const bucketIndex = urlParts.findIndex(part => part === bucketName || part.includes(bucketName));
+      if (bucketIndex === -1) {
+        console.warn('⚠️  Invalid GCS URL format:', fileUrl.substring(0, 100));
+        return false;
+      }
+      // Get everything after bucket name, remove query params
+      filePath = urlParts.slice(bucketIndex + 1).join('/').split('?')[0];
+    }
+
+    if (!filePath || filePath.trim() === '') {
+      console.warn('⚠️  Could not extract file path from URL:', fileUrl.substring(0, 100));
       return false;
     }
 
-    const filePath = urlParts.slice(bucketIndex + 1).join('/').split('?')[0]; // Remove query params
-
-    const file = bucket.file(filePath);
-    await file.delete();
-    return true;
+    try {
+      const file = bucket.file(filePath);
+      await file.delete();
+      console.log('✅ Deleted file from GCS:', filePath);
+      return true;
+    } catch (deleteError) {
+      // File might not exist (404) - that's okay, consider it a success
+      if (deleteError.code === 404) {
+        console.log('ℹ️  File not found in GCS (may have been already deleted):', filePath);
+        return true;
+      }
+      console.error('❌ Failed to delete file from GCS:', deleteError.message);
+      return false;
+    }
 
   } catch (error) {
     console.error('❌ File deletion error:', error.message);
@@ -234,6 +524,7 @@ async function isGCSReady() {
 
 module.exports = {
   initializeGCS,
+  resetGCSClient,
   uploadFile,
   uploadFiles,
   deleteFile,

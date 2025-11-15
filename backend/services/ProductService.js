@@ -141,8 +141,8 @@ class ProductService extends BaseService {
         });
       }
 
-      // Populate data for each product
-      paginated = paginated.map(product => {
+      // Populate data for each product - make async to handle base64 image migration
+      paginated = await Promise.all(paginated.map(async (product) => {
         // Get kioskType data
         let kioskTypeData = null;
         if (product.kioskType) {
@@ -165,30 +165,157 @@ class ProductService extends BaseService {
         }
 
         // Ensure images array exists and is properly formatted
+        // CRITICAL: Also migrate base64 images to GCS on-the-fly
         let images = [];
-        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-          // Normalize image array - extract URLs from objects if needed
-          images = product.images.map(img => {
-            if (typeof img === 'string') {
-              return img;
-            } else if (img && typeof img === 'object') {
-              return img.url || img.path || img.src || img;
+        
+        // Helper function to upload base64 to GCS
+        const uploadBase64ToGCS = async (base64Data, productName, theaterId) => {
+          try {
+            const { uploadFile } = require('../utils/gcsUploadUtil');
+            let mimetype = 'image/png';
+            let extension = 'png';
+            
+            // Parse base64 data URL
+            if (base64Data.startsWith('data:')) {
+              const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+              if (matches) {
+                mimetype = matches[1];
+                base64Data = matches[2];
+                // Extract extension
+                if (mimetype.includes('jpeg') || mimetype.includes('jpg')) {
+                  extension = 'jpg';
+                } else if (mimetype.includes('png')) {
+                  extension = 'png';
+                } else if (mimetype.includes('gif')) {
+                  extension = 'gif';
+                } else if (mimetype.includes('webp')) {
+                  extension = 'webp';
+                }
+              }
             }
-            return img;
-          }).filter(Boolean);
+            
+            // Convert base64 to buffer
+            const imageBuffer = Buffer.from(base64Data, 'base64');
+            
+            // Generate filename
+            const filename = `${productName.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.${extension}`;
+            const folder = `products/${theaterId}/${productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            
+            // Upload to GCS
+            const gcsUrl = await uploadFile(imageBuffer, filename, folder, mimetype);
+            console.log(`✅ Migrated product base64 image to GCS for "${productName}":`, gcsUrl);
+            return gcsUrl;
+          } catch (error) {
+            console.error(`❌ Failed to migrate base64 image to GCS for "${productName}":`, error.message);
+            return null; // Return null if migration fails
+          }
+        };
+        
+        // Debug: Log original product image fields
+        console.log(`🔍 [${product.name || 'Unknown'}] Checking images:`, {
+          hasImages: !!product.images,
+          imagesLength: product.images?.length || 0,
+          hasProductImage: !!product.productImage,
+          hasImageUrl: !!product.imageUrl,
+          hasImage: !!product.image,
+          imageType: typeof product.image,
+          imagePreview: product.image ? (typeof product.image === 'string' ? product.image.substring(0, 50) : 'object') : 'null'
+        });
+        
+        // Process images array or single image fields
+        // Priority: images array > productImage > imageUrl > image
+        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+          // Normalize image array - extract URLs from objects and migrate base64
+          for (const img of product.images) {
+            let imgUrl = null;
+            
+            if (typeof img === 'string') {
+              imgUrl = img;
+            } else if (img && typeof img === 'object') {
+              imgUrl = img.url || img.path || img.src || img;
+            }
+            
+            if (imgUrl) {
+              // Check if it's base64 and needs migration
+              if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+                console.log(`🔄 [${product.name}] Detected base64 in images array, migrating to GCS...`);
+                // Base64 image - migrate to GCS
+                const gcsUrl = await uploadBase64ToGCS(imgUrl, product.name || 'product', theaterId);
+                if (gcsUrl) {
+                  images.push(gcsUrl);
+                  console.log(`✅ [${product.name}] Migration successful:`, gcsUrl);
+                } else {
+                  // Migration failed - skip this image
+                  console.warn(`⚠️ [${product.name}] Skipping base64 image that failed to migrate`);
+                }
+              } else {
+                // Already a URL - use as-is
+                images.push(imgUrl);
+              }
+            }
+          }
         } else if (product.productImage) {
           // If old single image field exists, convert to array
-          const imgUrl = typeof product.productImage === 'string' 
+          let imgUrl = typeof product.productImage === 'string' 
             ? product.productImage 
             : (product.productImage.url || product.productImage.path || product.productImage.src || product.productImage);
-          if (imgUrl) images = [imgUrl];
+          
+          if (imgUrl) {
+            // Check if it's base64 and needs migration
+            if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+              console.log(`🔄 [${product.name}] Detected base64 in productImage field, migrating to GCS...`);
+              // Base64 image - migrate to GCS
+              const gcsUrl = await uploadBase64ToGCS(imgUrl, product.name || 'product', theaterId);
+              if (gcsUrl) {
+                images = [gcsUrl];
+                console.log(`✅ [${product.name}] Migration successful:`, gcsUrl);
+              }
+            } else {
+              // Already a URL
+              images = [imgUrl];
+            }
+          }
         } else if (product.imageUrl) {
-          images = [product.imageUrl];
+          // Check if it's base64
+          if (typeof product.imageUrl === 'string' && product.imageUrl.startsWith('data:')) {
+            console.log(`🔄 [${product.name}] Detected base64 in imageUrl field, migrating to GCS...`);
+            const gcsUrl = await uploadBase64ToGCS(product.imageUrl, product.name || 'product', theaterId);
+            if (gcsUrl) {
+              images = [gcsUrl];
+              console.log(`✅ [${product.name}] Migration successful:`, gcsUrl);
+            }
+          } else {
+            images = [product.imageUrl];
+          }
         } else if (product.image) {
-          const imgUrl = typeof product.image === 'string' 
+          let imgUrl = typeof product.image === 'string' 
             ? product.image 
             : (product.image.url || product.image.path || product.image.src || product.image);
-          if (imgUrl) images = [imgUrl];
+          
+          if (imgUrl) {
+            // Check if it's base64
+            if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+              console.log(`🔄 [${product.name}] Detected base64 in image field, migrating to GCS...`);
+              const gcsUrl = await uploadBase64ToGCS(imgUrl, product.name || 'product', theaterId);
+              if (gcsUrl) {
+                images = [gcsUrl];
+                console.log(`✅ [${product.name}] Migration successful:`, gcsUrl);
+              } else {
+                console.error(`❌ [${product.name}] Migration failed, keeping original base64`);
+                // If migration fails, we still need to return something - but base64 won't display
+                // So we'll skip it
+              }
+            } else {
+              images = [imgUrl];
+            }
+          }
+        }
+        
+        // Debug: Log final images array
+        if (images.length > 0) {
+          console.log(`✅ [${product.name}] Final images array:`, images.map(img => img.substring(0, 50)));
+        } else {
+          console.warn(`⚠️ [${product.name}] No images found after processing`);
         }
 
         // Format kioskTypeData to match frontend expectations
@@ -206,16 +333,71 @@ class ProductService extends BaseService {
         // Format imageData to match frontend expectations (similar to kioskTypeData)
         // Use first image from normalized images array, or null if no images
         const imageData = images && images.length > 0 ? images[0] : null;
+        
+        // CRITICAL: Update database if base64 was migrated to GCS
+        // This ensures future requests don't need to migrate again
+        const originalImages = product.images || [];
+        const originalImage = product.image || product.imageUrl || product.productImage || null;
+        const hadBase64 = (Array.isArray(originalImages) && originalImages.some(img => {
+          const imgUrl = typeof img === 'string' ? img : (img?.url || img?.path || img?.src);
+          return imgUrl && typeof imgUrl === 'string' && imgUrl.startsWith('data:');
+        })) || (originalImage && typeof originalImage === 'string' && originalImage.startsWith('data:'));
+        
+        if (hadBase64 && images.length > 0) {
+          // Base64 was migrated to GCS - update database
+          const db = mongoose.connection.db;
+          const theaterObjectId = new mongoose.Types.ObjectId(theaterId);
+          const productObjectId = new mongoose.Types.ObjectId(product._id);
+          
+          try {
+            // Update product in database with migrated images
+            await db.collection('productlist').updateOne(
+              {
+                theater: theaterObjectId,
+                'productList._id': productObjectId
+              },
+              {
+                $set: {
+                  'productList.$.images': images,
+                  'productList.$.image': imageData,
+                  'productList.$.imageUrl': imageData,
+                  'productList.$.updatedAt': new Date()
+                }
+              }
+            );
+            console.log('✅ Updated product in database with migrated GCS images:', product.name);
+          } catch (updateError) {
+            console.warn('⚠️ Failed to update product with migrated images:', updateError.message);
+            // Don't fail the request if update fails
+          }
+        }
 
-        return {
+        // CRITICAL: Ensure we return GCS URLs, not base64
+        // Override all image fields with migrated GCS URLs
+        const result = {
           ...product,
           kioskTypeData: formattedKioskTypeData,
           categoryData: formattedCategoryData,
           quantity: quantity,
-          images: images,
-          imageData: imageData // Add imageData for easy frontend access (like kioskTypeData)
+          images: images, // Normalized images array (GCS URLs)
+          imageData: imageData, // First image from array (GCS URL or null)
+          // Override original image fields with migrated GCS URLs
+          image: imageData, // Always use migrated GCS URL, not original base64
+          imageUrl: imageData, // Always use migrated GCS URL, not original base64
+          productImage: imageData // Also override productImage for backward compatibility
         };
-      });
+        
+        // Debug: Verify final return values
+        console.log(`🔍 [${product.name}] Return values:`, {
+          imagesLength: result.images.length,
+          imageData: result.imageData ? result.imageData.substring(0, 50) : 'null',
+          image: result.image ? result.image.substring(0, 50) : 'null',
+          imageUrl: result.imageUrl ? result.imageUrl.substring(0, 50) : 'null',
+          isBase64: result.imageData && result.imageData.startsWith('data:') ? 'YES ❌' : 'NO ✅'
+        });
+        
+        return result;
+      }));
     }
 
     // Fallback to individual documents if no array structure found
@@ -250,38 +432,114 @@ class ProductService extends BaseService {
       
       console.log(`⚡ ProductService: Fallback query completed in ${Date.now() - fallbackStart}ms`);
 
-      // Process fallback items to match structure
-      const processedItems = items.map(product => {
+      // Process fallback items to match structure - make async to handle base64 migration
+      const processedItems = await Promise.all(items.map(async (product) => {
         // Get quantity from productType if not directly stored
         let quantity = product.quantity || '';
         if (!quantity && product.productTypeId) {
           quantity = product.productTypeId.quantity || '';
         }
 
-        // Ensure images array exists
+        // Ensure images array exists - also migrate base64 images to GCS
         let images = [];
-        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-          // Normalize image array - extract URLs from objects if needed
-          images = product.images.map(img => {
-            if (typeof img === 'string') {
-              return img;
-            } else if (img && typeof img === 'object') {
-              return img.url || img.path || img.src || img;
+        
+        // Helper function to upload base64 to GCS (reuse same logic)
+        const uploadBase64ToGCS = async (base64Data, productName, theaterId) => {
+          try {
+            const { uploadFile } = require('../utils/gcsUploadUtil');
+            let mimetype = 'image/png';
+            let extension = 'png';
+            
+            // Parse base64 data URL
+            if (base64Data.startsWith('data:')) {
+              const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+              if (matches) {
+                mimetype = matches[1];
+                base64Data = matches[2];
+                // Extract extension
+                if (mimetype.includes('jpeg') || mimetype.includes('jpg')) {
+                  extension = 'jpg';
+                } else if (mimetype.includes('png')) {
+                  extension = 'png';
+                } else if (mimetype.includes('gif')) {
+                  extension = 'gif';
+                } else if (mimetype.includes('webp')) {
+                  extension = 'webp';
+                }
+              }
             }
-            return img;
-          }).filter(Boolean);
+            
+            // Convert base64 to buffer
+            const imageBuffer = Buffer.from(base64Data, 'base64');
+            
+            // Generate filename
+            const filename = `${productName.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.${extension}`;
+            const folder = `products/${theaterId}/${productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            
+            // Upload to GCS
+            const gcsUrl = await uploadFile(imageBuffer, filename, folder, mimetype);
+            console.log('✅ Migrated product base64 image to GCS (fallback):', gcsUrl);
+            return gcsUrl;
+          } catch (error) {
+            console.error('❌ Failed to migrate base64 image to GCS (fallback):', error.message);
+            return null;
+          }
+        };
+        
+        if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+          // Normalize image array - extract URLs from objects and migrate base64
+          for (const img of product.images) {
+            let imgUrl = null;
+            
+            if (typeof img === 'string') {
+              imgUrl = img;
+            } else if (img && typeof img === 'object') {
+              imgUrl = img.url || img.path || img.src || img;
+            }
+            
+            if (imgUrl) {
+              // Check if it's base64 and needs migration
+              if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+                const gcsUrl = await uploadBase64ToGCS(imgUrl, product.name || 'product', product.theaterId?.toString() || '');
+                if (gcsUrl) {
+                  images.push(gcsUrl);
+                }
+              } else {
+                images.push(imgUrl);
+              }
+            }
+          }
         } else if (product.productImage) {
-          const imgUrl = typeof product.productImage === 'string' 
+          let imgUrl = typeof product.productImage === 'string' 
             ? product.productImage 
             : (product.productImage.url || product.productImage.path || product.productImage.src || product.productImage);
-          if (imgUrl) images = [imgUrl];
+          if (imgUrl) {
+            if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+              const gcsUrl = await uploadBase64ToGCS(imgUrl, product.name || 'product', product.theaterId?.toString() || '');
+              if (gcsUrl) images = [gcsUrl];
+            } else {
+              images = [imgUrl];
+            }
+          }
         } else if (product.imageUrl) {
-          images = [product.imageUrl];
+          if (typeof product.imageUrl === 'string' && product.imageUrl.startsWith('data:')) {
+            const gcsUrl = await uploadBase64ToGCS(product.imageUrl, product.name || 'product', product.theaterId?.toString() || '');
+            if (gcsUrl) images = [gcsUrl];
+          } else {
+            images = [product.imageUrl];
+          }
         } else if (product.image) {
-          const imgUrl = typeof product.image === 'string' 
+          let imgUrl = typeof product.image === 'string' 
             ? product.image 
             : (product.image.url || product.image.path || product.image.src || product.image);
-          if (imgUrl) images = [imgUrl];
+          if (imgUrl) {
+            if (typeof imgUrl === 'string' && imgUrl.startsWith('data:')) {
+              const gcsUrl = await uploadBase64ToGCS(imgUrl, product.name || 'product', product.theaterId?.toString() || '');
+              if (gcsUrl) images = [gcsUrl];
+            } else {
+              images = [imgUrl];
+            }
+          }
         }
 
         // Format imageData to match frontend expectations (similar to kioskTypeData)
@@ -294,9 +552,12 @@ class ProductService extends BaseService {
           categoryData: product.categoryId ? { _id: product.categoryId._id, name: product.categoryId.name } : null,
           quantity: quantity,
           images: images,
-          imageData: imageData // Add imageData for easy frontend access (like kioskTypeData)
+          imageData: imageData, // Add imageData for easy frontend access (like kioskTypeData)
+          // Also set image and imageUrl for backward compatibility
+          image: imageData,
+          imageUrl: imageData
         };
-      });
+      }));
 
       return {
         data: processedItems,

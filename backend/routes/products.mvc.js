@@ -7,6 +7,7 @@ const multer = require('multer');
 const { productValidator, validate } = require('../validators/productValidator');
 
 // Configure multer for memory storage
+// Supports both file uploads (multer) and base64 images (JSON body)
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
@@ -19,6 +20,28 @@ const upload = multer({
     }
   }
 });
+
+// Middleware to handle both file uploads and base64 images
+// Allows multer to be optional - if no file is sent, JSON body (with base64) can still be parsed
+const optionalUpload = (req, res, next) => {
+  // Only use multer if Content-Type is multipart/form-data
+  // For JSON requests with base64, skip multer entirely
+  const contentType = req.headers['content-type'] || '';
+  
+  if (contentType.includes('multipart/form-data')) {
+    // Use multer for file uploads
+    upload.single('image')(req, res, (err) => {
+      // Ignore multer errors if no file is provided (base64 will be in JSON body instead)
+      if (err && err.code !== 'LIMIT_FILE_SIZE' && !req.body.image) {
+        return next(err);
+      }
+      next();
+    });
+  } else {
+    // Skip multer for JSON requests (base64 image will be in req.body.image)
+    next();
+  }
+};
 
 /**
  * Product Routes (MVC Pattern)
@@ -39,20 +62,22 @@ router.get('/:theaterId/:productId',
 );
 
 // POST /api/theater-products/:theaterId
+// Supports both file upload (multipart/form-data) and base64 image (JSON body)
 router.post('/:theaterId',
   authenticateToken,
   requireTheaterAccess,
-  upload.single('image'),
+  optionalUpload, // Optional file upload - also allows JSON body with base64
   productValidator.create,
   validate,
   BaseController.asyncHandler(ProductController.create)
 );
 
 // PUT /api/theater-products/:theaterId/:productId
+// Supports both file upload (multipart/form-data) and base64 image (JSON body)
 router.put('/:theaterId/:productId',
   authenticateToken,
   requireTheaterAccess,
-  upload.single('image'),
+  optionalUpload, // Optional file upload - also allows JSON body with base64
   BaseController.asyncHandler(ProductController.update)
 );
 

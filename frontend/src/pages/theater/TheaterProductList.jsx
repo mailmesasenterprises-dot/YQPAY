@@ -133,48 +133,86 @@ const TableSkeleton = React.memo(({ count = 10 }) => (
 
 TableSkeleton.displayName = 'TableSkeleton';
 
-// Simple Toggle Switch Component - SIMPLIFIED for reliability
-const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false }) => {
-  // Always sync with parent prop - simpler and more reliable
-  const toggleValue = isLive ?? false;
-  const [internalValue, setInternalValue] = useState(toggleValue);
-  const prevProductIdRef = useRef(product._id);
-  const prevIsLiveRef = useRef(toggleValue);
-
-  // Sync with parent prop whenever it changes
-  useEffect(() => {
-    if (prevProductIdRef.current !== product._id) {
-      prevProductIdRef.current = product._id;
-      prevIsLiveRef.current = toggleValue;
-      setInternalValue(toggleValue);
-      console.log('🔄 SimpleToggle: Product changed, synced to', toggleValue, 'for product', product.name);
-    } else if (prevIsLiveRef.current !== toggleValue) {
-      prevIsLiveRef.current = toggleValue;
-      setInternalValue(toggleValue);
-      console.log('🔄 SimpleToggle: State synced to', toggleValue, 'for product', product.name);
+// Simple Toggle Switch Component - WITH OPTIMISTIC UI UPDATE
+const SimpleToggle = ({ product, isLive, onToggle, isToggling = false }) => {
+  // Use local state for optimistic UI updates
+  const [localValue, setLocalValue] = React.useState(isLive ?? false);
+  const isUserInteractingRef = React.useRef(false);
+  
+  // Sync with parent prop when it changes (but skip during user interaction)
+  React.useEffect(() => {
+    // Only sync if user is not currently interacting
+    if (!isUserInteractingRef.current) {
+      const newValue = isLive ?? false;
+      setLocalValue(prevValue => {
+        if (prevValue !== newValue) {
+          console.log('🔄 SimpleToggle: Syncing with parent prop', {
+            productName: product.name,
+            oldValue: prevValue,
+            newValue: newValue
+          });
+          return newValue;
+        }
+        return prevValue;
+      });
     }
-  }, [product._id, toggleValue, product.name]);
+  }, [isLive, product.name]);
 
-  const handleChange = useCallback((e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  // Ref to prevent double-firing
+  const isHandlingRef = React.useRef(false);
+
+  const handleChange = (e) => {
+    e.stopPropagation(); // Only prevent bubbling to table row
     
-    if (isToggling || !onToggle) {
+    // CRITICAL: Prevent double-firing from label + checkbox
+    if (isHandlingRef.current) {
+      console.warn('⚠️ Toggle change already being handled, ignoring duplicate event');
+      return;
+    }
+    
+    // Prevent action if already toggling or no handler
+    if (isToggling) {
+      console.warn('⚠️ Toggle blocked - already toggling:', product.name);
+      e.preventDefault();
+      return;
+    }
+    
+    if (!onToggle) {
+      console.error('❌ Toggle blocked - no handler function');
+      e.preventDefault();
       return;
     }
     
     // Get the new value from checkbox
     const newValue = e.target.checked;
     
-    // Optimistically update internal state immediately
-    setInternalValue(newValue);
+    // Mark that we're handling this event
+    isHandlingRef.current = true;
     
-    // Immediately call parent handler - parent will handle state updates
+    console.log('🔄 SimpleToggle handleChange:', {
+      productName: product.name,
+      productId: product._id,
+      currentValue: localValue,
+      newValue: newValue,
+      isToggling: isToggling,
+      timestamp: Date.now()
+    });
+    
+    // Mark that user is interacting
+    isUserInteractingRef.current = true;
+    
+    // OPTIMISTIC UPDATE: Update local state immediately for instant UI feedback
+    setLocalValue(newValue);
+    
+    // Call parent handler - parent will sync state later
     onToggle(product, newValue);
-  }, [product, onToggle, isToggling]);
-
-  // Use internalValue to ensure UI updates even if parent state is delayed
-  const displayValue = internalValue;
+    
+    // Reset flags after a short delay
+    setTimeout(() => {
+      isHandlingRef.current = false;
+      isUserInteractingRef.current = false;
+    }, 300);
+  };
 
   return (
     <div className="access-status" style={{display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
@@ -187,14 +225,36 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
           height: '24px',
           opacity: isToggling ? 0.6 : 1, // Visual feedback when toggling
           cursor: isToggling ? 'wait' : 'pointer',
-          userSelect: 'none'
+          userSelect: 'none',
+          pointerEvents: isToggling ? 'none' : 'auto'
+        }}
+        onClick={(e) => {
+          // CRITICAL: Prevent label click from triggering checkbox (which would cause double-fire)
+          e.preventDefault();
+          e.stopPropagation();
+          // Only trigger if not already handling
+          if (!isHandlingRef.current && !isToggling && onToggle) {
+            const newValue = !localValue;
+            isHandlingRef.current = true;
+            isUserInteractingRef.current = true;
+            setLocalValue(newValue);
+            onToggle(product, newValue);
+            setTimeout(() => {
+              isHandlingRef.current = false;
+              isUserInteractingRef.current = false;
+            }, 300);
+          }
         }}
       >
         <input
           type="checkbox"
-          checked={displayValue}
+          checked={localValue}
           onChange={handleChange}
           disabled={isToggling} // Disable input when toggling
+          onClick={(e) => {
+            // Allow checkbox to handle clicks, but prevent table row click
+            e.stopPropagation();
+          }}
           style={{
             position: 'absolute',
             opacity: 0,
@@ -203,7 +263,8 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
             margin: 0,
             padding: 0,
             cursor: isToggling ? 'wait' : 'pointer',
-            zIndex: 2
+            zIndex: 10, // Higher z-index to ensure clicks work
+            pointerEvents: isToggling ? 'none' : 'auto'
           }}
         />
         <span className="slider" style={{
@@ -213,7 +274,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: displayValue ? 'var(--primary-dark, #6D28D9)' : '#ccc',
+          backgroundColor: localValue ? 'var(--primary-dark, #6D28D9)' : '#ccc',
           transition: '.4s',
           borderRadius: '24px',
           pointerEvents: 'none' // Let clicks pass through to input
@@ -223,7 +284,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
             content: '""',
             height: '18px',
             width: '18px',
-            left: displayValue ? '26px' : '3px',
+            left: localValue ? '26px' : '3px',
             bottom: '3px',
             backgroundColor: 'white',
             transition: '.4s',
@@ -234,15 +295,7 @@ const SimpleToggle = React.memo(({ product, isLive, onToggle, isToggling = false
       </label>
     </div>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison - always re-render if isLive, isToggling, or product._id changes
-  return (
-    prevProps.isLive === nextProps.isLive &&
-    prevProps.isToggling === nextProps.isToggling &&
-    prevProps.product._id === nextProps.product._id &&
-    prevProps.onToggle === nextProps.onToggle
-  );
-});
+};
 
 SimpleToggle.displayName = 'SimpleToggle';
 
@@ -551,9 +604,25 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
             computedIsLive = !!productToggleStates[product._id];
           } else {
             // Fallback: compute from product properties
-            const isActive = !!product.isActive;
-            const isAvailable = product.isAvailable !== undefined ? !!product.isAvailable : true;
+            // CRITICAL: Read actual boolean values from product
+            const isActive = product.isActive === true || product.isActive === 'true' || product.isActive === 1;
+            const isAvailable = product.isAvailable !== undefined 
+              ? (product.isAvailable === true || product.isAvailable === 'true' || product.isAvailable === 1)
+              : true; // Default to true if not set
             computedIsLive = isActive && isAvailable;
+            
+            // Debug log for toggle state computation
+            if (index === 0) {
+              console.log('🔘 Computing toggle state from product:', {
+                productName: product.name,
+                productId: product._id,
+                isActive: product.isActive,
+                isActiveType: typeof product.isActive,
+                isAvailable: product.isAvailable,
+                isAvailableType: typeof product.isAvailable,
+                computedIsLive: computedIsLive
+              });
+            }
           }
           
           // Debug logging for first product only
@@ -631,8 +700,22 @@ const ProductRow = React.memo(({ product, index, theaterId, categories = [], kio
   
   // Check other important props
   if (prevProps.index !== nextProps.index) return false;
-  if (prevProps.product.isActive !== nextProps.product.isActive) return false;
-  if (prevProps.product.isAvailable !== nextProps.product.isAvailable) return false; // Add isAvailable check
+  if (prevProps.product.isActive !== nextProps.product.isActive) {
+    console.log('🔄 ProductRow: isActive changed, forcing re-render', {
+      productName: prevProps.product.name,
+      prevIsActive: prevProps.product.isActive,
+      nextIsActive: nextProps.product.isActive
+    });
+    return false;
+  }
+  if (prevProps.product.isAvailable !== nextProps.product.isAvailable) {
+    console.log('🔄 ProductRow: isAvailable changed, forcing re-render', {
+      productName: prevProps.product.name,
+      prevIsAvailable: prevProps.product.isAvailable,
+      nextIsAvailable: nextProps.product.isAvailable
+    });
+    return false;
+  }
   if (prevProps.product.pricing?.basePrice !== nextProps.product.pricing?.basePrice) return false;
   if (prevProps.product.sellingPrice !== nextProps.product.sellingPrice) return false;
   
@@ -686,6 +769,7 @@ const TheaterProductList = () => {
   const [toggleInProgress, setToggleInProgress] = useState({}); // Track ongoing toggle operations
   const [networkStatus, setNetworkStatus] = useState({ isOnline: navigator.onLine, lastError: null }); // Network monitoring
   const previousToggleStatesRef = useRef({}); // Store previous toggle states for error recovery
+  const lastToggleRequestRef = useRef({}); // Track last toggle request to prevent duplicates
   // ✅ REMOVED: productStockBalances state - no longer needed since backend sends real stock
 
   const [loading, setLoading] = useState(!initialCachedProducts); // 🚀 Start false if cache exists
@@ -873,17 +957,27 @@ const TheaterProductList = () => {
         // Toggle is ON if isActive is true AND (isAvailable is true or undefined - defaults to true)
         const toggleStates = {};
         products.forEach(product => {
-          const isActive = !!product.isActive;
-          const isAvailable = product.isAvailable !== undefined ? !!product.isAvailable : true;
+          // CRITICAL: Read actual boolean values from product (handle string/boolean/number)
+          const isActive = product.isActive === true || product.isActive === 'true' || product.isActive === 1;
+          const isAvailable = product.isAvailable !== undefined 
+            ? (product.isAvailable === true || product.isAvailable === 'true' || product.isAvailable === 1)
+            : true; // Default to true if not set
           const toggleState = isActive && isAvailable;
           toggleStates[product._id] = toggleState;
           
-          console.log(`🔘 Product "${product.name}" toggle initialized:`, {
-            productId: product._id,
-            isActive,
-            isAvailable,
-            toggleState
-          });
+          // Log first product for debugging
+          if (products.indexOf(product) === 0) {
+            console.log(`🔘 Product "${product.name}" toggle initialized:`, {
+              productId: product._id,
+              rawIsActive: product.isActive,
+              rawIsActiveType: typeof product.isActive,
+              rawIsAvailable: product.isAvailable,
+              rawIsAvailableType: typeof product.isAvailable,
+              computedIsActive: isActive,
+              computedIsAvailable: isAvailable,
+              toggleState
+            });
+          }
         });
         setProductToggleStates(toggleStates);
         console.log('🔘 All toggle states initialized:', toggleStates);
@@ -935,6 +1029,34 @@ const TheaterProductList = () => {
       console.warn('⚠️ Toggle already in progress for product:', product.name);
       return;
     }
+    
+    // CRITICAL: Prevent duplicate requests (within 500ms)
+    const now = Date.now();
+    const lastRequest = lastToggleRequestRef.current[product._id];
+    if (lastRequest && (now - lastRequest.timestamp) < 500) {
+      console.warn('⚠️ Duplicate toggle request detected, ignoring:', {
+        productName: product.name,
+        productId: product._id,
+        lastRequestTimestamp: lastRequest.timestamp,
+        timeSinceLastRequest: now - lastRequest.timestamp,
+        lastRequestStatus: lastRequest.status
+      });
+      return;
+    }
+    
+    // Record this request
+    lastToggleRequestRef.current[product._id] = {
+      timestamp: now,
+      status: newStatus,
+      requestId: `${product._id}-${now}`
+    };
+    
+    console.log('✅ Toggle request initiated:', {
+      productName: product.name,
+      productId: product._id,
+      requestId: lastToggleRequestRef.current[product._id].requestId,
+      newStatus: newStatus
+    });
     
     // Get the previous toggle state from current state or ref
     const previousToggleState = productToggleStates[product._id] ?? false;
@@ -1124,6 +1246,9 @@ const TheaterProductList = () => {
               
               // Success message removed to avoid popup spam on rapid toggling
               console.log(`✅ ${product.name} is now ${newStatus ? 'LIVE' : 'OFFLINE'}`);
+              
+              // Clear the duplicate request guard after successful update
+              delete lastToggleRequestRef.current[product._id];
               
               return; // Success - exit retry loop
             } else {

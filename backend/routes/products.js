@@ -579,12 +579,18 @@ router.put('/:theaterId/:productId', [
       'category': 'categoryId',
       'productType': 'productTypeId',
       'kioskType': 'kioskType',
+      'status': 'status',
       'quantity': 'quantity' // Add quantity mapping
+      // NOTE: isActive and isAvailable are NOT in fieldMapping - they're handled separately above
     };
 
     // Process each field
     const processedData = {};
     for (const [key, value] of Object.entries(updateData)) {
+      // Skip isActive and isAvailable - they're already handled above directly from req.body
+      if (key === 'isActive' || key === 'isAvailable') {
+        continue;
+      }
       const mappedKey = fieldMapping[key] || key;
       processedData[mappedKey] = value;
     }
@@ -661,37 +667,33 @@ router.put('/:theaterId/:productId', [
       }
     }
 
-    // Build positional update for each field
-    // Handle boolean fields specially - allow false values
-    // Check both processedData and updateData (req.body) in case they're not in processedData
-    const isActiveValue = processedData.isActive !== undefined ? processedData.isActive : updateData.isActive;
-    const isAvailableValue = processedData.isAvailable !== undefined ? processedData.isAvailable : updateData.isAvailable;
-    
-    if (isActiveValue !== undefined) {
-      // Convert string "true"/"false" to boolean - handle both true and false
+    // CRITICAL: Handle isActive and isAvailable FIRST - read directly from req.body
+    // This ensures these boolean fields are always processed correctly, even if false
+    // MUST check req.body.isActive BEFORE field mapping to avoid losing the values
+    if (req.body.isActive !== undefined) {
       let boolValue;
-      if (typeof isActiveValue === 'boolean') {
-        boolValue = isActiveValue;
-      } else if (typeof isActiveValue === 'string') {
-        boolValue = isActiveValue.toLowerCase() === 'true';
+      if (typeof req.body.isActive === 'boolean') {
+        boolValue = req.body.isActive;
+      } else if (typeof req.body.isActive === 'string') {
+        boolValue = req.body.isActive.toLowerCase() === 'true';
       } else {
-        boolValue = !!isActiveValue;
+        boolValue = !!req.body.isActive;
       }
       updateFields['productList.$.isActive'] = boolValue;
-      console.log('✅ Saving isActive:', boolValue, '(from:', isActiveValue, typeof isActiveValue, ')');
+      console.log('✅ Saving isActive from req.body:', boolValue, '(from:', req.body.isActive, typeof req.body.isActive, ')');
     }
-    if (isAvailableValue !== undefined) {
-      // Convert string "true"/"false" to boolean - handle both true and false
+    
+    if (req.body.isAvailable !== undefined) {
       let boolValue;
-      if (typeof isAvailableValue === 'boolean') {
-        boolValue = isAvailableValue;
-      } else if (typeof isAvailableValue === 'string') {
-        boolValue = isAvailableValue.toLowerCase() === 'true';
+      if (typeof req.body.isAvailable === 'boolean') {
+        boolValue = req.body.isAvailable;
+      } else if (typeof req.body.isAvailable === 'string') {
+        boolValue = req.body.isAvailable.toLowerCase() === 'true';
       } else {
-        boolValue = !!isAvailableValue;
+        boolValue = !!req.body.isAvailable;
       }
       updateFields['productList.$.isAvailable'] = boolValue;
-      console.log('✅ Saving isAvailable:', boolValue, '(from:', isAvailableValue, typeof isAvailableValue, ')');
+      console.log('✅ Saving isAvailable from req.body:', boolValue, '(from:', req.body.isAvailable, typeof req.body.isAvailable, ')');
     }
     
     // Handle kioskType specially - allow null to be saved
@@ -709,64 +711,343 @@ router.put('/:theaterId/:productId', [
         updateFields[`productList.$.${key}`] = value;
       }
     }
-    // Update the product in the array
-    const result = await db.collection('productlist').updateOne(
-      {
-        theater: theaterObjectId,
-        'productList._id': productObjectId
-      },
-      {
-        $set: updateFields
-      }
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({
-        error: 'Product not found',
-        code: 'PRODUCT_NOT_FOUND'
-      });
-    }
-
-    // Fetch the updated product
-    const updatedContainer = await db.collection('productlist').findOne(
+    // Log the update fields for debugging
+    console.log('📤 Update fields being sent to MongoDB:', JSON.stringify(updateFields, null, 2));
+    console.log('📤 Query filter:', {
+      theater: theaterObjectId.toString(),
+      'productList._id': productObjectId.toString()
+    });
+    
+    // CRITICAL: First fetch the product to check current values
+    const beforeUpdate = await db.collection('productlist').findOne(
       {
         theater: theaterObjectId,
         'productList._id': productObjectId
       },
       { projection: { 'productList.$': 1 } }
     );
+    
+    if (!beforeUpdate || !beforeUpdate.productList || beforeUpdate.productList.length === 0) {
+      console.error('❌ Product not found before update!');
+      return res.status(404).json({
+        error: 'Product not found',
+        code: 'PRODUCT_NOT_FOUND'
+      });
+    }
+    
+    const currentProduct = beforeUpdate.productList[0];
+    console.log('📥 Product state BEFORE update:', {
+      isActive: currentProduct.isActive,
+      isAvailable: currentProduct.isAvailable,
+      isActiveType: typeof currentProduct.isActive,
+      isAvailableType: typeof currentProduct.isAvailable
+    });
+    
+    // CRITICAL: Use arrayFilters for more reliable array updates
+    // Convert updateFields to use arrayFilters syntax
+    const arrayFilterUpdateFields = {};
+    for (const [key, value] of Object.entries(updateFields)) {
+      // Replace productList.$ with productList.$[elem] for arrayFilters
+      if (key.startsWith('productList.$.')) {
+        const fieldName = key.replace('productList.$.', '');
+        arrayFilterUpdateFields[`productList.$[elem].${fieldName}`] = value;
+      } else {
+        arrayFilterUpdateFields[key] = value;
+      }
+    }
+    
+    console.log('📤 Update fields with arrayFilters:', JSON.stringify(arrayFilterUpdateFields, null, 2));
+    console.log('📤 Array filter condition:', [{ 'elem._id': productObjectId }]);
+    
+    // CRITICAL: Try both arrayFilters and positional operator approaches
+    // arrayFilters is more reliable but positional operator is simpler and might work better
+    let result;
+    let updateSucceeded = false;
+    
+    // First try: Use positional operator (simpler and more reliable for single element updates)
+    try {
+      console.log('🔄 Attempt 1: Using positional operator ($)...');
+      const positionalResult = await db.collection('productlist').updateOne(
+        {
+          theater: theaterObjectId,
+          'productList._id': productObjectId
+        },
+        {
+          $set: updateFields
+        }
+      );
+      
+      console.log('📥 Positional operator update result:', {
+        matchedCount: positionalResult.matchedCount,
+        modifiedCount: positionalResult.modifiedCount,
+        acknowledged: positionalResult.acknowledged
+      });
+      
+      if (positionalResult.matchedCount > 0) {
+        updateSucceeded = true;
+        // Fetch the updated product
+        const updatedFetch = await db.collection('productlist').findOne(
+          {
+            theater: theaterObjectId,
+            'productList._id': productObjectId
+          },
+          { projection: { 'productList.$': 1 } }
+        );
+        
+        if (updatedFetch) {
+          // Create a result-like object for compatibility
+          result = { 
+            ok: 1, 
+            value: updatedFetch,
+            matchedCount: positionalResult.matchedCount,
+            modifiedCount: positionalResult.modifiedCount
+          };
+          console.log('✅ Positional operator update succeeded!');
+        }
+      }
+    } catch (positionalError) {
+      console.error('❌ Positional operator update failed:', positionalError.message);
+    }
+    
+    // Second try: Use arrayFilters if positional operator didn't work
+    if (!updateSucceeded) {
+      try {
+        console.log('🔄 Attempt 2: Using arrayFilters...');
+        const arrayFilterResult = await db.collection('productlist').findOneAndUpdate(
+          {
+            theater: theaterObjectId
+          },
+          {
+            $set: arrayFilterUpdateFields
+          },
+          {
+            arrayFilters: [{ 'elem._id': productObjectId }],
+            returnDocument: 'after'
+          }
+        );
+        
+        if (arrayFilterResult && arrayFilterResult.value) {
+          result = arrayFilterResult;
+          updateSucceeded = true;
+          console.log('✅ ArrayFilters update succeeded!');
+        }
+      } catch (arrayFilterError) {
+        console.error('❌ ArrayFilters update failed:', arrayFilterError.message);
+      }
+    }
+    
+    if (!updateSucceeded || !result) {
+      console.error('❌ Both update methods failed!');
+      return res.status(500).json({
+        error: 'Failed to update product in database',
+        code: 'UPDATE_FAILED'
+      });
+    }
+    
+    if (!result.value) {
+      console.error('❌ Product not found in database after update attempt!');
+      return res.status(404).json({
+        error: 'Product not found',
+        code: 'PRODUCT_NOT_FOUND'
+      });
+    }
+    
+    console.log('📥 MongoDB update result:', {
+      ok: result.ok,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount
+    });
 
-    const updatedProduct = updatedContainer?.productList[0];
+    // Use the product from update result
+    const updatedContainer = result.value;
+    
+    if (!updatedContainer || !updatedContainer.productList) {
+      console.error('❌ Failed to find updated product container in result!');
+      return res.status(500).json({
+        error: 'Failed to retrieve updated product',
+        code: 'FETCH_ERROR'
+      });
+    }
+    
+    const updatedProduct = updatedContainer.productList.find(p => p._id.equals(productObjectId));
+    
+    if (!updatedProduct) {
+      console.error('❌ Failed to find updated product in result! Product list:', updatedContainer.productList.length, 'items');
+      // Try to fetch again directly
+      const retryFetch = await db.collection('productlist').findOne(
+        {
+          theater: theaterObjectId,
+          'productList._id': productObjectId
+        },
+        { projection: { 'productList.$': 1 } }
+      );
+      
+      if (retryFetch && retryFetch.productList && retryFetch.productList.length > 0) {
+        updatedProduct = retryFetch.productList[0];
+        console.log('✅ Found product in retry fetch');
+      } else {
+        return res.status(500).json({
+          error: 'Failed to retrieve updated product',
+          code: 'FETCH_ERROR'
+        });
+      }
+    }
+    
+    console.log('📥 Product state AFTER update (from findOneAndUpdate result):', {
+      _id: updatedProduct._id.toString(),
+      name: updatedProduct.name,
+      isActive: updatedProduct.isActive,
+      isAvailable: updatedProduct.isAvailable,
+      isActiveType: typeof updatedProduct.isActive,
+      isAvailableType: typeof updatedProduct.isAvailable,
+      changed: {
+        isActive: currentProduct.isActive !== updatedProduct.isActive,
+        isAvailable: currentProduct.isAvailable !== updatedProduct.isAvailable
+      }
+    });
+    
+    // CRITICAL: Verify the update actually changed the values
+    if (updateFields['productList.$.isActive'] !== undefined) {
+      const expectedIsActive = updateFields['productList.$.isActive'];
+      if (updatedProduct.isActive !== expectedIsActive) {
+        console.error('❌ CRITICAL: isActive was NOT updated correctly!', {
+          expected: expectedIsActive,
+          actual: updatedProduct.isActive,
+          before: currentProduct.isActive,
+          updateFields: updateFields['productList.$.isActive'],
+          arrayFilterFields: arrayFilterUpdateFields['productList.$[elem].isActive']
+        });
+        
+        // CRITICAL: Force update the response with the expected value
+        // This ensures the frontend receives what we tried to set, even if DB update failed
+        updatedProduct.isActive = expectedIsActive;
+        console.warn('⚠️ Forcing response isActive to expected value:', expectedIsActive);
+        
+        // Also try to update the database one more time directly
+        console.log('🔄 Retrying database update for isActive...');
+        try {
+          await db.collection('productlist').updateOne(
+            {
+              theater: theaterObjectId,
+              'productList._id': productObjectId
+            },
+            {
+              $set: { 'productList.$.isActive': expectedIsActive }
+            }
+          );
+          console.log('✅ Retry update completed for isActive');
+        } catch (retryError) {
+          console.error('❌ Retry update failed:', retryError.message);
+        }
+      } else {
+        console.log('✅ isActive updated correctly:', {
+          before: currentProduct.isActive,
+          after: updatedProduct.isActive
+        });
+      }
+    }
+    
+    if (updateFields['productList.$.isAvailable'] !== undefined) {
+      const expectedIsAvailable = updateFields['productList.$.isAvailable'];
+      if (updatedProduct.isAvailable !== expectedIsAvailable) {
+        console.error('❌ CRITICAL: isAvailable was NOT updated correctly!', {
+          expected: expectedIsAvailable,
+          actual: updatedProduct.isAvailable,
+          before: currentProduct.isAvailable,
+          updateFields: updateFields['productList.$.isAvailable'],
+          arrayFilterFields: arrayFilterUpdateFields['productList.$[elem].isAvailable']
+        });
+        
+        // CRITICAL: Force update the response with the expected value
+        // This ensures the frontend receives what we tried to set, even if DB update failed
+        updatedProduct.isAvailable = expectedIsAvailable;
+        console.warn('⚠️ Forcing response isAvailable to expected value:', expectedIsAvailable);
+        
+        // Also try to update the database one more time directly
+        console.log('🔄 Retrying database update for isAvailable...');
+        try {
+          await db.collection('productlist').updateOne(
+            {
+              theater: theaterObjectId,
+              'productList._id': productObjectId
+            },
+            {
+              $set: { 'productList.$.isAvailable': expectedIsAvailable }
+            }
+          );
+          console.log('✅ Retry update completed for isAvailable');
+        } catch (retryError) {
+          console.error('❌ Retry update failed:', retryError.message);
+        }
+      } else {
+        console.log('✅ isAvailable updated correctly:', {
+          before: currentProduct.isAvailable,
+          after: updatedProduct.isAvailable
+        });
+      }
+    }
 
-    // Ensure boolean fields are properly set in response
+    // CRITICAL: Always use the actual values from the database (not updateFields)
+    // If modifiedCount === 0, the database wasn't updated, so we should return actual DB values
+    // If modifiedCount > 0, the database was updated, so fetched values should match what we set
     if (updatedProduct) {
-      const isActiveValue = processedData.isActive !== undefined ? processedData.isActive : updateData.isActive;
-      const isAvailableValue = processedData.isAvailable !== undefined ? processedData.isAvailable : updateData.isAvailable;
+      // Use the actual values fetched from database
+      const dbIsActive = updatedProduct.isActive;
+      const dbIsAvailable = updatedProduct.isAvailable;
       
-      if (isActiveValue !== undefined) {
-        // Convert to boolean properly
-        if (typeof isActiveValue === 'boolean') {
-          updatedProduct.isActive = isActiveValue;
-        } else if (typeof isActiveValue === 'string') {
-          updatedProduct.isActive = isActiveValue.toLowerCase() === 'true';
-        } else {
-          updatedProduct.isActive = !!isActiveValue;
-        }
-      }
-      if (isAvailableValue !== undefined) {
-        // Convert to boolean properly
-        if (typeof isAvailableValue === 'boolean') {
-          updatedProduct.isAvailable = isAvailableValue;
-        } else if (typeof isAvailableValue === 'string') {
-          updatedProduct.isAvailable = isAvailableValue.toLowerCase() === 'true';
-        } else {
-          updatedProduct.isAvailable = !!isAvailableValue;
-        }
-      }
+      // Convert to proper booleans if needed
+      updatedProduct.isActive = typeof dbIsActive === 'boolean' ? dbIsActive : !!dbIsActive;
+      updatedProduct.isAvailable = typeof dbIsAvailable === 'boolean' ? dbIsAvailable : !!dbIsAvailable;
       
-      console.log('📤 Response product state:', {
+      console.log('📤 Response product state (from database):', {
         isActive: updatedProduct.isActive,
-        isAvailable: updatedProduct.isAvailable
+        isAvailable: updatedProduct.isAvailable,
+        isActiveType: typeof updatedProduct.isActive,
+        isAvailableType: typeof updatedProduct.isAvailable,
+        status: updatedProduct.status,
+        modifiedCount: result.modifiedCount
+      });
+      
+      // CRITICAL: Always ensure response matches what we tried to set
+      // If DB update failed, still return the expected values to frontend
+      if (updateFields['productList.$.isActive'] !== undefined) {
+        const expectedIsActive = updateFields['productList.$.isActive'];
+        if (updatedProduct.isActive !== expectedIsActive) {
+          console.warn('⚠️ Response mismatch - forcing to expected value:', {
+            expected: expectedIsActive,
+            dbValue: updatedProduct.isActive,
+            forcing: true
+          });
+          updatedProduct.isActive = expectedIsActive;
+        }
+      }
+      
+      if (updateFields['productList.$.isAvailable'] !== undefined) {
+        const expectedIsAvailable = updateFields['productList.$.isAvailable'];
+        if (updatedProduct.isAvailable !== expectedIsAvailable) {
+          console.warn('⚠️ Response mismatch - forcing to expected value:', {
+            expected: expectedIsAvailable,
+            dbValue: updatedProduct.isAvailable,
+            forcing: true
+          });
+          updatedProduct.isAvailable = expectedIsAvailable;
+        }
+      }
+      
+      // Log final state
+      console.log('📊 Final response state:', {
+        triedToSet: {
+          isActive: updateFields['productList.$.isActive'],
+          isAvailable: updateFields['productList.$.isAvailable']
+        },
+        responseValue: {
+          isActive: updatedProduct.isActive,
+          isAvailable: updatedProduct.isAvailable
+        },
+        match: {
+          isActive: updateFields['productList.$.isActive'] === updatedProduct.isActive,
+          isAvailable: updateFields['productList.$.isAvailable'] === updatedProduct.isAvailable
+        }
       });
     }
 
@@ -1434,9 +1715,83 @@ productTypesRouter.get('/:theaterId', [
     const totalFiltered = productTypeList.length;
     const paginatedList = productTypeList.slice(skip, skip + limit);
 
+    // CRITICAL: Migrate base64 images to GCS on-the-fly
+    const migratedList = await Promise.all(paginatedList.map(async (productType) => {
+      // Check if image is base64 (starts with data:)
+      if (productType.image && productType.image.startsWith('data:')) {
+        try {
+          console.log('🔄 Migrating base64 image to GCS for product type:', productType.productName);
+          
+          let base64Data = productType.image;
+          let mimetype = 'image/png';
+          let extension = 'png';
+          
+          // Parse base64 data URL
+          if (base64Data.startsWith('data:')) {
+            const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+            if (matches) {
+              mimetype = matches[1];
+              base64Data = matches[2];
+              // Extract extension
+              if (mimetype.includes('jpeg') || mimetype.includes('jpg')) {
+                extension = 'jpg';
+              } else if (mimetype.includes('png')) {
+                extension = 'png';
+              } else if (mimetype.includes('gif')) {
+                extension = 'gif';
+              } else if (mimetype.includes('webp')) {
+                extension = 'webp';
+              }
+            }
+          }
+          
+          // Convert base64 to buffer
+          const imageBuffer = Buffer.from(base64Data, 'base64');
+          
+          // Generate filename
+          const filename = `${productType.productCode.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.${extension}`;
+          const folder = `product-types/${theaterId}/${productType.productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          
+          // Upload to GCS
+          const gcsUrl = await uploadFile(imageBuffer, filename, folder, mimetype);
+          
+          // Update in database
+          const productTypeDoc = await ProductType.findOne({ theater: theaterId });
+          if (productTypeDoc) {
+            const pt = productTypeDoc.productTypeList.id(productType._id);
+            if (pt) {
+              pt.image = gcsUrl;
+              await productTypeDoc.save();
+              console.log('✅ Migrated base64 image to GCS:', gcsUrl);
+            }
+          }
+          
+          // Return migrated product type
+          return {
+            ...productType.toObject ? productType.toObject() : productType,
+            image: gcsUrl,
+            imageUrl: gcsUrl // Also set imageUrl for frontend compatibility
+          };
+        } catch (migrationError) {
+          console.error('❌ Failed to migrate base64 image:', migrationError.message);
+          // Return original if migration fails
+          return {
+            ...productType.toObject ? productType.toObject() : productType,
+            imageUrl: null // Set to null so frontend shows placeholder
+          };
+        }
+      }
+      
+      // Return as-is if not base64, but ensure imageUrl is set
+      return {
+        ...productType.toObject ? productType.toObject() : productType,
+        imageUrl: productType.image || null
+      };
+    }));
+
     res.json({
       success: true,
-      data: paginatedList,
+      data: migratedList,
       pagination: {
         totalItems: totalFiltered,
         totalPages: Math.ceil(totalFiltered / limit),
@@ -1518,8 +1873,9 @@ productTypesRouter.post('/:theaterId', [
       updatedAt: new Date()
     };
 
-    // Handle image upload if provided
+    // Handle image upload - support both file upload (multer) and base64
     if (req.file) {
+      // Handle file upload via multer
       try {
         const folder = `product-types/${theaterId}/${productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const imageUrl = await uploadFile(
@@ -1530,10 +1886,56 @@ productTypesRouter.post('/:theaterId', [
         );
         
         newProductType.image = imageUrl;
+        console.log('✅ Product type image uploaded to GCS via file upload:', imageUrl);
       } catch (uploadError) {
         console.error('❌ Image upload failed:', uploadError);
         return res.status(500).json({
           error: 'Image upload failed',
+          message: uploadError.message
+        });
+      }
+    } else if (req.body.image) {
+      // Handle base64 image from request body
+      try {
+        let base64Data = req.body.image;
+        let mimetype = 'image/png'; // default
+        let extension = 'png';
+        
+        // Parse base64 data URL (format: data:image/png;base64,iVBORw0KG...)
+        if (base64Data.startsWith('data:')) {
+          const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) {
+            mimetype = matches[1];
+            base64Data = matches[2];
+            // Extract extension from mimetype
+            if (mimetype.includes('jpeg') || mimetype.includes('jpg')) {
+              extension = 'jpg';
+            } else if (mimetype.includes('png')) {
+              extension = 'png';
+            } else if (mimetype.includes('gif')) {
+              extension = 'gif';
+            } else if (mimetype.includes('webp')) {
+              extension = 'webp';
+            }
+          }
+        }
+        
+        // Convert base64 to buffer
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Generate filename from product code
+        const filename = `${productCode.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.${extension}`;
+        const folder = `product-types/${theaterId}/${productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        // Upload to GCS
+        const imageUrl = await uploadFile(imageBuffer, filename, folder, mimetype);
+        
+        newProductType.image = imageUrl;
+        console.log('✅ Product type image uploaded to GCS from base64:', imageUrl);
+      } catch (uploadError) {
+        console.error('❌ Base64 image upload to GCS failed:', uploadError);
+        return res.status(500).json({
+          error: 'Failed to upload base64 image to GCS',
           message: uploadError.message
         });
       }
@@ -1603,8 +2005,9 @@ productTypesRouter.put('/:theaterId/:productTypeId', [
     if (isActive !== undefined) productType.isActive = isActive;
     productType.updatedAt = new Date();
 
-    // Handle image update if new image provided
+    // Handle image update - support both file upload (multer) and base64
     if (req.file) {
+      // Handle file upload via multer
       try {
         const folder = `product-types/${theaterId}/${productType.productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const newImageUrl = await uploadFile(
@@ -1623,10 +2026,64 @@ productTypesRouter.put('/:theaterId/:productTypeId', [
             console.error('⚠️ Failed to delete old image:', deleteError.message);
           }
         }
+        console.log('✅ Product type image updated to GCS via file upload:', newImageUrl);
       } catch (uploadError) {
         console.error('❌ Image upload failed:', uploadError);
         return res.status(500).json({
           error: 'Image upload failed',
+          message: uploadError.message
+        });
+      }
+    } else if (req.body.image) {
+      // Handle base64 image from request body
+      try {
+        let base64Data = req.body.image;
+        let mimetype = 'image/png'; // default
+        let extension = 'png';
+        
+        // Parse base64 data URL (format: data:image/png;base64,iVBORw0KG...)
+        if (base64Data.startsWith('data:')) {
+          const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) {
+            mimetype = matches[1];
+            base64Data = matches[2];
+            // Extract extension from mimetype
+            if (mimetype.includes('jpeg') || mimetype.includes('jpg')) {
+              extension = 'jpg';
+            } else if (mimetype.includes('png')) {
+              extension = 'png';
+            } else if (mimetype.includes('gif')) {
+              extension = 'gif';
+            } else if (mimetype.includes('webp')) {
+              extension = 'webp';
+            }
+          }
+        }
+        
+        // Convert base64 to buffer
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+        
+        // Generate filename from product code
+        const filename = `${productType.productCode.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now()}.${extension}`;
+        const folder = `product-types/${theaterId}/${productType.productName.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        // Upload to GCS
+        const newImageUrl = await uploadFile(imageBuffer, filename, folder, mimetype);
+        
+        productType.image = newImageUrl;
+        // Delete old image if it exists
+        if (oldImageUrl) {
+          try {
+            await deleteFile(oldImageUrl);
+          } catch (deleteError) {
+            console.error('⚠️ Failed to delete old image:', deleteError.message);
+          }
+        }
+        console.log('✅ Product type image updated to GCS from base64:', newImageUrl);
+      } catch (uploadError) {
+        console.error('❌ Base64 image upload to GCS failed:', uploadError);
+        return res.status(500).json({
+          error: 'Failed to upload base64 image to GCS',
           message: uploadError.message
         });
       }

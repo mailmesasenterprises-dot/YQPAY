@@ -93,31 +93,68 @@ class TheaterService extends BaseService {
    * Create theater with files and default settings
    */
   async createTheater(theaterData, fileUrls = {}) {
+    console.log('🔵 [TheaterService] Creating theater with fileUrls:', JSON.stringify(fileUrls, null, 2));
+    
+    // Prepare documents object
+    const documents = {
+      theaterPhoto: fileUrls.theaterPhoto || null,
+      logo: fileUrls.logo || null,
+      aadharCard: fileUrls.aadharCard || null,
+      panCard: fileUrls.panCard || null,
+      gstCertificate: fileUrls.gstCertificate || null,
+      fssaiCertificate: fileUrls.fssaiCertificate || null,
+      agreementCopy: fileUrls.agreementCopy || null
+    };
+    
+    console.log('📄 [TheaterService] Documents to save:', JSON.stringify(documents, null, 2));
+    
+    // Prepare agreement details
+    const agreementDetails = {
+      ...theaterData.agreementDetails,
+      copy: fileUrls.agreementCopy || null
+    };
+    
+    // Prepare branding
+    const branding = {
+      ...theaterData.branding,
+      logo: fileUrls.logo || null,
+      logoUrl: fileUrls.logo || null
+    };
+    
     // Prepare theater document
     const theater = new Theater({
       ...theaterData,
-      documents: {
-        theaterPhoto: fileUrls.theaterPhoto || null,
-        logo: fileUrls.logo || null,
-        aadharCard: fileUrls.aadharCard || null,
-        panCard: fileUrls.panCard || null,
-        gstCertificate: fileUrls.gstCertificate || null,
-        fssaiCertificate: fileUrls.fssaiCertificate || null,
-        agreementCopy: fileUrls.agreementCopy || null
-      },
-      agreementDetails: {
-        ...theaterData.agreementDetails,
-        copy: fileUrls.agreementCopy || null
-      },
-      branding: {
-        ...theaterData.branding,
-        logo: fileUrls.logo || null,
-        logoUrl: fileUrls.logo || null
-      }
+      documents: documents,
+      agreementDetails: agreementDetails,
+      branding: branding
     });
 
+    console.log('💾 [TheaterService] Saving theater to database...');
     const savedTheater = await theater.save();
     console.log(`✅ [TheaterService] Theater saved: ${savedTheater.name} (ID: ${savedTheater._id})`);
+    
+    // Verify documents were saved correctly
+    if (savedTheater.documents) {
+      console.log('📄 [TheaterService] Saved documents:', JSON.stringify(savedTheater.documents, null, 2));
+      
+      // Count non-null documents
+      const docCount = Object.values(savedTheater.documents).filter(v => v !== null && v !== undefined && v !== '').length;
+      console.log(`   📊 Non-null documents count: ${docCount}`);
+    } else {
+      console.warn('⚠️  [TheaterService] WARNING: Documents field is missing from saved theater!');
+    }
+    
+    // Fetch again to ensure persistence (optional verification)
+    const verifiedTheater = await Theater.findById(savedTheater._id);
+    if (verifiedTheater && verifiedTheater.documents) {
+      const verifiedDocCount = Object.values(verifiedTheater.documents).filter(v => v !== null && v !== undefined && v !== '').length;
+      console.log(`✅ [TheaterService] Verification: Documents persisted correctly (${verifiedDocCount} non-null docs)`);
+      if (verifiedDocCount !== Object.values(documents).filter(v => v !== null && v !== undefined && v !== '').length) {
+        console.error('❌ [TheaterService] MISMATCH: Document count differs between saved and verified!');
+      }
+    } else {
+      console.error('❌ [TheaterService] ERROR: Documents not found in verified theater!');
+    }
 
     // Initialize defaults (non-blocking)
     console.log('🔧 [TheaterService] Initializing default settings and roles...');

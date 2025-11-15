@@ -111,7 +111,9 @@ const Settings = React.memo(() => {
     projectId: '',
     keyFilename: '',
     bucketName: '',
-    region: 'us-central1'
+    region: 'us-central1',
+    folder: 'test-uploads', // Default folder for testing
+    credentials: null // Will contain { clientEmail, privateKey }
   });
   const [smsConfig, setSmsConfig] = useState({
     provider: 'twilio', // twilio, textlocal, aws-sns, msg91
@@ -276,29 +278,55 @@ const Settings = React.memo(() => {
     try {
       abortControllerRef.current = new AbortController();
       
-      const response = await apiPost('/settings/test-gcs', gcsConfig, {
+      console.log('🧪 Testing GCS connection with config:', {
+        projectId: gcsConfig.projectId,
+        bucketName: gcsConfig.bucketName,
+        folder: gcsConfig.folder || 'test-uploads',
+        hasCredentials: !!gcsConfig.credentials
+      });
+      
+      const response = await apiPost('/settings/test-gcs', {
+        ...gcsConfig,
+        test: true, // Flag to indicate this is a test
+        folder: gcsConfig.folder || 'test-uploads'
+      }, {
         signal: abortControllerRef.current.signal
       });
       const result = await response.json();
       
-      setConnectionStatus(prev => ({
-        ...prev,
-        gcs: result.success ? 'connected' : 'error'
-      }));
+      console.log('Test result:', result);
+      
+      if (result.success) {
+        setConnectionStatus(prev => ({
+          ...prev,
+          gcs: 'connected'
+        }));
+        showSuccess(result.message || 'GCS connection test successful! File uploaded successfully.');
+        if (result.data && result.data.testFileUrl) {
+          console.log('Test file uploaded to:', result.data.testFileUrl);
+        }
+      } else {
+        setConnectionStatus(prev => ({
+          ...prev,
+          gcs: 'error'
+        }));
+        showError(result.message || 'GCS connection test failed');
+      }
     } catch (error) {
       if (error.name === 'AbortError') {
-
         return;
       }
+      console.error('Test connection error:', error);
       setConnectionStatus(prev => ({
         ...prev,
         gcs: 'error'
       }));
+      showError('Failed to test GCS connection. Please check your configuration.');
     } finally {
       setLoading(false);
       abortControllerRef.current = null;
     }
-  }, [gcsConfig]);
+  }, [gcsConfig, showSuccess, showError]);
 
   // Save Google Cloud Storage configuration
   const saveGCSConfig = async () => {
@@ -1160,16 +1188,61 @@ const Settings = React.memo(() => {
                 </div>
                 
                 <div className="form-group full-width">
-                  <label htmlFor="gcs-keyFilename" data-required="true">Service Account Key File Path</label>
+                  <label htmlFor="gcs-folder" data-required="false">Upload Folder/Path Prefix</label>
                   <input
-                    id="gcs-keyFilename"
+                    id="gcs-folder"
                     type="text"
-                    value={gcsConfig.keyFilename}
-                    onChange={(e) => handleGCSChange('keyFilename', e.target.value)}
-                    placeholder="/path/to/service-account-key.json"
+                    value={gcsConfig.folder || ''}
+                    onChange={(e) => handleGCSChange('folder', e.target.value)}
+                    placeholder="test-uploads"
                     className="form-control"
                   />
-                  <small className="help-text">Path to your Google Cloud service account JSON key file</small>
+                  <small className="help-text">Folder path prefix for uploads (e.g., "test-uploads", "theater list", "products"). Used for testing connection.</small>
+                </div>
+                
+                <div className="form-group full-width">
+                  <label htmlFor="gcs-credentials-json" data-required="true">Service Account Key File</label>
+                  <input
+                    id="gcs-credentials-json"
+                    type="file"
+                    accept=".json"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          try {
+                            const keyData = JSON.parse(event.target.result);
+                            setGcsConfig(prev => ({
+                              ...prev,
+                              projectId: keyData.project_id || prev.projectId,
+                              credentials: {
+                                clientEmail: keyData.client_email || keyData.clientEmail,
+                                privateKey: keyData.private_key || keyData.privateKey
+                              },
+                              keyFilename: file.name // Store filename for reference
+                            }));
+                            showSuccess('Service account key file loaded successfully!');
+                          } catch (error) {
+                            showError('Failed to parse JSON key file. Please check the file format.');
+                          }
+                        };
+                        reader.readAsText(file);
+                      }
+                    }}
+                    className="form-control"
+                  />
+                  <small className="help-text">Upload your Google Cloud service account JSON key file</small>
+                  {gcsConfig.credentials && (
+                    <small className="help-text" style={{ color: '#4CAF50', display: 'block', marginTop: '5px' }}>
+                      ✅ Credentials loaded: {gcsConfig.credentials.clientEmail ? gcsConfig.credentials.clientEmail.substring(0, 40) + '...' : 'N/A'}
+                    </small>
+                  )}
+                  {(gcsConfig.keyFilename && !gcsConfig.credentials) && (
+                    <small className="help-text" style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+                      ℹ️ Using key file path: {gcsConfig.keyFilename}
+                    </small>
+                  )}
                 </div>
               </div>
 

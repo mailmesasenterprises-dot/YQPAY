@@ -118,21 +118,33 @@ class TheaterController extends BaseController {
       let fileUrls = {};
       if (req.files && Object.keys(req.files).length > 0) {
         try {
+          console.log('📤 [TheaterController] Starting file upload...');
+          console.log('   Files received:', Object.keys(req.files).map(key => `${key}: ${req.files[key].length} file(s)`).join(', '));
+          
           const sanitizedTheaterName = name.trim().replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, ' ');
           const theaterFolder = `theater list/${sanitizedTheaterName}`;
+          console.log('   Upload folder:', theaterFolder);
+          
           const allFiles = [];
           Object.keys(req.files).forEach(fieldName => {
             req.files[fieldName].forEach(file => {
               allFiles.push({ ...file, fieldname: fieldName });
+              console.log(`   - File: ${file.originalname} (field: ${fieldName}, size: ${file.size} bytes, type: ${file.mimetype})`);
             });
           });
+          
           fileUrls = await uploadFiles(allFiles, theaterFolder);
+          console.log('✅ [TheaterController] Files uploaded to GCS successfully');
+          console.log('   Uploaded file URLs:', JSON.stringify(fileUrls, null, 2));
         } catch (uploadError) {
-          console.error('File upload error:', uploadError);
+          console.error('❌ [TheaterController] File upload error:', uploadError);
+          console.error('   Error stack:', uploadError.stack);
           return BaseController.error(res, 'Failed to upload files', 500, {
             message: uploadError.message
           });
         }
+      } else {
+        console.log('ℹ️  [TheaterController] No files to upload');
       }
 
       // Prepare theater data
